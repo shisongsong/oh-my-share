@@ -16,7 +16,7 @@ export async function handleListAssets(request, env) {
   const database = getDatabase(env);
   const result = await database
     .prepare(
-      `SELECT id, filename, encrypted, encryption_version, created_at
+      `SELECT id, filename, encrypted, encryption_version, title, description, tags, created_at
        FROM files
        WHERE owner_id = ?
        ORDER BY created_at DESC, id DESC
@@ -30,6 +30,9 @@ export async function handleListAssets(request, env) {
     filename: asset.filename,
     encrypted: Boolean(asset.encrypted),
     encryptionVersion: asset.encryption_version || null,
+    title: asset.title || '',
+    description: asset.description || '',
+    tags: asset.tags || '',
     createdAt: asset.created_at,
     url: assetUrl(request, asset.id),
   }));

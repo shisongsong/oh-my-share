@@ -162,11 +162,29 @@ async function loadAssets() {
     data.assets.forEach(function (asset) {
       var row = document.createElement('div');
       row.className = 'asset-row';
+      var info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
       var link = document.createElement('a');
       link.href = asset.url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = asset.filename || asset.id;
+      link.textContent = asset.title || asset.filename || asset.id;
+      link.className = 'asset-title';
+      info.appendChild(link);
+      if (asset.tags) {
+        var tagsDiv = document.createElement('div');
+        tagsDiv.className = 'asset-tags';
+        asset.tags.split(',').forEach(function(tag) {
+          tag = tag.trim();
+          if (tag) {
+            var tagSpan = document.createElement('span');
+            tagSpan.className = 'asset-tag';
+            tagSpan.textContent = tag;
+            tagsDiv.appendChild(tagSpan);
+          }
+        });
+        info.appendChild(tagsDiv);
+      }
       var type = document.createElement('small');
       type.textContent = asset.encrypted ? 'AES-GCM' : 'HTML';
       var deleteButton = document.createElement('button');
@@ -174,7 +192,7 @@ async function loadAssets() {
       deleteButton.type = 'button';
       deleteButton.textContent = currentTranslations().deleteAsset;
       deleteButton.addEventListener('click', function () { deleteAsset(asset.id); });
-      row.appendChild(link);
+      row.appendChild(info);
       row.appendChild(type);
       row.appendChild(deleteButton);
       list.appendChild(row);
@@ -315,8 +333,18 @@ async function encryptPayload(source, keyMode) {
 }
 
 async function createUploadPayload(kind, value, filename, slug) {
+  if (document.getElementById('encryptToggle').checked &&
+      (!window.crypto || !window.crypto.subtle)) {
+    throw new Error(currentTranslations().encryptRequiresHttps || 'Encryption requires a secure context (HTTPS)');
+  }
   var formData = new FormData();
   formData.append('slug', slug);
+  var title = document.getElementById('metaTitle').value.trim();
+  var description = document.getElementById('metaDescription').value.trim();
+  var tags = document.getElementById('metaTags').value.trim();
+  if (title) formData.append('title', title);
+  if (description) formData.append('description', description);
+  if (tags) formData.append('tags', tags);
   if (!document.getElementById('encryptToggle').checked) {
     if (kind === 'code') formData.append('code', value);
     else formData.append('file', value, filename);

@@ -134,6 +134,11 @@ textarea::placeholder{color:var(--text-muted);opacity:.7}
 .asset-row a{flex:1;min-width:0;color:var(--text-main);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .asset-row small{color:var(--text-muted);font-size:11px;white-space:nowrap}
 .asset-delete{border:0;background:transparent;color:var(--error);font:500 11px inherit;cursor:pointer;padding:3px}
+.asset-title{font-size:13px;font-weight:500;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.asset-tag{font-size:10px;padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-muted)}
+.metadata-fields{margin-bottom:20px}
+.metadata-fields textarea{height:60px;resize:none}
 #shareCanvas{width:100%;height:auto;border-radius:12px;border:1px solid var(--border);display:block}
 .modal-footer{margin-top:16px}
 `;

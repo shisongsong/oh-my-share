@@ -48,7 +48,8 @@ function encryptedViewerResponse(id, record) {
   return new Response(renderEncryptedViewer(id, metadata), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Surrogate-Control': 'no-store',
       'Content-Security-Policy':
         "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'",
       'X-Robots-Tag': 'noindex',

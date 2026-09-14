@@ -70,6 +70,9 @@ export async function handleUpload(request, env) {
   const code = formData.get('code');
   const customSlug = formData.get('slug');
   const encryptionRequested = formData.get('encrypted') === '1';
+  const title = (formData.get('title') || '').toString().slice(0, 200);
+  const description = (formData.get('description') || '').toString().slice(0, 1000);
+  const tags = (formData.get('tags') || '').toString().slice(0, 500);
 
   let currentUser = null;
   let encryptionMetadata = null;
@@ -161,8 +164,8 @@ export async function handleUpload(request, env) {
     await database
       .prepare(
         `INSERT INTO files
-         (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, title, description, tags, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -171,6 +174,9 @@ export async function handleUpload(request, env) {
         encryptionRequested ? 1 : 0,
         encryptionMetadata?.version || 0,
         encryptionMetadata ? JSON.stringify(encryptionMetadata) : null,
+        title,
+        description,
+        tags,
         createdAt
       )
       .run();

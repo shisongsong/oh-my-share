@@ -44,6 +44,20 @@ export function renderPage(lang) {
         <input type="password" id="passphraseInput" data-i18n="passphrasePlaceholder" autocomplete="new-password" hidden>
       </div>
     </div>
+    <div class="metadata-fields">
+      <div class="input-group">
+        <label data-i18n="titleLabel"></label>
+        <input type="text" id="metaTitle" data-i18n="titlePlaceholder" maxlength="200">
+      </div>
+      <div class="input-group">
+        <label data-i18n="descriptionLabel"></label>
+        <textarea id="metaDescription" data-i18n="descriptionPlaceholder" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="input-group">
+        <label><span data-i18n="tagsLabel"></span><span class="optional" data-i18n="tagsOptional"></span></label>
+        <input type="text" id="metaTags" data-i18n="tagsPlaceholder" maxlength="500">
+      </div>
+    </div>
     <div id="panel-file" class="panel active">
       <div class="drop-zone" id="dropZone">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">

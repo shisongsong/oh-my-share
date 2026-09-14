@@ -1,10 +1,16 @@
 import { safeViewerMetadata } from '../encryption.js';
 
-function viewerScript(id, metadata) {
+function viewerScript(id, nonce, metadata) {
   const endpoint = `/api/content/${encodeURIComponent(id)}`;
   return `
+// nonce: ${nonce}
 const metadata = ${safeViewerMetadata(metadata)};
 const endpoint = ${JSON.stringify(endpoint)};
+
+// Force reload: redirect with random param if missing
+if (!location.search.includes('v=')) {
+  location.replace(location.pathname + '?v=' + Math.random().toString(36).slice(2) + location.hash);
+}
 
 function decodeBase64Url(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
@@ -70,6 +76,9 @@ async function renderDecryptedDocument() {
     frame.hidden = false;
     status.hidden = true;
   } catch (error) {
+    const frame = document.getElementById('content');
+    frame.hidden = true;
+    frame.srcdoc = '';
     status.textContent = error.message || 'Unable to decrypt this content.';
     status.className = 'error';
   }
@@ -79,6 +88,7 @@ renderDecryptedDocument();`;
 }
 
 export function renderEncryptedViewer(id, metadata) {
+  const nonce = Math.random().toString(36).slice(2);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -96,7 +106,7 @@ export function renderEncryptedViewer(id, metadata) {
 <body>
 <p id="status">Decrypting shared content...</p>
 <iframe id="content" hidden sandbox="allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox"></iframe>
-<script>${viewerScript(id, metadata)}</script>
+<script>${viewerScript(id, nonce, metadata)}</script>
 </body>
 </html>`;
 }
