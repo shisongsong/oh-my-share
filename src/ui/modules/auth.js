@@ -26,7 +26,6 @@ export function renderAccount() {
     accountView.hidden = false;
     document.getElementById('accountEmail').textContent = state.user.email;
     loadAssets();
-    loadShares();
   } else {
     accountButton.textContent = t('accountBtn');
     authView.hidden = false;
@@ -36,36 +35,6 @@ export function renderAccount() {
   
   if (window.updateUpgradeVisibility) {
     window.updateUpgradeVisibility(state.canEncrypt);
-  }
-}
-
-export async function loadShares() {
-  const manageList = document.getElementById('manageList');
-  if (!manageList) return;
-
-  try {
-    const data = await get('/api/shares');
-    const shares = data.shares || [];
-    
-    if (shares.length === 0) {
-      manageList.innerHTML = `<p class="empty-hint">${t('noSharesYet')}</p>`;
-      return;
-    }
-
-    manageList.innerHTML = shares.map(share => `
-      <div class="manage-item">
-        <div class="manage-item-info">
-          <div class="manage-item-title">${share.title || share.id}</div>
-          <div class="manage-item-token">${t('shareItemToken')}: ${share.editToken.slice(0, 12)}...</div>
-        </div>
-        <div class="manage-item-actions">
-          <a href="/view/${share.id}" target="_blank" class="manage-item-btn">${t('shareItemView')}</a>
-          <a href="/manage/${share.id}?token=${share.editToken}" target="_blank" class="manage-item-btn primary">${t('shareItemManage')}</a>
-        </div>
-      </div>
-    `).join('');
-  } catch {
-    manageList.innerHTML = `<p class="empty-hint">${t('noSharesYet')}</p>`;
   }
 }
 
@@ -149,10 +118,6 @@ export function initAuth() {
     document.getElementById('authMessage').textContent = '';
   });
   document.getElementById('logoutBtn').addEventListener('click', logout);
-  document.getElementById('addShareBtn').addEventListener('click', () => {
-    closeAccountModal();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
   document.getElementById('encryptToggle').addEventListener('change', updateEncryptionControls);
   document.getElementById('keyMode').addEventListener('change', updateEncryptionControls);
   document.getElementById('accountModal').addEventListener('click', (event) => {
