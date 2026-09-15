@@ -79,7 +79,7 @@ async function getAuthContext(request, env) {
   const cookies = parseCookies(request.headers.get('cookie'));
   if (cookies.session) {
     const user = await env.DB.prepare(
-      `SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')`
+      `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
     ).bind(cookies.session).first();
     if (user) return { userId: user.user_id, source: 'cookie' };
   }
@@ -96,11 +96,18 @@ async function handleToolCall(name, args, env, auth) {
       const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
       const editToken = 'edt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
       const ownerId = auth ? auth.userId : null;
+      const createdAt = Math.floor(Date.now() / 1000);
 
+      // Store content in R2
+      await env.MY_BUCKET.put(id, content, {
+        httpMetadata: { contentType: 'text/html' },
+      });
+
+      // Store metadata in database
       await env.DB.prepare(
-        `INSERT INTO files (id, content, language, filename, owner_id, edit_token, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
-      ).bind(id, content, language, filename || null, ownerId, editToken).run();
+        `INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(id, filename || null, ownerId, createdAt, editToken, createdAt).run();
 
       return {
         id,
@@ -116,14 +123,13 @@ async function handleToolCall(name, args, env, auth) {
       if (!auth) return { error: 'Authentication required. Use Bearer token or login first.' };
 
       const { results } = await env.DB.prepare(
-        `SELECT id, filename, language, created_at, updated_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`
+        `SELECT id, filename, created_at, updated_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`
       ).bind(auth.userId).all();
 
       return {
         assets: results.map(r => ({
           id: r.id,
           filename: r.filename,
-          language: r.language,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
           url: `https://openanthropic.com/view/${r.id}`,
@@ -137,15 +143,18 @@ async function handleToolCall(name, args, env, auth) {
       if (!id) return { error: 'id is required' };
 
       const row = await env.DB.prepare(
-        `SELECT id, content, language, filename, created_at FROM files WHERE id = ?`
+        `SELECT id, filename, created_at FROM files WHERE id = ?`
       ).bind(id).first();
 
       if (!row) return { error: 'Content not found' };
 
+      // Read content from R2
+      const object = await env.MY_BUCKET.get(id);
+      const content = object ? await object.text() : null;
+
       return {
         id: row.id,
-        content: row.content,
-        language: row.language,
+        content,
         filename: row.filename,
         createdAt: row.created_at,
         url: `https://openanthropic.com/view/${row.id}`,

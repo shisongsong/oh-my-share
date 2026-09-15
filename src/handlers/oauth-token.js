@@ -1,10 +1,17 @@
-import { sha256 } from '../crypto.js';
+import { generateEditToken } from '../crypto.js';
 import { json } from '../security.js';
+import { verifyPasswordWithDummy, createSession } from '../auth.js';
 
-function generateToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+async function generateOAuthToken(env, userId) {
+  const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+
+  await env.DB.prepare(
+    `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
+  ).bind(token, userId, Math.floor(Date.now() / 1000) + 3600).run();
+
+  return { token, expiresAt };
 }
 
 export async function handleOAuthToken(request, env) {
@@ -22,7 +29,7 @@ export async function handleOAuthToken(request, env) {
     params = Object.fromEntries(new URLSearchParams(text));
   }
 
-  const { grant_type, email, password, code } = params;
+  const { grant_type, email, password } = params;
 
   if (grant_type === 'password') {
     if (!email || !password) {
@@ -30,19 +37,15 @@ export async function handleOAuthToken(request, env) {
     }
 
     const user = await env.DB.prepare(
-      `SELECT id, email FROM users WHERE email = ? AND password_hash = ?`
-    ).bind(email, await sha256(password)).first();
+      `SELECT id, email, password_hash, password_salt FROM users WHERE email = ?`
+    ).bind(email.trim().toLowerCase()).first();
 
-    if (!user) {
+    const valid = await verifyPasswordWithDummy(password, user);
+    if (!valid) {
       return json({ error: 'invalid_grant', error_description: 'Invalid credentials' }, 400);
     }
 
-    const token = generateToken();
-    const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
-
-    await env.DB.prepare(
-      `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, datetime('now'))`
-    ).bind(token, user.id, expiresAt).run();
+    const { token, expiresAt } = await generateOAuthToken(env, user.id);
 
     return json({
       access_token: token,
@@ -52,35 +55,7 @@ export async function handleOAuthToken(request, env) {
     });
   }
 
-  if (grant_type === 'authorization_code') {
-    if (!code) {
-      return json({ error: 'invalid_request', error_description: 'code required' }, 400);
-    }
-
-    const session = await env.DB.prepare(
-      `SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')`
-    ).bind(code).first();
-
-    if (!session) {
-      return json({ error: 'invalid_grant', error_description: 'Invalid or expired code' }, 400);
-    }
-
-    const token = generateToken();
-    const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
-
-    await env.DB.prepare(
-      `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, datetime('now'))`
-    ).bind(token, session.user_id, expiresAt).run();
-
-    return json({
-      access_token: token,
-      token_type: 'Bearer',
-      expires_in: 3600,
-      scope: 'upload manage read',
-    });
-  }
-
-  return json({ error: 'unsupported_grant_type', error_description: 'Supported: password, authorization_code' }, 400);
+  return json({ error: 'unsupported_grant_type', error_description: 'Supported: password' }, 400);
 }
 
 export async function validateToken(request, env) {
@@ -90,9 +65,9 @@ export async function validateToken(request, env) {
   }
 
   const token = auth.slice(7);
-  const session = await env.DB.prepare(
-    `SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')`
+  const user = await env.DB.prepare(
+    `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
   ).bind(token).first();
 
-  return session ? session.user_id : null;
+  return user ? user.user_id : null;
 }
