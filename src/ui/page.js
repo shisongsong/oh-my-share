@@ -198,15 +198,6 @@ ${seoMeta}
     <div id="accountView" hidden>
       <p class="account-email" id="accountEmail"></p>
       <button class="action-btn" id="logoutBtn" type="button" data-i18n="logoutBtn"></button>
-      <div class="manage-section">
-        <h3 class="account-heading" data-i18n="mySharesTitle"></h3>
-        <div id="manageList" class="manage-list">
-          <p class="empty-hint" data-i18n="noSharesYet"></p>
-        </div>
-        <div class="manage-actions">
-          <button class="action-btn" id="addShareBtn" type="button" data-i18n="addNewShare"></button>
-        </div>
-      </div>
       <div class="asset-section">
         <h3 class="account-heading" data-i18n="assetsTitle"></h3>
         <div id="assetList" class="asset-list"></div>

@@ -325,7 +325,7 @@ body {
 /* ============================================ */
 /* 输入框                                       */
 /* ============================================ */
-.input, select, .account-input, .input-group input[type=text] {
+.input, select, .account-input, .input-group input[type=text], .input-group input[type=password] {
   font-family: var(--font-mono);
   font-size: 16px;
   padding: var(--space-4);
@@ -337,12 +337,12 @@ body {
   transition: box-shadow var(--duration-fast);
 }
 
-.input:focus, select:focus, .account-input:focus, .input-group input[type=text]:focus {
+.input:focus, select:focus, .account-input:focus, .input-group input[type=text]:focus, .input-group input[type=password]:focus {
   outline: none;
   box-shadow: var(--shadow-glow-cyan);
 }
 
-.input::placeholder, .input-group input[type=text]::placeholder {
+.input::placeholder, .input-group input[type=text]::placeholder, .input-group input[type=password]::placeholder {
   color: var(--color-text-subtle);
   font-family: var(--font-pixel-body);
   font-size: 13px;
@@ -837,6 +837,31 @@ textarea::placeholder {
 .asset-delete:hover {
   background: var(--error);
   color: #ffffff;
+}
+
+.asset-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.asset-manage {
+  border: var(--border-width) solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-pixel-body);
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.asset-manage:hover {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  border-color: transparent;
 }
 
 .asset-title {

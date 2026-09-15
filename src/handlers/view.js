@@ -92,19 +92,37 @@ function renderPasswordPage(id, lang, error) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${t.title}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --color-bg: #f5f5f0;
+    --color-bg-elevated: #ffffff;
+    --color-border: #1a1a1a;
+    --color-text: #1a1a1a;
+    --color-accent-pink: #ff5c7c;
+    --color-accent-cyan: #5ce1d4;
+    --gradient-primary: linear-gradient(90deg, #ff5c7c 0%, #5ce1d4 100%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #0f1423;
+      --color-bg-elevated: #1a2035;
+      --color-border: #ffffff;
+      --color-text: #ffffff;
+    }
+  }
   body {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg, #f5f5f0);
-    color: var(--text, #1a1a1a);
+    background: var(--color-bg);
+    color: var(--color-text);
     font-family: 'Silkscreen', monospace;
   }
   .pwd-box {
-    background: var(--card, #ffffff);
-    border: 3px solid var(--border, #1a1a1a);
+    background: var(--color-bg-elevated);
+    border: 3px solid var(--color-border);
     padding: 2rem;
     max-width: 400px;
     width: 90%;
@@ -118,18 +136,18 @@ function renderPasswordPage(id, lang, error) {
   .pwd-box input {
     width: 100%;
     padding: 0.75rem;
-    border: 3px solid var(--border, #1a1a1a);
+    border: 3px solid var(--color-border);
     font-family: 'Silkscreen', monospace;
     font-size: 1rem;
     margin-bottom: 1rem;
-    background: var(--input-bg, #fff);
-    color: var(--text, #1a1a1a);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
   }
   .pwd-box button {
     width: 100%;
     padding: 0.75rem;
-    border: 3px solid var(--border, #1a1a1a);
-    background: var(--gradient);
+    border: 3px solid var(--color-border);
+    background: var(--gradient-primary);
     color: white;
     font-family: 'Press Start 2P', monospace;
     font-size: 0.8rem;
@@ -137,7 +155,7 @@ function renderPasswordPage(id, lang, error) {
     text-transform: uppercase;
   }
   .pwd-box button:hover { opacity: 0.9; }
-  .error { color: #ff5c7c; margin-bottom: 1rem; font-size: 0.8rem; }
+  .error { color: var(--color-accent-pink); margin-bottom: 1rem; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -166,21 +184,36 @@ function renderExpiredPage(lang) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${t.title}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --color-bg: #f5f5f0;
+    --color-bg-elevated: #ffffff;
+    --color-border: #1a1a1a;
+    --color-text: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #0f1423;
+      --color-bg-elevated: #1a2035;
+      --color-border: #ffffff;
+      --color-text: #ffffff;
+    }
+  }
   body {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg, #f5f5f0);
-    color: var(--text, #1a1a1a);
+    background: var(--color-bg);
+    color: var(--color-text);
     font-family: 'Silkscreen', monospace;
   }
   .expired-box {
     text-align: center;
     padding: 2rem;
-    background: var(--card, #ffffff);
-    border: 3px solid var(--border, #1a1a1a);
+    background: var(--color-bg-elevated);
+    border: 3px solid var(--color-border);
     max-width: 400px;
   }
   .expired-box h2 {

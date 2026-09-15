@@ -122,8 +122,13 @@ async function S() {
 			}
 			let a = document.createElement("small");
 			a.textContent = t.encrypted ? "AES-GCM" : "HTML";
-			let o = document.createElement("button");
-			o.className = "asset-delete", o.type = "button", o.textContent = d("deleteAsset"), o.addEventListener("click", () => C(t.id)), n.appendChild(r), n.appendChild(a), n.appendChild(o), e.appendChild(n);
+			let o = document.createElement("div");
+			if (o.className = "asset-actions", t.editToken) {
+				let e = document.createElement("a");
+				e.href = `/manage/${t.id}?token=${t.editToken}`, e.target = "_blank", e.className = "asset-manage", e.textContent = d("manageBtn"), o.appendChild(e);
+			}
+			let s = document.createElement("button");
+			s.className = "asset-delete", s.type = "button", s.textContent = d("deleteAsset"), s.addEventListener("click", () => C(t.id)), o.appendChild(s), n.appendChild(r), n.appendChild(a), n.appendChild(o), e.appendChild(n);
 		});
 	} catch (t) {
 		let n = document.createElement("div");

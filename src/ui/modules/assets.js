@@ -51,15 +51,28 @@ export async function loadAssets() {
       const type = document.createElement('small');
       type.textContent = asset.encrypted ? 'AES-GCM' : 'HTML';
 
+      const actions = document.createElement('div');
+      actions.className = 'asset-actions';
+
+      if (asset.editToken) {
+        const manageBtn = document.createElement('a');
+        manageBtn.href = `/manage/${asset.id}?token=${asset.editToken}`;
+        manageBtn.target = '_blank';
+        manageBtn.className = 'asset-manage';
+        manageBtn.textContent = t('manageBtn');
+        actions.appendChild(manageBtn);
+      }
+
       const deleteButton = document.createElement('button');
       deleteButton.className = 'asset-delete';
       deleteButton.type = 'button';
       deleteButton.textContent = t('deleteAsset');
       deleteButton.addEventListener('click', () => deleteAsset(asset.id));
+      actions.appendChild(deleteButton);
 
       row.appendChild(info);
       row.appendChild(type);
-      row.appendChild(deleteButton);
+      row.appendChild(actions);
       list.appendChild(row);
     });
   } catch (error) {
