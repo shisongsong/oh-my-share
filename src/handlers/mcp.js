@@ -234,7 +234,22 @@ export async function handleMcp(request, env) {
 
   let body;
   try {
-    body = await request.json();
+    const contentType = request.headers.get('content-type') || '';
+    const text = await request.text();
+
+    if (contentType.includes('application/json')) {
+      body = JSON.parse(text);
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      body = Object.fromEntries(new URLSearchParams(text));
+      if (typeof body.params === 'string') {
+        try { body.params = JSON.parse(body.params); } catch {}
+      }
+      if (typeof body.id === 'string' && /^\d+$/.test(body.id)) {
+        body.id = parseInt(body.id);
+      }
+    } else {
+      body = JSON.parse(text);
+    }
   } catch {
     return json({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null }, 400);
   }
