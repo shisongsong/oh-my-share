@@ -13,6 +13,7 @@ import { handleRobotsTxt, handleSitemap } from './handlers/seo.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
+import { handleApiCatalog } from './handlers/api-catalog.js';
 import { applySecurityHeaders, json } from './security.js';
 
 export default {
@@ -21,7 +22,9 @@ export default {
     let response;
 
     try {
-      if (url.pathname === '/robots.txt') {
+      if (url.pathname === '/.well-known/api-catalog') {
+        response = handleApiCatalog(request);
+      } else if (url.pathname === '/robots.txt') {
         response = handleRobotsTxt();
       } else if (url.pathname === '/sitemap.xml') {
         response = handleSitemap();
