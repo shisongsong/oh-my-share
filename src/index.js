@@ -8,6 +8,8 @@ import {
   handleRegister,
 } from './handlers/auth.js';
 import { handleDeleteAsset, handleListAssets } from './handlers/assets.js';
+import { handleRobotsTxt, handleSitemap } from './handlers/seo.js';
+import { handleStaticAssets } from './handlers/static.js';
 import { applySecurityHeaders, json } from './security.js';
 
 export default {
@@ -16,7 +18,13 @@ export default {
     let response;
 
     try {
-      if (request.method === 'POST' && url.pathname === '/api/upload') {
+      if (url.pathname === '/robots.txt') {
+        response = handleRobotsTxt();
+      } else if (url.pathname === '/sitemap.xml') {
+        response = handleSitemap();
+      } else if (url.pathname === '/og-image.png' || url.pathname === '/favicon.ico') {
+        response = await handleStaticAssets(request, env);
+      } else if (request.method === 'POST' && url.pathname === '/api/upload') {
         response = await handleUpload(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/auth/register') {
         response = await handleRegister(request, env);

@@ -1,9 +1,28 @@
 import { I18N } from '../i18n.js';
-import { CLIENT_SCRIPT } from './client.js';
+import { CLIENT_SCRIPT } from './client-built.js';
 import { STYLES } from './styles.js';
 
 export function renderPage(lang) {
   const translations = I18N[lang] || I18N.en;
+  const baseUrl = 'https://openanthropic.com';
+
+  const seoMeta = lang === 'zh' ? `
+<meta name="description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。快速、安全的代码分享工具，由 Cloudflare 驱动。">
+<meta name="keywords" content="代码分享, HTML分享, 在线粘贴, 代码片段, 加密分享, 安全分享, CodePen替代, Pastebin替代, JSFiddle替代, 在线代码编辑器, HTML预览, 代码沙盒, 匿名分享, 临时分享, 私密分享">
+<meta property="og:title" content="Oh My Share - 免费安全的 HTML 和代码分享工具">
+<meta property="og:description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。快速、安全的代码分享工具。">
+<meta name="twitter:title" content="Oh My Share - 免费安全的 HTML 和代码分享工具">
+<meta name="twitter:description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。快速、安全的代码分享工具。">
+<meta name="google-site-verification" content="DBQv1hLP8zAfNxe33rUZVVM4ilMDoNrcpvwtJmoB03c">
+` : `
+<meta name="description" content="Share HTML files and code snippets instantly with end-to-end encryption. No registration required. Free, fast, and secure code sharing powered by Cloudflare.">
+<meta name="keywords" content="code sharing, html sharing, paste bin, code snippet, encrypted sharing, secure sharing, codepen alternative, pastebin alternative, jsfiddle alternative, online code editor, html preview, code playground, anonymous sharing, temporary sharing, private sharing">
+<meta property="og:title" content="Oh My Share - Free Secure HTML & Code Sharing Tool">
+<meta property="og:description" content="Share HTML files and code snippets instantly with end-to-end encryption. No registration required.">
+<meta name="twitter:title" content="Oh My Share - Free Secure HTML & Code Sharing Tool">
+<meta name="twitter:description" content="Share HTML files and code snippets instantly with end-to-end encryption. No registration required.">
+<meta name="google-site-verification" content="DBQv1hLP8zAfNxe33rUZVVM4ilMDoNrcpvwtJmoB03c">
+`;
 
   return `<!DOCTYPE html>
 <html lang="${translations.htmlLang}">
@@ -11,6 +30,44 @@ export function renderPage(lang) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Oh My Share - ${translations.subtitle}</title>
+${seoMeta}
+<meta name="robots" content="index, follow">
+<meta name="author" content="Oh My Share">
+<link rel="canonical" href="${baseUrl}/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${baseUrl}/">
+<meta property="og:site_name" content="Oh My Share">
+<meta property="og:image" content="${baseUrl}/og-image.png">
+<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
+<meta property="og:locale:alternate" content="${lang === 'zh' ? 'en_US' : 'zh_CN'}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${baseUrl}/og-image.png">
+<link rel="alternate" hreflang="en" href="${baseUrl}/">
+<link rel="alternate" hreflang="zh" href="${baseUrl}/?lang=zh">
+<link rel="alternate" hreflang="x-default" href="${baseUrl}/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Oh My Share",
+  "url": "${baseUrl}",
+  "description": "Free HTML and code sharing tool with end-to-end encryption",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "featureList": [
+    "HTML file sharing",
+    "Code snippet sharing",
+    "End-to-end encryption",
+    "No registration required",
+    "Instant sharing"
+  ]
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>${STYLES}</style>
 </head>
@@ -42,6 +99,9 @@ export function renderPage(lang) {
           <option value="passphrase" data-i18n="passphraseKey"></option>
         </select>
         <input type="password" id="passphraseInput" data-i18n="passphrasePlaceholder" autocomplete="new-password" hidden>
+      </div>
+      <div id="upgradeSection" class="upgrade-section">
+        <button class="upgrade-btn" id="upgradeBtn" data-i18n="upgradeBtn"></button>
       </div>
     </div>
     <div class="metadata-fields">
@@ -135,6 +195,36 @@ export function renderPage(lang) {
     <canvas id="shareCanvas"></canvas>
     <div class="modal-footer">
       <button class="btn" id="downloadBtn" data-i18n="downloadBtn"></button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="upgradeModal">
+  <div class="modal-content upgrade-modal">
+    <div class="modal-header">
+      <div class="modal-title" data-i18n="upgradeTitle"></div>
+      <button class="modal-close" onclick="closeUpgradeModal()">&times;</button>
+    </div>
+    <div class="upgrade-content">
+      <p class="upgrade-desc" data-i18n="upgradeDesc"></p>
+      <div class="pricing-card">
+        <div class="pricing-price">
+          <span class="pricing-main" id="pricingMain"></span>
+          <span class="pricing-alt" id="pricingAlt"></span>
+        </div>
+        <p class="pricing-features" data-i18n="pricingFeatures"></p>
+      </div>
+      <div class="payment-methods">
+        <div class="payment-method">
+          <h4 data-i18n="paymentPaypal"></h4>
+          <p data-i18n="paymentAccount"></p>
+        </div>
+        <div class="payment-method">
+          <h4 data-i18n="paymentAlipay"></h4>
+          <p data-i18n="paymentAccount"></p>
+        </div>
+      </div>
+      <p class="payment-note" data-i18n="paymentNote"></p>
+      <button class="btn upgrade-send-btn" id="upgradeSendBtn" data-i18n="upgradeSendEmail"></button>
     </div>
   </div>
 </div>
