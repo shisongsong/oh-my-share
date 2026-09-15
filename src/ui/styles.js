@@ -843,25 +843,30 @@ textarea::placeholder {
   display: flex;
   gap: var(--space-2);
   align-items: center;
+  flex-shrink: 0;
 }
 
 .asset-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   border: var(--border-width) solid var(--color-border);
-  background: transparent;
-  color: var(--color-text);
+  background: var(--gradient-primary);
+  color: #ffffff;
   font-family: var(--font-pixel-body);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
   cursor: pointer;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   text-decoration: none;
   white-space: nowrap;
+  box-shadow: var(--shadow-pixel);
+  transition: transform var(--duration-fast), box-shadow var(--duration-fast);
 }
 
 .asset-manage:hover {
-  background: var(--gradient-primary);
-  color: #ffffff;
-  border-color: transparent;
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-pixel-hover);
 }
 
 .asset-title {
