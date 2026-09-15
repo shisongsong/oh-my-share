@@ -7,7 +7,7 @@ export function handleOAuthProtectedResource(request) {
     scopes_supported: ['upload', 'manage', 'read'],
     bearer_methods_supported: ['header'],
     agent_auth: {
-      skill: 'oh-my-share',
+      skill: `${origin}/auth.md`,
       description: 'HTML and code sharing with end-to-end encryption',
       registration_uri: `${origin}/api/auth/register`,
       registration_methods: ['password'],
