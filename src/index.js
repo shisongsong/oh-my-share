@@ -18,6 +18,7 @@ import { handleAuthMd } from './handlers/auth-md.js';
 import { handleOAuthProtectedResource } from './handlers/oauth-metadata.js';
 import { handleOAuthAuthorizationServer } from './handlers/oauth-auth-server.js';
 import { handleAgentCard } from './handlers/agent-card.js';
+import { handleAgentSkillsIndex } from './handlers/agent-skills.js';
 import { applySecurityHeaders, json } from './security.js';
 
 export default {
@@ -34,6 +35,8 @@ export default {
         response = handleOAuthAuthorizationServer(request);
       } else if (url.pathname === '/.well-known/agent-card.json') {
         response = handleAgentCard(request);
+      } else if (url.pathname === '/.well-known/agent-skills/index.json') {
+        response = await handleAgentSkillsIndex(request, env);
       } else if (url.pathname === '/auth.md') {
         response = handleAuthMd(request);
       } else if (url.pathname === '/robots.txt') {
