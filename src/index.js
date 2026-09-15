@@ -22,6 +22,7 @@ import { handleAgentSkillsIndex } from './handlers/agent-skills.js';
 import { handleMcpServerCard } from './handlers/mcp-server-card.js';
 import { handleMcp } from './handlers/mcp.js';
 import { handleOAuthToken, handleOAuthAuthorize, handleOAuthLogin, handleOAuthCallback } from './handlers/oauth-token.js';
+import { handleGoogleAuth, handleGoogleCallback, handleGitHubAuth, handleGitHubCallback } from './handlers/oauth-social.js';
 import { handleHttpMessageSignaturesDirectory } from './handlers/http-message-signatures.js';
 import { applySecurityHeaders, json } from './security.js';
 
@@ -53,6 +54,14 @@ export default {
         response = await handleOAuthLogin(request, env);
       } else if (url.pathname === '/oauth/callback') {
         response = await handleOAuthCallback(request, env);
+      } else if (url.pathname === '/oauth/google') {
+        response = await handleGoogleAuth(request, env);
+      } else if (url.pathname === '/oauth/google/callback') {
+        response = await handleGoogleCallback(request, env);
+      } else if (url.pathname === '/oauth/github') {
+        response = await handleGitHubAuth(request, env);
+      } else if (url.pathname === '/oauth/github/callback') {
+        response = await handleGitHubCallback(request, env);
       } else if (url.pathname === '/.well-known/http-message-signatures-directory') {
         response = await handleHttpMessageSignaturesDirectory(request);
       } else if (url.pathname === '/auth.md') {

@@ -149,23 +149,5 @@ async function generateCodeChallenge(verifier) {
 }
 
 export async function startOAuthLogin() {
-  const clientId = 'web-' + Date.now();
-  const redirectUri = window.location.origin + '/oauth/callback';
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = await generateCodeChallenge(codeVerifier);
-  const state = crypto.randomUUID();
-
-  sessionStorage.setItem('oauth_code_verifier', codeVerifier);
-  sessionStorage.setItem('oauth_state', state);
-
-  const authUrl = new URL('/oauth/authorize', window.location.origin);
-  authUrl.searchParams.set('client_id', clientId);
-  authUrl.searchParams.set('redirect_uri', redirectUri);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('code_challenge', codeChallenge);
-  authUrl.searchParams.set('code_challenge_method', 'S256');
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('scope', 'upload manage read');
-
-  window.location.href = authUrl.toString();
+  window.location.href = '/oauth/login';
 }

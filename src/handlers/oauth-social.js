@@ -1,0 +1,246 @@
+import { json } from '../security.js';
+import { normalizeEmail } from '../auth.js';
+
+function generateCode() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Google OAuth
+export async function handleGoogleAuth(request, env) {
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  // Check if Google OAuth is configured
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    return json({ error: 'Google OAuth not configured' }, 501);
+  }
+
+  const redirectUri = `${origin}/oauth/google/callback`;
+  const state = crypto.randomUUID();
+
+  // Store state for verification
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO oauth_states (state, provider, created_at, expires_at)
+     VALUES (?, 'google', strftime('%s','now'), ?)`
+  ).bind(state, Math.floor(Date.now() / 1000) + 600).run();
+
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', 'openid email profile');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('access_type', 'offline');
+
+  return Response.redirect(authUrl.toString(), 302);
+}
+
+export async function handleGoogleCallback(request, env) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    return new Response(`Google login failed: ${error}`, { status: 400 });
+  }
+
+  if (!code || !state) {
+    return new Response('Missing authorization code or state', { status: 400 });
+  }
+
+  // Verify state
+  const stateRecord = await env.DB.prepare(
+    `SELECT * FROM oauth_states WHERE state = ? AND provider = 'google' AND expires_at > strftime('%s','now')`
+  ).bind(state).first();
+
+  if (!stateRecord) {
+    return new Response('Invalid or expired state', { status: 400 });
+  }
+
+  // Delete used state
+  await env.DB.prepare(`DELETE FROM oauth_states WHERE state = ?`).bind(state).run();
+
+  // Exchange code for tokens
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: `${url.origin}/oauth/google/callback`,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  const tokens = await tokenResponse.json();
+  if (!tokens.access_token) {
+    return new Response('Failed to exchange code for tokens', { status: 500 });
+  }
+
+  // Get user info
+  const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+
+  const googleUser = await userResponse.json();
+  if (!googleUser.email) {
+    return new Response('Failed to get user info from Google', { status: 500 });
+  }
+
+  // Create or update user
+  const email = normalizeEmail(googleUser.email);
+  const userId = crypto.randomUUID();
+
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO users (id, email, password_hash, password_salt, created_at)
+     VALUES (?, ?, '', '', strftime('%s','now'))`
+  ).bind(userId, email).run();
+
+  // Create session
+  const sessionToken = generateCode();
+  await env.DB.prepare(
+    `INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
+     VALUES (?, ?, strftime('%s','now'), ?)`
+  ).bind(sessionToken, userId, Math.floor(Date.now() / 1000) + 86400).run();
+
+  // Redirect to home page
+  const redirectUrl = new URL(url.origin);
+  redirectUrl.searchParams.set('oauth_success', 'google');
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: redirectUrl.toString(),
+      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+    },
+  });
+}
+
+// GitHub OAuth
+export async function handleGitHubAuth(request, env) {
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+    return json({ error: 'GitHub OAuth not configured' }, 501);
+  }
+
+  const redirectUri = `${origin}/oauth/github/callback`;
+  const state = crypto.randomUUID();
+
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO oauth_states (state, provider, created_at, expires_at)
+     VALUES (?, 'github', strftime('%s','now'), ?)`
+  ).bind(state, Math.floor(Date.now() / 1000) + 600).run();
+
+  const authUrl = new URL('https://github.com/login/oauth/authorize');
+  authUrl.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('scope', 'user:email');
+  authUrl.searchParams.set('state', state);
+
+  return Response.redirect(authUrl.toString(), 302);
+}
+
+export async function handleGitHubCallback(request, env) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    return new Response(`GitHub login failed: ${error}`, { status: 400 });
+  }
+
+  if (!code || !state) {
+    return new Response('Missing authorization code or state', { status: 400 });
+  }
+
+  // Verify state
+  const stateRecord = await env.DB.prepare(
+    `SELECT * FROM oauth_states WHERE state = ? AND provider = 'github' AND expires_at > strftime('%s','now')`
+  ).bind(state).first();
+
+  if (!stateRecord) {
+    return new Response('Invalid or expired state', { status: 400 });
+  }
+
+  await env.DB.prepare(`DELETE FROM oauth_states WHERE state = ?`).bind(state).run();
+
+  // Exchange code for tokens
+  const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: `${url.origin}/oauth/github/callback`,
+    }),
+  });
+
+  const tokens = await tokenResponse.json();
+  if (!tokens.access_token) {
+    return new Response('Failed to exchange code for tokens', { status: 500 });
+  }
+
+  // Get user info
+  const userResponse = await fetch('https://api.github.com/user', {
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
+  });
+
+  const githubUser = await userResponse.json();
+
+  // Get user emails
+  const emailsResponse = await fetch('https://api.github.com/user/emails', {
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
+  });
+
+  const emails = await emailsResponse.json();
+  const primaryEmail = emails.find(e => e.primary)?.email || emails[0]?.email;
+
+  if (!primaryEmail) {
+    return new Response('Failed to get email from GitHub', { status: 500 });
+  }
+
+  // Create or update user
+  const email = normalizeEmail(primaryEmail);
+  const userId = crypto.randomUUID();
+
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO users (id, email, password_hash, password_salt, created_at)
+     VALUES (?, ?, '', '', strftime('%s','now'))`
+  ).bind(userId, email).run();
+
+  // Create session
+  const sessionToken = generateCode();
+  await env.DB.prepare(
+    `INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
+     VALUES (?, ?, strftime('%s','now'), ?)`
+  ).bind(sessionToken, userId, Math.floor(Date.now() / 1000) + 86400).run();
+
+  // Redirect to home page
+  const redirectUrl = new URL(url.origin);
+  redirectUrl.searchParams.set('oauth_success', 'github');
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: redirectUrl.toString(),
+      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+    },
+  });
+}
