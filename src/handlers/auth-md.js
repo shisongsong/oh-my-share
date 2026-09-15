@@ -1,53 +1,64 @@
 export function handleAuthMd(request) {
+  const origin = new URL(request.url).origin;
+
   const content = `# auth.md
 
-Oh My Share agent authentication and registration.
+## Agent Registration
 
-## Agent Audience
+This service supports agent registration. AI agents can register and authenticate to access Oh My Share APIs.
 
-AI agents and automated tools are welcome to interact with Oh My Share.
-This document describes how agents can authenticate and register.
+## Registration Endpoint
 
-## Registration
+\`\`\`
+POST ${origin}/api/auth/register
+Content-Type: application/json
 
-Agents register by calling the registration endpoint:
+{
+  "email": "agent@example.com",
+  "password": "secure-password"
+}
+\`\`\`
 
-- **Endpoint**: \`POST /api/auth/register\`
-- **Content-Type**: \`application/json\`
-- **Required fields**: \`email\`, \`password\`
+## Authentication Endpoint
 
-## Authentication
+\`\`\`
+POST ${origin}/api/auth/login
+Content-Type: application/json
 
-After registration, agents authenticate via:
+{
+  "email": "agent@example.com",
+  "password": "secure-password"
+}
+\`\`\`
 
-- **Endpoint**: \`POST /api/auth/login\`
-- **Content-Type**: \`application/json\`
-- **Required fields**: \`email\`, \`password\`
-- **Response**: Set-Cookie with session token
+## Registration Methods
 
-## Supported Methods
+- **password**: Email and password registration
 
-- **Password-based**: Email and password authentication
-- **Session cookies**: Persistent sessions via HTTP cookies
+## Authentication Methods
 
-## Credential Use
+- **password**: Email and password login
+- **cookie**: Session-based authentication via HTTP cookies
 
-Authenticated agents can:
+## Agent Capabilities
 
-- Upload HTML files and code snippets (\`POST /api/upload\`)
-- Manage uploaded assets (\`GET /api/assets\`)
-- List shared content (\`GET /api/shares\`)
-- Access encrypted content with decryption keys
+After authentication, agents can:
+
+- Upload HTML files: \`POST /api/upload\`
+- List assets: \`GET /api/assets\`
+- Manage content: \`GET /api/shares\`
+- View content: \`GET /view/{id}\`
+
+## OAuth Metadata
+
+- Protected Resource: \`${origin}/.well-known/oauth-protected-resource\`
+- Authorization Server: \`${origin}/.well-known/oauth-authorization-server\`
 
 ## Rate Limits
 
-- Upload: 10 per hour, 50 per day per IP
-- View: 500 per hour per IP
-- Auth: 20 per hour per IP
-
-## Contact
-
-For agent integration support, contact: 1400875096@qq.com
+- Upload: 10/hour, 50/day per IP
+- View: 500/hour per IP
+- Auth: 20/hour per IP
 `;
 
   return new Response(content, {
