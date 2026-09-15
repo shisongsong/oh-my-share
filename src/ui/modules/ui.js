@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 export function initTabs() {
   const tabs = document.querySelectorAll('.tab');
   const panels = document.querySelectorAll('.panel');
@@ -18,7 +20,6 @@ export function initCopyButton() {
     const urlInput = document.getElementById('resultUrl');
     if (!urlInput.value) return;
 
-    const { t } = require('./i18n.js');
     navigator.clipboard.writeText(urlInput.value).then(() => {
       this.textContent = t('copiedBtn');
       this.classList.add('copied');
@@ -46,7 +47,6 @@ export function initUpgradeModal() {
   
   if (upgradeSendBtn) {
     upgradeSendBtn.addEventListener('click', () => {
-      const { t } = require('./i18n.js');
       const subject = encodeURIComponent(t('upgradeEmailSubject'));
       const body = encodeURIComponent(t('upgradeEmailBody'));
       window.location.href = `mailto:1400875096@qq.com?subject=${subject}&body=${body}`;
