@@ -20,6 +20,12 @@ export function handleOAuthAuthorizationServer(request) {
       auth_uri: `${origin}/api/auth/login`,
       auth_methods: ['password'],
     },
+    identity_types_supported: ['identity_assertion'],
+    identity_assertion: {
+      assertion_types_supported: ['urn:ietf:params:oauth:token-type:id-jag'],
+      credential_types_supported: ['jwt'],
+    },
+    events_supported: ['identity_assertion.created', 'identity_assertion.revoked'],
   };
 
   return new Response(JSON.stringify(metadata), {
