@@ -90,12 +90,11 @@ async function u() {
 			let o = document.createElement("small");
 			o.textContent = e.encrypted ? "AES-GCM" : "HTML";
 			let s = document.createElement("div");
-			if (s.className = "asset-actions", e.editToken) {
-				let t = document.createElement("a");
-				t.href = \`/manage/\${e.id}?token=\${e.editToken}\`, t.target = "_blank", t.className = "asset-manage", t.textContent = n("manageBtn"), s.appendChild(t);
-			}
-			let c = document.createElement("button");
-			c.className = "asset-delete", c.type = "button", c.textContent = n("deleteAsset"), c.addEventListener("click", () => d(e.id)), s.appendChild(c), r.appendChild(i), r.appendChild(o), r.appendChild(s), t.appendChild(r);
+			s.className = "asset-actions";
+			let c = document.createElement("a");
+			c.href = e.editToken ? \`/manage/\${e.id}?token=\${e.editToken}\` : \`/view/\${e.id}\`, c.target = "_blank", c.className = "asset-manage", c.textContent = n("manageBtn"), s.appendChild(c);
+			let l = document.createElement("button");
+			l.className = "asset-delete", l.type = "button", l.textContent = n("deleteAsset"), l.addEventListener("click", () => d(e.id)), s.appendChild(l), r.appendChild(i), r.appendChild(o), r.appendChild(s), t.appendChild(r);
 		});
 	} catch (e) {
 		let r = document.createElement("div");

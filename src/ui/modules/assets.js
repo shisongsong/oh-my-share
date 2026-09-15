@@ -54,14 +54,16 @@ export async function loadAssets() {
       const actions = document.createElement('div');
       actions.className = 'asset-actions';
 
+      const manageBtn = document.createElement('a');
       if (asset.editToken) {
-        const manageBtn = document.createElement('a');
         manageBtn.href = `/manage/${asset.id}?token=${asset.editToken}`;
-        manageBtn.target = '_blank';
-        manageBtn.className = 'asset-manage';
-        manageBtn.textContent = t('manageBtn');
-        actions.appendChild(manageBtn);
+      } else {
+        manageBtn.href = `/view/${asset.id}`;
       }
+      manageBtn.target = '_blank';
+      manageBtn.className = 'asset-manage';
+      manageBtn.textContent = t('manageBtn');
+      actions.appendChild(manageBtn);
 
       const deleteButton = document.createElement('button');
       deleteButton.className = 'asset-delete';
