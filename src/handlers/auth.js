@@ -165,3 +165,28 @@ export async function handleCurrentUser(request, env) {
     noStoreHeaders()
   );
 }
+
+export async function handleListShares(request, env) {
+  const user = await getCurrentUser(request, env);
+  if (!user) return json({ error: 'Authentication required' }, 401, noStoreHeaders());
+
+  const database = getDatabase(env);
+  if (!database) return json({ error: 'Database unavailable' }, 503);
+
+  const shares = await database
+    .prepare(
+      `SELECT id, title, edit_token, created_at, expires_at
+       FROM files
+       WHERE owner_id = ?
+       ORDER BY created_at DESC
+       LIMIT 50`
+    )
+    .bind(user.id)
+    .all();
+
+  return json(
+    { shares: shares.results || [] },
+    200,
+    noStoreHeaders()
+  );
+}

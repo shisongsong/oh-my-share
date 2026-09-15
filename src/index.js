@@ -6,6 +6,7 @@ import {
   handleLogin,
   handleLogout,
   handleRegister,
+  handleListShares,
 } from './handlers/auth.js';
 import { handleDeleteAsset, handleListAssets } from './handlers/assets.js';
 import { handleRobotsTxt, handleSitemap } from './handlers/seo.js';
@@ -44,6 +45,8 @@ export default {
         response = await handleCurrentUser(request, env);
       } else if (request.method === 'GET' && url.pathname === '/api/assets') {
         response = await handleListAssets(request, env);
+      } else if (request.method === 'GET' && url.pathname === '/api/shares') {
+        response = await handleListShares(request, env);
       } else if (request.method === 'DELETE' && url.pathname.startsWith('/api/assets/')) {
         try {
           const id = decodeURIComponent(url.pathname.slice('/api/assets/'.length));

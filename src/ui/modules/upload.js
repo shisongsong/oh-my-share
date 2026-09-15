@@ -111,19 +111,7 @@ export async function handleUpload(buildPayload, button) {
     resultBox.className = 'result-box success';
     resultTitle.textContent = t('successMsg');
     resultUrl.value = data.url + (prepared.keyFragment || '');
-    resultHint.textContent = prepared.keyFragment ? t('keyOnceMsg') : '';
-
-    if (data.editToken) {
-      const editHint = document.createElement('p');
-      editHint.className = 'edit-token-hint';
-      editHint.innerHTML = `<strong>${t('editTokenTitle')}:</strong> <code>${data.editToken}</code>`;
-      resultBox.appendChild(editHint);
-
-      const manageLink = document.createElement('p');
-      manageLink.className = 'manage-link';
-      manageLink.innerHTML = `<a href="/manage/${data.id}?token=${data.editToken}" target="_blank">${t('manageLink')}</a>`;
-      resultBox.appendChild(manageLink);
-    }
+    resultHint.textContent = prepared.keyFragment ? t('keyOnceMsg') : t('manageHint');
   } catch (error) {
     resultBox.style.display = 'block';
     resultBox.className = 'result-box error';

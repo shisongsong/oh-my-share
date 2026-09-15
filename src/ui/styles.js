@@ -848,6 +848,99 @@ textarea::placeholder {
   text-overflow: ellipsis;
 }
 
+/* ============================================ */
+/* 分享管理列表                                 */
+/* ============================================ */
+.manage-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.manage-list {
+  margin-top: var(--space-4);
+}
+
+.manage-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-bg-elevated);
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow-pixel);
+}
+
+.manage-item:hover {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-pixel-hover);
+}
+
+.manage-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.manage-item-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manage-item-token {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-pixel-code);
+}
+
+.manage-item-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.manage-item-btn {
+  border: var(--border-width) solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-pixel-body);
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+}
+
+.manage-item-btn:hover {
+  background: var(--color-bg);
+  transform: translate(1px, 1px);
+}
+
+.manage-item-btn.primary {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.manage-item-btn.primary:hover {
+  opacity: 0.9;
+}
+
+.manage-actions {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-4);
+}
+
 .asset-tags {
   display: flex;
   gap: var(--space-1);
@@ -876,43 +969,38 @@ textarea::placeholder {
 }
 
 /* ============================================ */
-/* 高级选项折叠区                               */
+/* 保护选项（密码 + 有效期）                      */
 /* ============================================ */
-.advanced-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  font-family: var(--font-pixel-body);
-}
-
-.advanced-toggle:hover {
-  color: var(--color-text);
-}
-
-.advanced-toggle .arrow {
-  transition: transform var(--duration-fast);
-}
-
-.advanced-toggle.open .arrow {
-  transform: rotate(90deg);
-}
-
-.advanced-options {
-  display: none;
+.protection-options {
   border: var(--border-width) solid var(--color-border);
   padding: var(--space-4);
-  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
   background: var(--color-bg);
 }
 
-.advanced-options.open {
+.protection-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 600px) {
+  .protection-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.protection-field {
+  margin-bottom: 0;
+}
+
+.protection-field label {
   display: block;
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: var(--font-pixel-body);
 }
 
 /* ============================================ */

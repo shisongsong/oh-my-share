@@ -6,15 +6,6 @@ import { initTabs, initCopyButton, initUpgradeModal } from './modules/ui.js';
 import { initShare } from './modules/share.js';
 
 window.toggleLang = toggleLang;
-window.toggleAdvanced = () => {
-  const content = document.getElementById('advancedContent');
-  const arrow = document.getElementById('advancedArrow');
-  if (content && arrow) {
-    const isHidden = content.hidden;
-    content.hidden = !isHidden;
-    arrow.textContent = isHidden ? '▾' : '▸';
-  }
-};
 
 applyLang(state.lang);
 initAuth();

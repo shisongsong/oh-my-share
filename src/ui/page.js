@@ -118,18 +118,13 @@ ${seoMeta}
         <input type="text" id="metaTags" data-i18n="tagsPlaceholder" maxlength="500">
       </div>
     </div>
-    <div class="advanced-options">
-      <div class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
-        <span data-i18n="advancedOptions"></span>
-        <span class="advanced-arrow" id="advancedArrow">▸</span>
-      </div>
-      <div class="advanced-content" id="advancedContent" hidden>
-        <div class="input-group">
+    <div class="protection-options">
+      <div class="protection-row">
+        <div class="input-group protection-field">
           <label data-i18n="sharePasswordLabel"></label>
           <input type="password" id="sharePassword" data-i18n="sharePasswordPlaceholder" maxlength="128" autocomplete="new-password">
-          <p class="option-hint" data-i18n="passwordHint"></p>
         </div>
-        <div class="input-group">
+        <div class="input-group protection-field">
           <label data-i18n="expiryLabel"></label>
           <select id="expirySelect">
             <option value="0" data-i18n="expiryPermanent"></option>
@@ -140,6 +135,7 @@ ${seoMeta}
           </select>
         </div>
       </div>
+      <p class="option-hint" data-i18n="passwordHint"></p>
     </div>
     <div id="panel-file" class="panel active">
       <div class="drop-zone" id="dropZone">
@@ -202,6 +198,15 @@ ${seoMeta}
     <div id="accountView" hidden>
       <p class="account-email" id="accountEmail"></p>
       <button class="action-btn" id="logoutBtn" type="button" data-i18n="logoutBtn"></button>
+      <div class="manage-section">
+        <h3 class="account-heading" data-i18n="mySharesTitle"></h3>
+        <div id="manageList" class="manage-list">
+          <p class="empty-hint" data-i18n="noSharesYet"></p>
+        </div>
+        <div class="manage-actions">
+          <button class="action-btn" id="addShareBtn" type="button" data-i18n="addNewShare"></button>
+        </div>
+      </div>
       <div class="asset-section">
         <h3 class="account-heading" data-i18n="assetsTitle"></h3>
         <div id="assetList" class="asset-list"></div>
