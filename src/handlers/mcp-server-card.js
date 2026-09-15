@@ -11,11 +11,12 @@ export function handleMcpServerCard(request) {
     authentication: {
       type: 'oauth2',
       oauth2: {
+        authorizationEndpoint: `${origin}/oauth/authorize`,
         tokenEndpoint: `${origin}/oauth/token`,
-        authorizationEndpoint: `${origin}/api/auth/login`,
         registrationEndpoint: `${origin}/api/auth/register`,
-        grantTypes: ['password'],
+        grantTypes: ['authorization_code', 'password'],
         scopes: ['upload', 'manage', 'read'],
+        codeChallengeMethods: ['S256'],
       },
     },
     capabilities: {

@@ -281,10 +281,12 @@ export async function handleMcp(request, env) {
         authentication: {
           type: 'oauth2',
           oauth2: {
+            authorizationEndpoint: `${origin}/oauth/authorize`,
             tokenEndpoint: `${origin}/oauth/token`,
             registrationEndpoint: `${origin}/api/auth/register`,
-            grantTypes: ['password'],
+            grantTypes: ['authorization_code', 'password'],
             scopes: ['upload', 'manage', 'read'],
+            codeChallengeMethods: ['S256'],
           },
         },
       },
