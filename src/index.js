@@ -14,6 +14,9 @@ import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
 import { handleApiCatalog } from './handlers/api-catalog.js';
+import { handleAuthMd } from './handlers/auth-md.js';
+import { handleOAuthProtectedResource } from './handlers/oauth-metadata.js';
+import { handleOAuthAuthorizationServer } from './handlers/oauth-auth-server.js';
 import { applySecurityHeaders, json } from './security.js';
 
 export default {
@@ -24,6 +27,12 @@ export default {
     try {
       if (url.pathname === '/.well-known/api-catalog') {
         response = handleApiCatalog(request);
+      } else if (url.pathname === '/.well-known/oauth-protected-resource') {
+        response = handleOAuthProtectedResource(request);
+      } else if (url.pathname === '/.well-known/oauth-authorization-server') {
+        response = handleOAuthAuthorizationServer(request);
+      } else if (url.pathname === '/auth.md') {
+        response = handleAuthMd(request);
       } else if (url.pathname === '/robots.txt') {
         response = handleRobotsTxt();
       } else if (url.pathname === '/sitemap.xml') {
