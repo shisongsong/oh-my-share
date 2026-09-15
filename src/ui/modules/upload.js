@@ -69,6 +69,11 @@ export async function createUploadPayload(kind, value, filename, slug) {
   if (description) formData.append('description', description);
   if (tags) formData.append('tags', tags);
 
+  const password = document.getElementById('sharePassword').value;
+  const expiresIn = document.getElementById('expirySelect').value;
+  if (password) formData.append('password', password);
+  if (expiresIn && expiresIn !== '0') formData.append('expiresIn', expiresIn);
+
   if (!document.getElementById('encryptToggle').checked) {
     if (kind === 'code') formData.append('code', value);
     else formData.append('file', value, filename);
@@ -107,6 +112,18 @@ export async function handleUpload(buildPayload, button) {
     resultTitle.textContent = t('successMsg');
     resultUrl.value = data.url + (prepared.keyFragment || '');
     resultHint.textContent = prepared.keyFragment ? t('keyOnceMsg') : '';
+
+    if (data.editToken) {
+      const editHint = document.createElement('p');
+      editHint.className = 'edit-token-hint';
+      editHint.innerHTML = `<strong>${t('editTokenTitle')}:</strong> <code>${data.editToken}</code>`;
+      resultBox.appendChild(editHint);
+
+      const manageLink = document.createElement('p');
+      manageLink.className = 'manage-link';
+      manageLink.innerHTML = `<a href="/manage/${data.id}?token=${data.editToken}" target="_blank">${t('manageLink')}</a>`;
+      resultBox.appendChild(manageLink);
+    }
   } catch (error) {
     resultBox.style.display = 'block';
     resultBox.className = 'result-box error';

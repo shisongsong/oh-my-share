@@ -131,6 +131,8 @@ describe("Oh My Share worker", () => {
 		expect(data).toEqual({
 			url: "https://example.com/view/demo-page",
 			id: "demo-page",
+			editToken: expect.stringMatching(/^edt_/),
+			expiresAt: null,
 		});
 		expect(uploadEnv.files.get("demo-page")).toEqual({ filename: "pasted-code.html" });
 		expect(uploadEnv.objects.get("demo-page")).toBe("<!doctype html><h1>Share</h1>");

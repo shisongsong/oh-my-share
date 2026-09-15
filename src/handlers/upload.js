@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js';
 import { getCurrentUser } from '../auth.js';
 import { hasPaidEntitlement } from '../entitlements.js';
 import { parseEncryptionMetadata } from '../encryption.js';
+import { hashPassword, generateEditToken } from '../crypto.js';
 import {
   checkRateLimit,
   generateId,
@@ -73,6 +74,8 @@ export async function handleUpload(request, env) {
   const title = (formData.get('title') || '').toString().slice(0, 200);
   const description = (formData.get('description') || '').toString().slice(0, 1000);
   const tags = (formData.get('tags') || '').toString().slice(0, 500);
+  const password = (formData.get('password') || '').toString();
+  const expiresIn = parseInt(formData.get('expiresIn') || '0', 10);
 
   let currentUser = null;
   let encryptionMetadata = null;
@@ -155,6 +158,25 @@ export async function handleUpload(request, env) {
   const storedContentType = encryptionRequested
     ? 'application/octet-stream'
     : 'text/html';
+
+  // 生成编辑密钥
+  const editToken = generateEditToken();
+
+  // 处理密码哈希
+  let passwordHash = null;
+  if (password && password.length > 0) {
+    if (password.length > CONFIG.PAGE_PASSWORD_MAX_LENGTH) {
+      return json({ error: 'Password too long' }, 400);
+    }
+    passwordHash = await hashPassword(password);
+  }
+
+  // 处理过期时间
+  let expiresAt = 0;
+  if (expiresIn > 0) {
+    expiresAt = createdAt + expiresIn;
+  }
+
   let objectStored = false;
   try {
     await bucket.put(id, fileContent, {
@@ -164,8 +186,9 @@ export async function handleUpload(request, env) {
     await database
       .prepare(
         `INSERT INTO files
-         (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, title, description, tags, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, 
+          title, description, tags, created_at, edit_token, password_hash, expires_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -177,6 +200,10 @@ export async function handleUpload(request, env) {
         title,
         description,
         tags,
+        createdAt,
+        editToken,
+        passwordHash,
+        expiresAt,
         createdAt
       )
       .run();
@@ -193,5 +220,10 @@ export async function handleUpload(request, env) {
   }
 
   const shareUrl = `${new URL(request.url).origin}/view/${id}`;
-  return json({ url: shareUrl, id });
+  return json({
+    url: shareUrl,
+    id,
+    editToken,
+    expiresAt: expiresAt || null,
+  });
 }

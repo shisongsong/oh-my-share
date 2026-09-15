@@ -30,3 +30,28 @@ export async function sha256(value) {
   const input = typeof value === 'string' ? encoder.encode(value) : value;
   return new Uint8Array(await crypto.subtle.digest('SHA-256', input));
 }
+
+export async function hashPassword(password) {
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export async function hashIp(ip) {
+  const data = encoder.encode(ip + 'osh-salt-2026');
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 16);
+}
+
+export function generateEditToken() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return 'edt_' + Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}

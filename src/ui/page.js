@@ -118,6 +118,29 @@ ${seoMeta}
         <input type="text" id="metaTags" data-i18n="tagsPlaceholder" maxlength="500">
       </div>
     </div>
+    <div class="advanced-options">
+      <div class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
+        <span data-i18n="advancedOptions"></span>
+        <span class="advanced-arrow" id="advancedArrow">▸</span>
+      </div>
+      <div class="advanced-content" id="advancedContent" hidden>
+        <div class="input-group">
+          <label data-i18n="sharePasswordLabel"></label>
+          <input type="password" id="sharePassword" data-i18n="sharePasswordPlaceholder" maxlength="128" autocomplete="new-password">
+          <p class="option-hint" data-i18n="passwordHint"></p>
+        </div>
+        <div class="input-group">
+          <label data-i18n="expiryLabel"></label>
+          <select id="expirySelect">
+            <option value="0" data-i18n="expiryPermanent"></option>
+            <option value="3600" data-i18n="expiry1h"></option>
+            <option value="86400" data-i18n="expiry1d"></option>
+            <option value="604800" data-i18n="expiry7d"></option>
+            <option value="2592000" data-i18n="expiry30d"></option>
+          </select>
+        </div>
+      </div>
+    </div>
     <div id="panel-file" class="panel active">
       <div class="drop-zone" id="dropZone">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">

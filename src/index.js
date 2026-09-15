@@ -1,6 +1,6 @@
 import { handleHome } from './handlers/home.js';
 import { handleUpload } from './handlers/upload.js';
-import { handlePublicContent, handleView } from './handlers/view.js';
+import { handlePublicContent, handleView, handleVerifyPassword } from './handlers/view.js';
 import {
   handleCurrentUser,
   handleLogin,
@@ -10,6 +10,8 @@ import {
 import { handleDeleteAsset, handleListAssets } from './handlers/assets.js';
 import { handleRobotsTxt, handleSitemap } from './handlers/seo.js';
 import { handleStaticAssets } from './handlers/static.js';
+import { handleStats, handleReport } from './handlers/stats.js';
+import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
 import { applySecurityHeaders, json } from './security.js';
 
 export default {
@@ -26,6 +28,12 @@ export default {
         response = await handleStaticAssets(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/upload') {
         response = await handleUpload(request, env);
+      } else if (request.method === 'POST' && url.pathname.startsWith('/api/edit/')) {
+        response = await handleEditSave(request, env);
+      } else if (request.method === 'POST' && url.pathname.startsWith('/api/verify-password/')) {
+        response = await handleVerifyPassword(request, env);
+      } else if (request.method === 'GET' && url.pathname.startsWith('/api/stats/')) {
+        response = await handleStats(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/auth/register') {
         response = await handleRegister(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -45,6 +53,12 @@ export default {
         }
       } else if (request.method === 'GET' && url.pathname.startsWith('/api/content/')) {
         response = await handlePublicContent(request, env);
+      } else if (url.pathname.startsWith('/edit/')) {
+        response = await handleEditPage(request, env);
+      } else if (url.pathname.startsWith('/manage/')) {
+        response = await handleManagePage(request, env);
+      } else if (url.pathname === '/report') {
+        response = await handleReport(request, env);
       } else if (request.method === 'GET' && url.pathname.startsWith('/view/')) {
         response = await handleView(request, env);
       } else if (request.method === 'GET' && url.pathname === '/') {

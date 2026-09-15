@@ -3,7 +3,7 @@ export const CONFIG = Object.freeze({
   MAX_CODE_SIZE: 500 * 1024,
   SLUG_MIN: 3,
   SLUG_MAX: 32,
-  RESERVED_SLUGS: ['api', 'view', 'admin', 'static', 'assets', 'favicon.ico'],
+  RESERVED_SLUGS: ['api', 'view', 'admin', 'static', 'assets', 'favicon.ico', 'edit', 'manage', 'stats', 'report'],
   RATE_UPLOAD_PER_HOUR: 10,
   RATE_UPLOAD_PER_DAY: 50,
   RATE_VIEW_PER_HOUR: 500,
@@ -13,4 +13,12 @@ export const CONFIG = Object.freeze({
   PASSWORD_ITERATIONS: 10000,
   SESSION_TTL_SECONDS: 60 * 60 * 24 * 30,
   RATE_AUTH_PER_HOUR: 20,
+  EXPIRY_OPTIONS: {
+    '1h': 60 * 60,
+    '1d': 60 * 60 * 24,
+    '7d': 60 * 60 * 24 * 7,
+    '30d': 60 * 60 * 24 * 30,
+    'permanent': 0,
+  },
+  PAGE_PASSWORD_MAX_LENGTH: 128,
 });

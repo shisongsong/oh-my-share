@@ -239,14 +239,16 @@ async function F(e, t, n, r) {
 	let i = new FormData();
 	i.append("slug", r);
 	let a = document.getElementById("metaTitle").value.trim(), o = document.getElementById("metaDescription").value.trim(), s = document.getElementById("metaTags").value.trim();
-	if (a && i.append("title", a), o && i.append("description", o), s && i.append("tags", s), !document.getElementById("encryptToggle").checked) return e === "code" ? i.append("code", t) : i.append("file", t, n), {
+	a && i.append("title", a), o && i.append("description", o), s && i.append("tags", s);
+	let c = document.getElementById("sharePassword").value, l = document.getElementById("expirySelect").value;
+	if (c && i.append("password", c), l && l !== "0" && i.append("expiresIn", l), !document.getElementById("encryptToggle").checked) return e === "code" ? i.append("code", t) : i.append("file", t, n), {
 		formData: i,
 		keyFragment: ""
 	};
-	let c = await P(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
-	return i.append("encrypted", "1"), i.append("encryption_metadata", JSON.stringify(c.metadata)), i.append("file", c.blob, n || "encrypted.html"), {
+	let u = await P(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
+	return i.append("encrypted", "1"), i.append("encryption_metadata", JSON.stringify(u.metadata)), i.append("file", u.blob, n || "encrypted.html"), {
 		formData: i,
-		keyFragment: c.keyFragment
+		keyFragment: u.keyFragment
 	};
 }
 async function I(e, t) {
@@ -255,7 +257,12 @@ async function I(e, t) {
 	let r = document.getElementById("resultBox"), i = document.getElementById("resultTitle"), a = document.getElementById("resultUrl"), o = document.getElementById("resultHint");
 	try {
 		let t = await e(), n = await b("/api/upload", t.formData);
-		r.style.display = "block", r.className = "result-box success", i.textContent = d("successMsg"), a.value = n.url + (t.keyFragment || ""), o.textContent = t.keyFragment ? d("keyOnceMsg") : "";
+		if (r.style.display = "block", r.className = "result-box success", i.textContent = d("successMsg"), a.value = n.url + (t.keyFragment || ""), o.textContent = t.keyFragment ? d("keyOnceMsg") : "", n.editToken) {
+			let e = document.createElement("p");
+			e.className = "edit-token-hint", e.innerHTML = `<strong>${d("editTokenTitle")}:</strong> <code>${n.editToken}</code>`, r.appendChild(e);
+			let t = document.createElement("p");
+			t.className = "manage-link", t.innerHTML = `<a href="/manage/${n.id}?token=${n.editToken}" target="_blank">${d("manageLink")}</a>`, r.appendChild(t);
+		}
 	} catch (e) {
 		r.style.display = "block", r.className = "result-box error", i.textContent = "❌ " + e.message, a.value = "", o.textContent = "";
 	} finally {
@@ -376,5 +383,11 @@ function K() {
 		e.key === "Escape" && G();
 	});
 }
-l(), g(), window.toggleLang = p, f(c.lang), M(), R(), z(), B(), V(), K(), window.updatePricingDisplay && window.updatePricingDisplay(c.lang);
+l(), g(), window.toggleLang = p, window.toggleAdvanced = () => {
+	let e = document.getElementById("advancedContent"), t = document.getElementById("advancedArrow");
+	if (e && t) {
+		let n = e.hidden;
+		e.hidden = !n, t.textContent = n ? "▾" : "▸";
+	}
+}, f(c.lang), M(), R(), z(), B(), V(), K(), window.updatePricingDisplay && window.updatePricingDisplay(c.lang);
 //#endregion
