@@ -1,4 +1,5 @@
 import { json } from '../security.js';
+import { validateToken } from './oauth-token.js';
 
 const MCP_VERSION = '2025-03-26';
 
@@ -68,9 +69,25 @@ function parseCookies(cookieHeader) {
   return cookies;
 }
 
-async function handleToolCall(name, args, env, cookies) {
-  const session = cookies.session;
+async function getAuthContext(request, env) {
+  const auth = request.headers.get('authorization');
+  if (auth && auth.startsWith('Bearer ')) {
+    const userId = await validateToken(request, env);
+    if (userId) return { userId, source: 'token' };
+  }
 
+  const cookies = parseCookies(request.headers.get('cookie'));
+  if (cookies.session) {
+    const user = await env.DB.prepare(
+      `SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')`
+    ).bind(cookies.session).first();
+    if (user) return { userId: user.user_id, source: 'cookie' };
+  }
+
+  return null;
+}
+
+async function handleToolCall(name, args, env, auth) {
   switch (name) {
     case 'upload': {
       const { content, language = 'html', filename, password, expiresIn = '7d' } = args;
@@ -78,11 +95,12 @@ async function handleToolCall(name, args, env, cookies) {
 
       const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
       const editToken = 'edt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+      const ownerId = auth ? auth.userId : null;
 
       await env.DB.prepare(
         `INSERT INTO files (id, content, language, filename, owner_id, edit_token, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
-      ).bind(id, content, language, filename || null, null, editToken).run();
+      ).bind(id, content, language, filename || null, ownerId, editToken).run();
 
       return {
         id,
@@ -95,11 +113,11 @@ async function handleToolCall(name, args, env, cookies) {
     }
 
     case 'list_assets': {
-      if (!session) return { error: 'Authentication required' };
+      if (!auth) return { error: 'Authentication required. Use Bearer token or login first.' };
 
       const { results } = await env.DB.prepare(
-        `SELECT id, filename, language, created_at, updated_at FROM files WHERE owner_id IS NOT NULL ORDER BY created_at DESC LIMIT 50`
-      ).all();
+        `SELECT id, filename, language, created_at, updated_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`
+      ).bind(auth.userId).all();
 
       return {
         assets: results.map(r => ({
@@ -135,10 +153,16 @@ async function handleToolCall(name, args, env, cookies) {
     }
 
     case 'delete': {
+      if (!auth) return { error: 'Authentication required' };
+
       const { id } = args;
       if (!id) return { error: 'id is required' };
 
-      await env.DB.prepare(`DELETE FROM files WHERE id = ?`).bind(id).run();
+      const result = await env.DB.prepare(
+        `DELETE FROM files WHERE id = ? AND owner_id = ?`
+      ).bind(id, auth.userId).run();
+
+      if (result.changes === 0) return { error: 'Asset not found or not authorized' };
 
       return { success: true, message: `Asset ${id} deleted` };
     }
@@ -155,8 +179,10 @@ async function handleToolCall(name, args, env, cookies) {
           view: 'GET /view/{id}',
           auth: 'POST /api/auth/login',
           register: 'POST /api/auth/register',
+          mcp: 'POST /mcp',
+          oauth: 'POST /oauth/token',
         },
-        features: ['password protection', 'expiration', 'edit tokens', 'encrypted sharing'],
+        features: ['password protection', 'expiration', 'edit tokens', 'encrypted sharing', 'MCP'],
         rateLimits: {
           upload: '10/hour, 50/day per IP',
           view: '500/hour per IP',
@@ -170,8 +196,7 @@ async function handleToolCall(name, args, env, cookies) {
 }
 
 export async function handleMcp(request, env) {
-  const url = new URL(request.url);
-  const cookies = parseCookies(request.headers.get('cookie'));
+  const origin = new URL(request.url).origin;
 
   if (request.method === 'GET') {
     return new Response(JSON.stringify({
@@ -190,9 +215,22 @@ export async function handleMcp(request, env) {
     });
   }
 
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, 405);
   }
+
+  const auth = await getAuthContext(request, env);
 
   let body;
   try {
@@ -234,7 +272,7 @@ export async function handleMcp(request, env) {
 
   if (method === 'tools/call') {
     const { name, arguments: args } = params || {};
-    const result = await handleToolCall(name, args || {}, env, cookies);
+    const result = await handleToolCall(name, args || {}, env, auth);
 
     return json({
       jsonrpc: '2.0',

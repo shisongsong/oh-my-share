@@ -21,6 +21,7 @@ import { handleAgentCard } from './handlers/agent-card.js';
 import { handleAgentSkillsIndex } from './handlers/agent-skills.js';
 import { handleMcpServerCard } from './handlers/mcp-server-card.js';
 import { handleMcp } from './handlers/mcp.js';
+import { handleOAuthToken } from './handlers/oauth-token.js';
 import { handleHttpMessageSignaturesDirectory } from './handlers/http-message-signatures.js';
 import { applySecurityHeaders, json } from './security.js';
 
@@ -44,6 +45,8 @@ export default {
         response = handleMcpServerCard(request);
       } else if (url.pathname === '/mcp') {
         response = await handleMcp(request, env);
+      } else if (url.pathname === '/oauth/token') {
+        response = await handleOAuthToken(request, env);
       } else if (url.pathname === '/.well-known/http-message-signatures-directory') {
         response = await handleHttpMessageSignaturesDirectory(request);
       } else if (url.pathname === '/auth.md') {
