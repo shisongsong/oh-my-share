@@ -66,6 +66,14 @@ export function handleMcpServerCard(request) {
           required: ['id'],
         },
       },
+      {
+        name: 'get_info',
+        description: 'Get information about the Oh My Share service',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
     resources: [
       {
