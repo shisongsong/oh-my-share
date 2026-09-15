@@ -4,6 +4,7 @@ import { initAuth } from './modules/auth.js';
 import { initUpload } from './modules/upload.js';
 import { initTabs, initCopyButton, initUpgradeModal } from './modules/ui.js';
 import { initShare } from './modules/share.js';
+import { initWebMcp } from './modules/webmcp.js';
 
 window.toggleLang = toggleLang;
 
@@ -14,6 +15,7 @@ initTabs();
 initCopyButton();
 initUpgradeModal();
 initShare();
+initWebMcp();
 
 if (window.updatePricingDisplay) {
   window.updatePricingDisplay(state.lang);
