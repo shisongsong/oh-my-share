@@ -65,21 +65,26 @@ export async function handleGoogleCallback(request, env) {
   }
 
   // Exchange code for tokens
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${url.origin}/oauth/google/callback`,
-      grant_type: 'authorization_code',
-    }),
-  });
+  let tokenResponse;
+  try {
+    tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: `${url.origin}/oauth/google/callback`,
+        grant_type: 'authorization_code',
+      }),
+    });
+  } catch (e) {
+    return new Response(`Failed to connect to Google: ${e.message}`, { status: 500 });
+  }
 
   const tokens = await tokenResponse.json();
   if (!tokens.access_token) {
-    return new Response('Failed to exchange code for tokens', { status: 500 });
+    return new Response(`Google token exchange failed: ${JSON.stringify(tokens)}`, { status: 500 });
   }
 
   // Get user info
@@ -94,12 +99,22 @@ export async function handleGoogleCallback(request, env) {
 
   // Create or update user
   const email = normalizeEmail(googleUser.email);
-  const userId = crypto.randomUUID();
 
-  await env.DB.prepare(
-    `INSERT OR REPLACE INTO users (id, email, password_hash, password_salt, created_at)
-     VALUES (?, ?, '', '', strftime('%s','now'))`
-  ).bind(userId, email).run();
+  // Check if user already exists
+  const existingUser = await env.DB.prepare(
+    `SELECT id FROM users WHERE email = ?`
+  ).bind(email).first();
+
+  let userId;
+  if (existingUser) {
+    userId = existingUser.id;
+  } else {
+    userId = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO users (id, email, password_hash, password_salt, created_at)
+       VALUES (?, ?, '', '', strftime('%s','now'))`
+    ).bind(userId, email).run();
+  }
 
   // Create session
   const sessionToken = generateCode();
@@ -177,23 +192,28 @@ export async function handleGitHubCallback(request, env) {
   }
 
   // Exchange code for tokens
-  const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      client_id: env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri: `${url.origin}/oauth/github/callback`,
-    }),
-  });
+  let tokenResponse;
+  try {
+    tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: env.GITHUB_CLIENT_ID,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: `${url.origin}/oauth/github/callback`,
+      }),
+    });
+  } catch (e) {
+    return new Response(`Failed to connect to GitHub: ${e.message}`, { status: 500 });
+  }
 
   const tokens = await tokenResponse.json();
   if (!tokens.access_token) {
-    return new Response('Failed to exchange code for tokens', { status: 500 });
+    return new Response(`GitHub token exchange failed: ${JSON.stringify(tokens)}`, { status: 500 });
   }
 
   // Get user info
@@ -223,12 +243,22 @@ export async function handleGitHubCallback(request, env) {
 
   // Create or update user
   const email = normalizeEmail(primaryEmail);
-  const userId = crypto.randomUUID();
 
-  await env.DB.prepare(
-    `INSERT OR REPLACE INTO users (id, email, password_hash, password_salt, created_at)
-     VALUES (?, ?, '', '', strftime('%s','now'))`
-  ).bind(userId, email).run();
+  // Check if user already exists
+  const existingUser = await env.DB.prepare(
+    `SELECT id FROM users WHERE email = ?`
+  ).bind(email).first();
+
+  let userId;
+  if (existingUser) {
+    userId = existingUser.id;
+  } else {
+    userId = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO users (id, email, password_hash, password_salt, created_at)
+       VALUES (?, ?, '', '', strftime('%s','now'))`
+    ).bind(userId, email).run();
+  }
 
   // Create session
   const sessionToken = generateCode();
