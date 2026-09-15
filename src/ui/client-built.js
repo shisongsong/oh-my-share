@@ -163,7 +163,8 @@ function b() {
 	}), document.getElementById("oauthLoginBtn").addEventListener("click", x), h(), f();
 }
 async function x() {
-	window.location.href = "/oauth/login";
+	let e = Array.from(crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(8))).map((e) => e.toString(16).padStart(2, "0")).join("");
+	window.location.href = \`/oauth/login?auth_id=\${e}\`;
 }
 //#endregion
 //#region src/ui/modules/upload.js

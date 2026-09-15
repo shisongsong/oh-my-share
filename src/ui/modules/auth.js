@@ -149,5 +149,9 @@ async function generateCodeChallenge(verifier) {
 }
 
 export async function startOAuthLogin() {
-  window.location.href = '/oauth/login';
+  // Generate a temporary auth_id for the login page
+  const authId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  window.location.href = `/oauth/login?auth_id=${authId}`;
 }

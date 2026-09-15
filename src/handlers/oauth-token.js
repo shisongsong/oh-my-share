@@ -70,9 +70,12 @@ export async function handleOAuthLogin(request, env) {
   const url = new URL(request.url);
 
   if (request.method === 'GET') {
-    const authId = url.searchParams.get('auth_id');
+    let authId = url.searchParams.get('auth_id');
     if (!authId) {
-      return new Response('Missing auth_id', { status: 400 });
+      // Generate a temporary auth_id if not provided
+      authId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
     }
 
     const loginPage = `<!DOCTYPE html>
@@ -151,18 +154,14 @@ export async function handleOAuthLogin(request, env) {
     const email = formData.get('email');
     const password = formData.get('password');
 
-    if (!authId || !email || !password) {
+    if (!email || !password) {
       return new Response('Missing required fields', { status: 400 });
     }
 
-    // Get auth request
-    const authRequest = await env.DB.prepare(
+    // Get auth request (may be null for simple web login)
+    const authRequest = authId ? await env.DB.prepare(
       `SELECT * FROM oauth_codes WHERE code = ? AND user_id IS NULL AND expires_at > strftime('%s','now')`
-    ).bind(authId).first();
-
-    if (!authRequest) {
-      return new Response('Invalid or expired authorization request', { status: 400 });
-    }
+    ).bind(authId).first() : null;
 
     // Verify user credentials
     const user = await env.DB.prepare(
@@ -200,31 +199,44 @@ export async function handleOAuthLogin(request, env) {
       });
     }
 
-    // Generate authorization code
-    const code = generateCode();
-
-    // Store the code with user_id
+    // Generate session token for simple web login
+    const sessionToken = generateCode();
     await env.DB.prepare(
-      `UPDATE oauth_codes SET user_id = ?, code = ? WHERE code = ?`
-    ).bind(user.id, code, authId).run();
+      `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
+    ).bind(sessionToken, user.id, Math.floor(Date.now() / 1000) + 86400).run();
 
-    // Get the auth request details for redirect
-    const updatedRequest = await env.DB.prepare(
-      `SELECT redirect_uri, state FROM oauth_codes WHERE code = ?`
-    ).bind(code).first();
+    // If there's an auth request (from MCP/agent flow), handle redirect
+    if (authRequest) {
+      const code = generateCode();
+      await env.DB.prepare(
+        `UPDATE oauth_codes SET user_id = ?, code = ? WHERE code = ?`
+      ).bind(user.id, code, authId).run();
 
-    if (!updatedRequest) {
-      return new Response('Failed to complete authorization', { status: 500 });
+      const updatedRequest = await env.DB.prepare(
+        `SELECT redirect_uri, state FROM oauth_codes WHERE code = ?`
+      ).bind(code).first();
+
+      if (updatedRequest) {
+        const redirectUrl = new URL(updatedRequest.redirect_uri);
+        redirectUrl.searchParams.set('code', code);
+        if (updatedRequest.state) {
+          redirectUrl.searchParams.set('state', updatedRequest.state);
+        }
+        return Response.redirect(redirectUrl.toString(), 302);
+      }
     }
 
-    // Redirect back to client with code
-    const redirectUrl = new URL(updatedRequest.redirect_uri);
-    redirectUrl.searchParams.set('code', code);
-    if (updatedRequest.state) {
-      redirectUrl.searchParams.set('state', updatedRequest.state);
-    }
+    // Simple web login - redirect to home page with session cookie
+    const redirectUrl = new URL(url.origin);
+    redirectUrl.searchParams.set('oauth_success', '1');
 
-    return Response.redirect(redirectUrl.toString(), 302);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: redirectUrl.toString(),
+        'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+      },
+    });
   }
 
   return json({ error: 'method_not_allowed' }, 405);
