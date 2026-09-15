@@ -5,7 +5,7 @@ export function handleAuthMd(request) {
 
 ## Agent Registration
 
-This service supports agent registration. AI agents can register and authenticate to access Oh My Share APIs.
+This service supports agent registration for AI agents and automated tools.
 
 ## Registration Endpoint
 
@@ -33,26 +33,37 @@ Content-Type: application/json
 
 ## Registration Methods
 
-- **password**: Email and password registration
+- password: Email and password registration via POST /api/auth/register
 
 ## Authentication Methods
 
-- **password**: Email and password login
-- **cookie**: Session-based authentication via HTTP cookies
+- password: Email and password login via POST /api/auth/login
+- cookie: Session-based authentication via HTTP cookies
 
-## Agent Capabilities
+## Agent Auth
 
-After authentication, agents can:
-
-- Upload HTML files: \`POST /api/upload\`
-- List assets: \`GET /api/assets\`
-- Manage content: \`GET /api/shares\`
-- View content: \`GET /view/{id}\`
+\`\`\`json
+{
+  "skill": "${origin}/auth.md",
+  "register_uri": "${origin}/api/auth/register",
+  "register_methods": ["password"],
+  "auth_uri": "${origin}/api/auth/login",
+  "auth_methods": ["password"]
+}
+\`\`\`
 
 ## OAuth Metadata
 
-- Protected Resource: \`${origin}/.well-known/oauth-protected-resource\`
-- Authorization Server: \`${origin}/.well-known/oauth-authorization-server\`
+- Protected Resource: ${origin}/.well-known/oauth-protected-resource
+- Authorization Server: ${origin}/.well-known/oauth-authorization-server
+
+## Capabilities
+
+After authentication, agents can:
+- Upload HTML files: POST /api/upload
+- List assets: GET /api/assets
+- Manage content: GET /api/shares
+- View content: GET /view/{id}
 
 ## Rate Limits
 
