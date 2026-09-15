@@ -8,6 +8,16 @@ export function handleMcpServerCard(request) {
     },
     description: 'HTML and code sharing with end-to-end encryption. Upload, manage, and share HTML files and code snippets.',
     endpoint: `${origin}/mcp`,
+    authentication: {
+      type: 'oauth2',
+      oauth2: {
+        tokenEndpoint: `${origin}/oauth/token`,
+        authorizationEndpoint: `${origin}/api/auth/login`,
+        registrationEndpoint: `${origin}/api/auth/register`,
+        grantTypes: ['password'],
+        scopes: ['upload', 'manage', 'read'],
+      },
+    },
     capabilities: {
       tools: {
         listChanged: false,
@@ -38,7 +48,7 @@ export function handleMcpServerCard(request) {
       },
       {
         name: 'list_assets',
-        description: 'List uploaded assets',
+        description: 'List uploaded assets (requires authentication)',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -57,7 +67,7 @@ export function handleMcpServerCard(request) {
       },
       {
         name: 'delete',
-        description: 'Delete an uploaded asset',
+        description: 'Delete an uploaded asset (requires authentication)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -86,6 +96,12 @@ export function handleMcpServerCard(request) {
         uri: `${origin}/.well-known/oauth-protected-resource`,
         name: 'OAuth Protected Resource Metadata',
         description: 'OAuth 2.0 Protected Resource Metadata',
+        mimeType: 'application/json',
+      },
+      {
+        uri: `${origin}/.well-known/oauth-authorization-server`,
+        name: 'OAuth Authorization Server Metadata',
+        description: 'OAuth 2.0 Authorization Server Metadata',
         mimeType: 'application/json',
       },
     ],

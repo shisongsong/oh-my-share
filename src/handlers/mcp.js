@@ -266,6 +266,7 @@ export async function handleMcp(request, env) {
   const { id, method, params } = body;
 
   if (method === 'initialize') {
+    const origin = new URL(request.url).origin;
     return json({
       jsonrpc: '2.0',
       result: {
@@ -276,6 +277,15 @@ export async function handleMcp(request, env) {
         serverInfo: {
           name: 'oh-my-share',
           version: '2.1.0',
+        },
+        authentication: {
+          type: 'oauth2',
+          oauth2: {
+            tokenEndpoint: `${origin}/oauth/token`,
+            registrationEndpoint: `${origin}/api/auth/register`,
+            grantTypes: ['password'],
+            scopes: ['upload', 'manage', 'read'],
+          },
         },
       },
       id,
