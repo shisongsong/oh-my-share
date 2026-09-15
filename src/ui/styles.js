@@ -763,6 +763,65 @@ textarea::placeholder {
   color: var(--color-accent-cyan);
 }
 
+/* OAuth 分隔线 */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  margin: var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.oauth-divider::before,
+.oauth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.oauth-divider::before {
+  margin-right: var(--space-3);
+}
+
+.oauth-divider::after {
+  margin-left: var(--space-3);
+}
+
+/* OAuth 按钮 */
+.oauth-btn {
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-bg-input);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-family: var(--font-pixel-body);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-pixel);
+}
+
+.oauth-btn:hover {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-pixel-hover);
+  background: rgba(128,128,128,0.05);
+}
+
+.oauth-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
+.oauth-btn svg {
+  flex-shrink: 0;
+}
+
 .account-email {
   font-size: 13px;
   color: var(--color-text-muted);

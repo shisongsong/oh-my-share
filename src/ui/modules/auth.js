@@ -123,7 +123,49 @@ export function initAuth() {
   document.getElementById('accountModal').addEventListener('click', (event) => {
     if (event.target === event.currentTarget) closeAccountModal();
   });
+  document.getElementById('oauthLoginBtn').addEventListener('click', startOAuthLogin);
 
   updateAuthMode();
   loadCurrentUser();
+}
+
+function generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode.apply(null, array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+export async function startOAuthLogin() {
+  const clientId = 'web-' + Date.now();
+  const redirectUri = window.location.origin + '/oauth/callback';
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  const state = crypto.randomUUID();
+
+  sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+  sessionStorage.setItem('oauth_state', state);
+
+  const authUrl = new URL('/oauth/authorize', window.location.origin);
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('scope', 'upload manage read');
+
+  window.location.href = authUrl.toString();
 }

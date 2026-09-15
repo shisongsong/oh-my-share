@@ -298,6 +298,51 @@ export async function handleOAuthToken(request, env) {
   return json({ error: 'unsupported_grant_type', error_description: 'Supported: password, authorization_code' }, 400);
 }
 
+export async function handleOAuthCallback(request, env) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    return new Response(`Authorization failed: ${error}`, { status: 400 });
+  }
+
+  if (!code) {
+    return new Response('Missing authorization code', { status: 400 });
+  }
+
+  // Get the auth code details
+  const authCode = await env.DB.prepare(
+    `SELECT * FROM oauth_codes WHERE code = ? AND user_id IS NOT NULL AND expires_at > strftime('%s','now')`
+  ).bind(code).first();
+
+  if (!authCode) {
+    return new Response('Invalid or expired authorization code', { status: 400 });
+  }
+
+  // Delete the used code
+  await env.DB.prepare(`DELETE FROM oauth_codes WHERE code = ?`).bind(code).run();
+
+  // Create a session for the user
+  const sessionToken = generateCode();
+  await env.DB.prepare(
+    `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
+  ).bind(sessionToken, authCode.user_id, Math.floor(Date.now() / 1000) + 86400).run();
+
+  // Redirect to home page with session cookie
+  const redirectUrl = new URL(url.origin);
+  redirectUrl.searchParams.set('oauth_success', '1');
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: redirectUrl.toString(),
+      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+    },
+  });
+}
+
 export async function validateToken(request, env) {
   const auth = request.headers.get('authorization');
   if (!auth || !auth.startsWith('Bearer ')) {

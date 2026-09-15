@@ -192,6 +192,15 @@ ${seoMeta}
         </div>
         <button class="btn" id="authSubmit" type="submit" data-i18n="loginSubmit"></button>
       </form>
+      <div class="oauth-divider">
+        <span data-i18n="orContinueWith"></span>
+      </div>
+      <button class="btn oauth-btn" id="oauthLoginBtn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
+        </svg>
+        <span data-i18n="oauthLogin"></span>
+      </button>
       <p class="modal-message" id="authMessage"></p>
       <button class="text-button" id="authModeSwitch" type="button" data-i18n="switchToRegister"></button>
     </div>

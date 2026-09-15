@@ -109,6 +109,8 @@ export const I18N = {
     editLink: '编辑信息',
     statsLink: '查看统计',
     manageHint: '登录后可在账户中管理此分享',
+    orContinueWith: '或使用',
+    oauthLogin: 'OAuth 登录',
   },
   en: {
     htmlLang: 'en',
@@ -206,5 +208,7 @@ export const I18N = {
     editLink: 'Edit Info',
     statsLink: 'View Stats',
     manageHint: 'Sign in to manage this share from your account',
+    orContinueWith: 'or continue with',
+    oauthLogin: 'OAuth Login',
   },
 };
