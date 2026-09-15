@@ -3,82 +3,120 @@ export function handleAuthMd(request) {
 
   const content = `# auth.md
 
-## Agent Registration
+You are an agent. This service supports **agentic registration**: discover → register → exchange for an access_token → call API. Follow the steps in order; do not skip ahead.
 
-This service supports agent registration for AI agents and automated tools.
+## Step 1 — Discover
 
-## Registration Endpoint
+### 1a. Fetch the Protected Resource Metadata
+
+\`\`\`
+GET ${origin}/.well-known/oauth-protected-resource
+\`\`\`
+
+Response:
+
+\`\`\`json
+{
+  "resource": "${origin}",
+  "resource_name": "Oh My Share",
+  "authorization_servers": ["${origin}"],
+  "scopes_supported": ["upload", "manage", "read"],
+  "bearer_methods_supported": ["header"]
+}
+\`\`\`
+
+### 1b. Fetch the Authorization Server metadata
+
+\`\`\`
+GET ${origin}/.well-known/oauth-authorization-server
+\`\`\`
+
+Response:
+
+\`\`\`json
+{
+  "issuer": "${origin}",
+  "token_endpoint": "${origin}/api/auth/login",
+  "registration_endpoint": "${origin}/api/auth/register",
+  "grant_types_supported": ["password"],
+  "agent_auth": {
+    "skill": "${origin}/auth.md",
+    "identity_endpoint": "${origin}/api/auth/register",
+    "identity_types_supported": ["anonymous", "service_auth"]
+  }
+}
+\`\`\`
+
+## Step 2 — Pick a method
+
+1. **You have a user email** → service_auth
+2. **You have neither** → anonymous
+
+## Step 3 — Register
+
+### service_auth
 
 \`\`\`
 POST ${origin}/api/auth/register
 Content-Type: application/json
 
 {
-  "email": "agent@example.com",
+  "email": "user@example.com",
   "password": "secure-password"
 }
 \`\`\`
 
-## Authentication Endpoint
+Response (200):
+
+\`\`\`json
+{
+  "email": "user@example.com",
+  "message": "Registration successful"
+}
+\`\`\`
+
+### anonymous
+
+\`\`\`
+POST ${origin}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "anonymous-agent@example.com",
+  "password": "random-generated-password"
+}
+\`\`\`
+
+## Step 4 — Authenticate
 
 \`\`\`
 POST ${origin}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "agent@example.com",
+  "email": "user@example.com",
   "password": "secure-password"
 }
 \`\`\`
 
-## Registration Methods
+Response: Set-Cookie with session token.
 
-- password: Email and password registration via POST /api/auth/register
+## Step 5 — Use the session
 
-## Authentication Methods
+Present the session cookie in subsequent requests:
 
-- password: Email and password login via POST /api/auth/login
-- cookie: Session-based authentication via HTTP cookies
-
-## Agent Auth
-
-\`\`\`json
-{
-  "skill": "${origin}/auth.md",
-  "register_uri": "${origin}/api/auth/register",
-  "register_methods": ["password"],
-  "auth_uri": "${origin}/api/auth/login",
-  "auth_methods": ["password"]
-}
 \`\`\`
-
-## Flow Metadata
-
-### ID-JAG
-
-\`\`\`json
-{
-  "identity_types_supported": ["identity_assertion"],
-  "identity_assertion": {
-    "assertion_types_supported": ["urn:ietf:params:oauth:token-type:id-jag"],
-    "credential_types_supported": ["jwt"]
-  },
-  "events_supported": ["identity_assertion.created", "identity_assertion.revoked"]
-}
+GET ${origin}/api/assets
+Cookie: session=<session_token>
 \`\`\`
-
-## OAuth Metadata
-
-- Protected Resource: ${origin}/.well-known/oauth-protected-resource
-- Authorization Server: ${origin}/.well-known/oauth-authorization-server
 
 ## Capabilities
 
 After authentication, agents can:
-- Upload HTML files: POST /api/upload
-- List assets: GET /api/assets
-- Manage content: GET /api/shares
-- View content: GET /view/{id}
+- Upload HTML files: \`POST /api/upload\`
+- List assets: \`GET /api/assets\`
+- Manage content: \`GET /api/shares\`
+- View content: \`GET /view/{id}\`
 
 ## Rate Limits
 
