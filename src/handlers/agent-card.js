@@ -16,6 +16,28 @@ export function handleAgentCard(request) {
       pushNotifications: false,
       stateTransitionHistory: false,
     },
+    supportedInterfaces: [
+      {
+        url: `${origin}/api/upload`,
+        transport: 'http',
+        protocol: 'json-rpc',
+      },
+      {
+        url: `${origin}/api/assets`,
+        transport: 'http',
+        protocol: 'json-rpc',
+      },
+      {
+        url: `${origin}/api/auth/login`,
+        transport: 'http',
+        protocol: 'json-rpc',
+      },
+      {
+        url: `${origin}/api/auth/register`,
+        transport: 'http',
+        protocol: 'json-rpc',
+      },
+    ],
     authentication: {
       schemes: ['cookie'],
     },
