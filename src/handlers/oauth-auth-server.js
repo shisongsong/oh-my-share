@@ -11,11 +11,6 @@ export function handleOAuthAuthorizationServer(request) {
     scopes_supported: ['upload', 'manage', 'read'],
     service_documentation: `${origin}/auth.md`,
     code_challenge_methods_supported: ['S256'],
-    // ChatGPT Apps SDK compatibility
-    chatgpt_compatible: true,
-    redirect_uris_supported: [
-      'https://chatgpt.com/robots.txt',
-    ],
     // Agent-specific authentication metadata
     agent_auth: {
       client_id: 'oh-my-share-agent',
