@@ -43,21 +43,13 @@ export async function handleOAuthAuthorize(request, env) {
 
     // Store auth request in session for the login page
     const authId = generateCode().slice(0, 16);
-    const authData = JSON.stringify({
-      client_id,
-      redirect_uri,
-      code_challenge,
-      code_challenge_method,
-      state,
-      scope,
-      created_at: Date.now(),
-    });
 
     // Store in KV-like approach using D1
+    const now = Math.floor(Date.now() / 1000);
     await env.DB.prepare(
-      `INSERT OR REPLACE INTO oauth_codes (code, user_id, client_id, redirect_uri, code_challenge, scope, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))`
-    ).bind(authId, null, client_id, redirect_uri, code_challenge, scope, Math.floor(Date.now() / 1000) + 600, Math.floor(Date.now() / 1000)).run();
+      `INSERT OR REPLACE INTO oauth_codes (code, user_id, client_id, redirect_uri, code_challenge, code_challenge_method, scope, state, expires_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(authId, null, client_id, redirect_uri, code_challenge, code_challenge_method || 'S256', scope, state || null, now + 600, now).run();
 
     // Redirect to login page with auth_id
     const loginUrl = `${url.origin}/oauth/login?auth_id=${authId}`;

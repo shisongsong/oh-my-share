@@ -1,8 +1,12 @@
 import { getCurrentUser, isSameOriginRequest } from '../auth.js';
 import { getBucket, getDatabase, json } from '../security.js';
 
-function unauthorized() {
-  return json({ error: 'Authentication required' }, 401, { 'Cache-Control': 'no-store' });
+function unauthorized(request) {
+  const origin = new URL(request.url).origin;
+  return json({ error: 'Authentication required' }, 401, {
+    'Cache-Control': 'no-store',
+    'WWW-Authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
+  });
 }
 
 function assetUrl(request, id) {
@@ -11,7 +15,7 @@ function assetUrl(request, id) {
 
 export async function handleListAssets(request, env) {
   const user = await getCurrentUser(request, env);
-  if (!user) return unauthorized();
+  if (!user) return unauthorized(request);
 
   const database = getDatabase(env);
   const result = await database
@@ -45,7 +49,7 @@ export async function handleDeleteAsset(request, env, id) {
   if (!isSameOriginRequest(request)) return json({ error: 'Invalid origin' }, 403);
 
   const user = await getCurrentUser(request, env);
-  if (!user) return unauthorized();
+  if (!user) return unauthorized(request);
   if (!id || !/^[a-z0-9-]+$/i.test(id)) return json({ error: 'Invalid ID' }, 400);
 
   const database = getDatabase(env);
