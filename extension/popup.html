@@ -7,108 +7,172 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      width: 320px;
-      font-family: 'Segoe UI', sans-serif;
-      background: #f5f5f0;
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #fff;
       color: #1a1a1a;
     }
+    
+    /* Header */
     .header {
-      background: linear-gradient(90deg, #ff5c7c, #5ce1d4);
-      padding: 16px;
+      background: linear-gradient(135deg, #ff5c7c 0%, #5ce1d4 100%);
+      padding: 20px;
       text-align: center;
     }
     .header h1 {
-      font-size: 18px;
+      font-size: 16px;
       color: white;
-      font-weight: bold;
+      font-weight: 600;
+      letter-spacing: -0.5px;
     }
+    .header p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.9);
+      margin-top: 4px;
+    }
+    
+    /* Content */
     .content {
       padding: 16px;
     }
-    .tabs {
-      display: flex;
+    
+    /* Pending share banner */
+    .pending-banner {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .pending-banner.show {
+      display: block;
+    }
+    .pending-banner h3 {
+      font-size: 12px;
+      color: #166534;
+      margin-bottom: 8px;
+    }
+    .pending-preview {
+      font-size: 11px;
+      color: #666;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Quick actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-bottom: 16px;
     }
-    .tab {
-      flex: 1;
-      padding: 8px;
-      border: 2px solid #ddd;
-      background: white;
-      text-align: center;
+    .quick-btn {
+      padding: 12px 8px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
       cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .quick-btn:hover {
+      border-color: #ff5c7c;
+      background: #fef2f2;
+    }
+    .quick-btn.active {
+      border-color: #5ce1d4;
+      background: #f0fdfa;
+    }
+    .quick-btn svg {
+      width: 20px;
+      height: 20px;
+      margin-bottom: 4px;
+    }
+    .quick-btn span {
+      display: block;
       font-size: 11px;
-      font-weight: bold;
+      font-weight: 500;
     }
-    .tab.active {
-      background: linear-gradient(90deg, #ff5c7c, #5ce1d4);
-      color: white;
-      border-color: transparent;
+    
+    /* Textarea */
+    .editor {
+      display: none;
     }
-    .tab:hover {
-      opacity: 0.9;
+    .editor.show {
+      display: block;
     }
     textarea {
       width: 100%;
-      height: 120px;
+      height: 100px;
       padding: 12px;
-      border: 2px solid #ddd;
+      border: 2px solid #e5e7eb;
       border-radius: 8px;
-      font-family: monospace;
+      font-family: 'SF Mono', Monaco, monospace;
       font-size: 12px;
       resize: vertical;
       margin-bottom: 12px;
     }
     textarea:focus {
       outline: none;
-      border-color: #ff5c7c;
+      border-color: #5ce1d4;
     }
+    
+    /* Options row */
     .options {
       display: flex;
       gap: 8px;
       margin-bottom: 12px;
     }
-    select, input {
+    .options select {
       flex: 1;
-      padding: 8px;
-      border: 2px solid #ddd;
-      border-radius: 8px;
+      padding: 8px 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 6px;
       font-size: 12px;
+      background: #fff;
     }
-    select:focus, input:focus {
-      outline: none;
-      border-color: #ff5c7c;
-    }
-    button {
+    
+    /* Buttons */
+    .btn {
       width: 100%;
       padding: 12px;
-      background: linear-gradient(90deg, #ff5c7c, #5ce1d4);
-      color: white;
       border: none;
       border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
+      transition: all 0.2s;
     }
-    button:hover {
+    .btn-primary {
+      background: linear-gradient(135deg, #ff5c7c 0%, #5ce1d4 100%);
+      color: white;
+    }
+    .btn-primary:hover {
       opacity: 0.9;
+      transform: translateY(-1px);
     }
-    button:disabled {
-      background: #ccc;
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #e5e7eb;
+    }
+    .btn:disabled {
+      opacity: 0.5;
       cursor: not-allowed;
     }
-    button.secondary {
-      background: #f5f5f0;
-      color: #1a1a1a;
-      border: 2px solid #ddd;
-    }
+    
+    /* Result */
     .result {
       display: none;
-      margin-top: 16px;
-      padding: 12px;
-      background: white;
-      border: 2px solid #5ce1d4;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
       border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
     }
     .result.show {
       display: block;
@@ -116,162 +180,160 @@
     .result-url {
       display: flex;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
     .result-url input {
       flex: 1;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    .result-url button {
-      width: auto;
       padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
       font-size: 12px;
+      background: #fff;
+    }
+    .result-url input:focus {
+      outline: none;
+      border-color: #5ce1d4;
     }
     .result-actions {
       display: flex;
       gap: 8px;
     }
-    .result-actions button {
+    .result-actions .btn {
       flex: 1;
-      font-size: 12px;
     }
+    
+    /* Loading */
     .loading {
       display: none;
       text-align: center;
-      padding: 20px;
-      color: #666;
+      padding: 24px;
     }
     .loading.show {
       display: block;
     }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #5ce1d4;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    
+    /* Error */
     .error {
       display: none;
-      color: #ff5c7c;
-      font-size: 12px;
-      margin-top: 8px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
     }
     .error.show {
       display: block;
     }
-    /* Auth styles */
-    .auth-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .form-group label {
+    .error-text {
       font-size: 12px;
-      font-weight: bold;
+      color: #dc2626;
     }
-    .form-group input {
-      width: 100%;
-    }
-    .auth-message {
-      font-size: 12px;
-      margin-top: 8px;
-    }
-    .account-view {
-      display: none;
+    
+    /* Footer */
+    .footer {
+      padding: 12px 16px;
+      border-top: 1px solid #e5e7eb;
       text-align: center;
     }
-    .account-email {
-      font-size: 14px;
-      margin-bottom: 12px;
-      word-break: break-all;
+    .footer a {
+      font-size: 11px;
+      color: #6b7280;
+      text-decoration: none;
     }
-    .auth-view {
-      display: block;
-    }
-    .divider {
-      text-align: center;
-      margin: 12px 0;
-      color: #666;
-      font-size: 12px;
+    .footer a:hover {
+      color: #ff5c7c;
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>Oh My Share</h1>
+    <p>Share HTML & code snippets</p>
   </div>
   
   <div class="content">
-    <div class="tabs">
-      <div class="tab active" data-tab="selection">Selection</div>
-      <div class="tab" data-tab="code">Code</div>
-      <div class="tab" data-tab="auth">Account</div>
+    <!-- Pending share from context menu -->
+    <div class="pending-banner" id="pendingBanner">
+      <h3>Pending share</h3>
+      <div class="pending-preview" id="pendingPreview"></div>
     </div>
     
-    <div id="selection-tab">
-      <p style="font-size: 12px; margin-bottom: 12px; color: #666;">
-        Click "Start Selection" then click on any element on the page
-      </p>
-      <button id="shareSelection">Start Selection</button>
+    <!-- Quick actions -->
+    <div class="quick-actions" id="quickActions">
+      <button class="quick-btn" id="pasteBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        </svg>
+        <span>Paste Code</span>
+      </button>
+      <button class="quick-btn" id="pageBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+        </svg>
+        <span>Current Page</span>
+      </button>
     </div>
     
-    <div id="code-tab" style="display: none;">
+    <!-- Editor -->
+    <div class="editor" id="editor">
       <textarea id="codeInput" placeholder="Paste your HTML or code here..."></textarea>
       <div class="options">
         <select id="language">
           <option value="html">HTML</option>
           <option value="css">CSS</option>
           <option value="js">JavaScript</option>
+          <option value="json">JSON</option>
           <option value="markdown">Markdown</option>
         </select>
       </div>
-      <button id="shareCode">Share Code</button>
+      <button class="btn btn-primary" id="shareBtn">Share</button>
     </div>
     
-    <div id="auth-tab" style="display: none;">
-      <div class="auth-view" id="authView">
-        <form class="auth-form" id="authForm">
-          <div class="form-group">
-            <label for="authEmail">Email</label>
-            <input type="email" id="authEmail" placeholder="your@email.com" required>
-          </div>
-          <div class="form-group">
-            <label for="authPassword">Password</label>
-            <input type="password" id="authPassword" placeholder="Password" required>
-          </div>
-          <button type="submit" id="authSubmit">Login</button>
-        </form>
-        <p class="auth-message" id="authMessage"></p>
-        <div class="divider">or</div>
-        <a href="https://openanthropic.com" target="_blank" style="text-decoration: none;">
-          <button type="button" class="secondary">Create Account</button>
-        </a>
-      </div>
-      
-      <div class="account-view" id="accountView">
-        <p class="account-email" id="accountEmail"></p>
-        <button id="logoutBtn" class="secondary">Logout</button>
-      </div>
-    </div>
-    
+    <!-- Loading -->
     <div class="loading" id="loading">
-      Uploading...
+      <div class="spinner"></div>
+      <div class="loading-text">Uploading...</div>
     </div>
     
-    <div class="error" id="error"></div>
-    
+    <!-- Result -->
     <div class="result" id="result">
       <div class="result-url">
         <input type="text" id="shareUrl" readonly>
-        <button id="copyBtn">Copy</button>
+        <button class="btn btn-secondary" id="copyBtn" style="width: auto; padding: 8px 16px;">Copy</button>
       </div>
       <div class="result-actions">
-        <button id="openBtn">Open</button>
-        <button id="newShare" class="secondary">New Share</button>
+        <button class="btn btn-secondary" id="openBtn">Open</button>
+        <button class="btn btn-primary" id="newBtn">New Share</button>
       </div>
     </div>
+    
+    <!-- Error -->
+    <div class="error" id="error">
+      <div class="error-text" id="errorText"></div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <a href="https://openanthropic.com" target="_blank">openanthropic.com</a>
   </div>
 
   <script src="popup.js"></script>

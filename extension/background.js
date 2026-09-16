@@ -1,22 +1,99 @@
 // Background service worker for Oh My Share Chrome Extension
 
-// Listen for extension installation
+// Create context menu on install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Oh My Share extension installed');
+  // Share selected text
+  chrome.contextMenus.create({
+    id: 'share-selection',
+    title: 'Share selection with Oh My Share',
+    contexts: ['selection']
+  });
+  
+  // Share link
+  chrome.contextMenus.create({
+    id: 'share-link',
+    title: 'Share link with Oh My Share',
+    contexts: ['link']
+  });
+  
+  // Share image
+  chrome.contextMenus.create({
+    id: 'share-image',
+    title: 'Share image with Oh My Share',
+    contexts: ['image']
+  });
+  
+  // Share page
+  chrome.contextMenus.create({
+    id: 'share-page',
+    title: 'Share this page with Oh My Share',
+    contexts: ['page']
+  });
 });
 
-// Listen for messages
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  let content = '';
+  let title = '';
+  
+  switch (info.menuItemId) {
+    case 'share-selection':
+      content = info.selectionText;
+      title = 'Shared text';
+      break;
+      
+    case 'share-link':
+      content = `<a href="${info.linkUrl}">${info.linkUrl}</a>`;
+      title = info.linkUrl;
+      break;
+      
+    case 'share-image':
+      content = `<img src="${info.srcUrl}" alt="${info.srcUrl}">`;
+      title = 'Shared image';
+      break;
+      
+    case 'share-page':
+      content = `<!-- Shared from: ${tab.url} -->\n${await getPageContent(tab)}`;
+      title = tab.title;
+      break;
+  }
+  
+  if (content) {
+    // Store content and open popup
+    await chrome.storage.local.set({ 
+      pendingShare: { content, title } 
+    });
+    
+    // Open popup
+    chrome.action.openPopup();
+  }
+});
+
+// Get page content
+async function getPageContent(tab) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => document.documentElement.outerHTML
+    });
+    return results[0]?.result || '';
+  } catch {
+    return '';
+  }
+}
+
+// Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'upload') {
-    uploadContent(request.content, request.language, request.authToken)
-      .then(result => sendResponse({ success: true, url: result.url }))
+    uploadContent(request.content, request.title, request.authToken)
+      .then(result => sendResponse({ success: true, ...result }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
 });
 
 // Upload content to Oh My Share
-async function uploadContent(content, language, authToken) {
+async function uploadContent(content, title, authToken) {
   const headers = {
     'Content-Type': 'application/json',
   };
@@ -30,14 +107,16 @@ async function uploadContent(content, language, authToken) {
     headers,
     body: JSON.stringify({
       code: content,
-      language: language || 'html',
+      language: 'html',
+      title: title || '',
     }),
   });
   
+  const result = await response.json();
+  
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Upload failed');
+    throw new Error(result.error || 'Upload failed');
   }
   
-  return await response.json();
+  return result;
 }
