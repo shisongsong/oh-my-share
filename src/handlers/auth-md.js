@@ -3,99 +3,124 @@ export function handleAuthMd(request) {
 
   const content = `# auth.md
 
-You are an agent. This service supports **agentic registration** and **OAuth 2.0** authentication. Follow the steps in order; do not skip ahead.
+You are an agent. This service supports automatic agent authentication via discovery metadata.
 
-## Step 1 — Discover
+## Quick Start (Anonymous Agent)
 
-### 1a. Fetch the Protected Resource Metadata
+If you just need to upload HTML content, no user authentication is needed:
+
+\`\`\`
+POST ${origin}/mcp
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "upload",
+    "arguments": {
+      "content": "<html>...</html>"
+    }
+  },
+  "id": 1
+}
+\`\`\`
+
+## Discovery Flow
+
+For agents that need to manage user data (list assets, delete, etc.), follow this flow:
+
+### 1. Discover Service
+
+\`\`\`
+GET ${origin}/.well-known/agent-card.json
+\`\`\`
+
+### 2. Discover MCP Capabilities
+
+\`\`\`
+GET ${origin}/.well-known/mcp/server-card.json
+\`\`\`
+
+### 3. Check Tool Requirements
+
+Call \`tools/list\` to see which tools require authentication:
+
+\`\`\`
+POST ${origin}/mcp
+Content-Type: application/json
+
+{"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+\`\`\`
+
+Tools requiring authentication return 401:
+- \`list_assets\` - List user's uploaded assets
+- \`delete\` - Delete an asset
+
+Tools that work without authentication:
+- \`upload\` - Upload HTML content
+- \`view\` - View shared content
+- \`get_info\` - Get service information
+
+### 4. Authenticate (if needed)
+
+When a tool returns 401, the response includes:
+
+\`\`\`
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"
+\`\`\`
+
+Follow the OAuth flow:
 
 \`\`\`
 GET ${origin}/.well-known/oauth-protected-resource
-\`\`\`
+→ Get authorization server
 
-Response:
-
-\`\`\`json
-{
-  "resource": "${origin}",
-  "resource_name": "Oh My Share",
-  "authorization_servers": ["${origin}"],
-  "scopes_supported": ["upload", "manage", "read"],
-  "bearer_methods_supported": ["header"]
-}
-\`\`\`
-
-### 1b. Fetch the Authorization Server metadata
-
-\`\`\`
 GET ${origin}/.well-known/oauth-authorization-server
+→ Get endpoints
+
+GET ${origin}/oauth/authorize?client_id=...&response_type=code&code_challenge=...&code_challenge_method=S256&scope=upload manage read
+→ User authorizes
+
+POST ${origin}/oauth/token
+{"grant_type": "authorization_code", "code": "...", "code_verifier": "..."}
+→ Get access_token
 \`\`\`
 
-Response:
+### 5. Use Authenticated Tool
 
-\`\`\`json
+\`\`\`
+POST ${origin}/mcp
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
 {
-  "issuer": "${origin}",
-  "authorization_endpoint": "${origin}/oauth/authorize",
-  "token_endpoint": "${origin}/oauth/token",
-  "registration_endpoint": "${origin}/api/auth/register",
-  "response_types_supported": ["code"],
-  "grant_types_supported": ["authorization_code", "password"],
-  "token_endpoint_auth_methods_supported": ["none"],
-  "scopes_supported": ["upload", "manage", "read"],
-  "code_challenge_methods_supported": ["S256"],
-  "agent_auth": {
-    "skill": "${origin}/auth.md",
-    "identity_endpoint": "${origin}/api/auth/register",
-    "identity_types_supported": ["anonymous", "service_auth"]
-  }
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "list_assets",
+    "arguments": {}
+  },
+  "id": 2
 }
 \`\`\`
 
-## Step 2 — Pick a method
+## Agent Identity (Optional)
 
-1. **You have a user email** → service_auth (Password Grant)
-2. **You have neither** → anonymous (Password Grant)
-3. **Interactive user** → Authorization Code + PKCE
-
-## Step 3 — Register (if new user)
-
-### service_auth
+For agents that need persistent identity across sessions, register an agent account:
 
 \`\`\`
 POST ${origin}/api/auth/register
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
+  "email": "your-agent-id@agents.example.com",
   "password": "secure-password"
 }
 \`\`\`
 
-Response (200):
-
-\`\`\`json
-{
-  "email": "user@example.com",
-  "message": "Registration successful"
-}
-\`\`\`
-
-### anonymous
-
-\`\`\`
-POST ${origin}/api/auth/register
-Content-Type: application/json
-
-{
-  "email": "anonymous-agent-<random>@example.com",
-  "password": "random-generated-password"
-}
-\`\`\`
-
-## Step 4 — Authenticate
-
-### Option A: Password Grant (for agents)
+Then authenticate with password grant (legacy, for compatibility only):
 
 \`\`\`
 POST ${origin}/oauth/token
@@ -103,148 +128,29 @@ Content-Type: application/json
 
 {
   "grant_type": "password",
-  "email": "user@example.com",
+  "email": "your-agent-id@agents.example.com",
   "password": "secure-password"
 }
 \`\`\`
 
-Response (200):
+**Note**: Password grant is legacy. New agents should use Authorization Code + PKCE when possible.
 
-\`\`\`json
-{
-  "access_token": "your-access-token",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "upload manage read"
-}
-\`\`\`
+## OAuth Endpoints
 
-### Option B: Authorization Code + PKCE (for interactive users)
+| Endpoint | Purpose |
+|----------|---------|
+| \`/.well-known/oauth-protected-resource\` | Resource metadata |
+| \`/.well-known/oauth-authorization-server\` | Authorization server metadata |
+| \`/oauth/authorize\` | Authorization endpoint |
+| \`/oauth/token\` | Token endpoint |
+| \`/oauth/google\` | Google social login |
+| \`/oauth/github\` | GitHub social login |
 
-#### B1. Generate PKCE values
+## MCP Protocol
 
-\`\`\`
-code_verifier = <random-43-char-string>
-code_challenge = SHA256(code_verifier) → base64url-encoded
-\`\`\`
+See [modelcontextprotocol.io](https://modelcontextprotocol.io) for protocol specification.
 
-#### B2. Redirect user to authorization endpoint
-
-\`\`\`
-GET ${origin}/oauth/authorize
-  ?client_id=your-client-id
-  &redirect_uri=https://your-app.com/callback
-  &response_type=code
-  &code_challenge=<code_challenge>
-  &code_challenge_method=S256
-  &scope=upload manage read
-  &state=<random-state>
-\`\`\`
-
-#### B3. User logs in and authorizes
-
-User is redirected to \`/oauth/login\` page where they can:
-- Sign in with Google
-- Sign in with GitHub
-- Login with email/password
-
-After authorization, user is redirected back with authorization code:
-
-\`\`\`
-https://your-app.com/callback?code=<authorization_code>&state=<state>
-\`\`\`
-
-#### B4. Exchange code for access token
-
-\`\`\`
-POST ${origin}/oauth/token
-Content-Type: application/json
-
-{
-  "grant_type": "authorization_code",
-  "code": "<authorization_code>",
-  "redirect_uri": "https://your-app.com/callback",
-  "client_id": "your-client-id",
-  "code_verifier": "<code_verifier>"
-}
-\`\`\`
-
-Response (200):
-
-\`\`\`json
-{
-  "access_token": "your-access-token",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "upload manage read"
-}
-\`\`\`
-
-## Step 5 — Call API
-
-Use the access token in the Authorization header:
-
-\`\`\`
-Authorization: Bearer <access_token>
-\`\`\`
-
-### Upload content
-
-\`\`\`
-POST ${origin}/api/upload
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "content": "<html>...</html>",
-  "filename": "my-page.html"
-}
-\`\`\`
-
-### List assets
-
-\`\`\`
-GET ${origin}/api/assets
-Authorization: Bearer <access_token>
-\`\`\`
-
-### Delete asset
-
-\`\`\`
-DELETE ${origin}/api/assets/<id>
-Authorization: Bearer <access_token>
-\`\`\`
-
-## MCP Integration
-
-For MCP (Model Context Protocol) integration, see the MCP server card:
-
-\`\`\`
-GET ${origin}/.well-known/mcp/server-card.json
-\`\`\`
-
-MCP endpoint: \`POST ${origin}/mcp\`
-
-### MCP OAuth Flow
-
-1. Call MCP tool without authentication
-2. Receive 401 with \`WWW-Authenticate: Bearer resource_metadata="..."\`
-3. Follow OAuth flow above to get access token
-4. Call MCP tool with \`Authorization: Bearer <token>\` header
-
-## Social Login
-
-This service supports OAuth login via:
-- **Google**: \`GET ${origin}/oauth/google\`
-- **GitHub**: \`GET ${origin}/oauth/github\`
-
-These are for interactive user login in web browsers, not for agent API access.
-
-## Rate Limits
-
-- Upload: 10/hour, 50/day per IP
-- View: 500/hour per IP
-- Auth: 20/hour per IP
+Supported versions: 2026-07-28, 2025-11-25, 2025-06-18, 2025-03-26
 `;
 
   return new Response(content, {

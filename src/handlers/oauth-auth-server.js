@@ -5,13 +5,13 @@ export function handleOAuthAuthorizationServer(request) {
     issuer: origin,
     authorization_endpoint: `${origin}/oauth/authorize`,
     token_endpoint: `${origin}/oauth/token`,
-    registration_endpoint: `${origin}/api/auth/register`,
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'password'],
     token_endpoint_auth_methods_supported: ['none'],
     scopes_supported: ['upload', 'manage', 'read'],
     service_documentation: `${origin}/auth.md`,
     code_challenge_methods_supported: ['S256'],
+    // Agent-specific authentication metadata
     agent_auth: {
       skill: `${origin}/auth.md`,
       identity_endpoint: `${origin}/api/auth/register`,
@@ -19,7 +19,7 @@ export function handleOAuthAuthorizationServer(request) {
     },
   };
 
-  return new Response(JSON.stringify(metadata), {
+  return new Response(JSON.stringify(metadata, null, 2), {
     status: 200,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',

@@ -4,32 +4,28 @@ export function handleMcpServerCard(request) {
   const card = {
     serverInfo: {
       name: 'oh-my-share',
+      description: 'HTML and code sharing with end-to-end encryption',
       version: '2.1.0',
     },
-    description: 'HTML and code sharing with end-to-end encryption. Upload, manage, and share HTML files and code snippets.',
     endpoint: `${origin}/mcp`,
     authentication: {
       type: 'oauth2',
       oauth2: {
         authorizationEndpoint: `${origin}/oauth/authorize`,
         tokenEndpoint: `${origin}/oauth/token`,
-        registrationEndpoint: `${origin}/api/auth/register`,
         grantTypes: ['authorization_code', 'password'],
         scopes: ['upload', 'manage', 'read'],
         codeChallengeMethods: ['S256'],
       },
     },
+    agentAuth: {
+      identityEndpoint: `${origin}/api/auth/register`,
+      identityTypesSupported: ['anonymous', 'service_auth'],
+    },
     capabilities: {
-      tools: {
-        listChanged: false,
-      },
-      resources: {
-        subscribe: false,
-        listChanged: false,
-      },
-      prompts: {
-        listChanged: false,
-      },
+      tools: { listChanged: false },
+      resources: { subscribe: false, listChanged: false },
+      prompts: { listChanged: false },
     },
     tools: [
       {
@@ -46,6 +42,12 @@ export function handleMcpServerCard(request) {
           },
           required: ['content'],
         },
+        annotations: {
+          title: 'Upload Content',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
       },
       {
         name: 'list_assets',
@@ -53,6 +55,12 @@ export function handleMcpServerCard(request) {
         inputSchema: {
           type: 'object',
           properties: {},
+        },
+        annotations: {
+          title: 'List Assets',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
         },
       },
       {
@@ -65,6 +73,12 @@ export function handleMcpServerCard(request) {
           },
           required: ['id'],
         },
+        annotations: {
+          title: 'View Content',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
       },
       {
         name: 'delete',
@@ -76,6 +90,12 @@ export function handleMcpServerCard(request) {
           },
           required: ['id'],
         },
+        annotations: {
+          title: 'Delete Asset',
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+        },
       },
       {
         name: 'get_info',
@@ -83,6 +103,12 @@ export function handleMcpServerCard(request) {
         inputSchema: {
           type: 'object',
           properties: {},
+        },
+        annotations: {
+          title: 'Service Info',
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
         },
       },
     ],
@@ -126,7 +152,7 @@ export function handleMcpServerCard(request) {
     ],
   };
 
-  return new Response(JSON.stringify(card), {
+  return new Response(JSON.stringify(card, null, 2), {
     status: 200,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
