@@ -90,6 +90,34 @@ const TOOLS = [
   },
 ];
 
+// Apps SDK Resources for ChatGPT
+const APPS_SDK_RESOURCES = [
+  {
+    uri: 'https://openanthropic.com/widget/upload',
+    name: 'Upload Widget',
+    description: 'Upload HTML files and code snippets',
+    mimeType: 'text/html',
+  },
+  {
+    uri: 'https://openanthropic.com/widget/result',
+    name: 'Share Result Widget',
+    description: 'Display share URL and preview',
+    mimeType: 'text/html',
+  },
+  {
+    uri: 'https://openanthropic.com/widget/assets',
+    name: 'My Shares Widget',
+    description: 'List and manage user shares',
+    mimeType: 'text/html',
+  },
+  {
+    uri: 'https://openanthropic.com/widget/view',
+    name: 'View Widget',
+    description: 'View shared HTML content',
+    mimeType: 'text/html',
+  },
+];
+
 function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
@@ -338,7 +366,7 @@ export async function handleMcp(request, env) {
         protocolVersion: requestedVersion,
         capabilities: {
           tools: { listChanged: false },
-          resources: { subscribe: false, listChanged: false },
+          resources: { subscribe: false, listChanged: true },
           prompts: { listChanged: false },
         },
         serverInfo: {
@@ -370,6 +398,14 @@ export async function handleMcp(request, env) {
     return json({
       jsonrpc: '2.0',
       result: { tools: TOOLS },
+      id,
+    });
+  }
+
+  if (method === 'resources/list') {
+    return json({
+      jsonrpc: '2.0',
+      result: { resources: APPS_SDK_RESOURCES },
       id,
     });
   }
