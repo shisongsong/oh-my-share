@@ -37,7 +37,7 @@
       background: white;
       text-align: center;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
     }
     .tab.active {
@@ -97,6 +97,11 @@
       background: #ccc;
       cursor: not-allowed;
     }
+    button.secondary {
+      background: #f5f5f0;
+      color: #1a1a1a;
+      border: 2px solid #ddd;
+    }
     .result {
       display: none;
       margin-top: 16px;
@@ -133,11 +138,6 @@
       flex: 1;
       font-size: 12px;
     }
-    .result-actions button.secondary {
-      background: #f5f5f0;
-      color: #1a1a1a;
-      border: 2px solid #ddd;
-    }
     .loading {
       display: none;
       text-align: center;
@@ -156,6 +156,46 @@
     .error.show {
       display: block;
     }
+    /* Auth styles */
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .form-group input {
+      width: 100%;
+    }
+    .auth-message {
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .account-view {
+      display: none;
+      text-align: center;
+    }
+    .account-email {
+      font-size: 14px;
+      margin-bottom: 12px;
+      word-break: break-all;
+    }
+    .auth-view {
+      display: block;
+    }
+    .divider {
+      text-align: center;
+      margin: 12px 0;
+      color: #666;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -167,13 +207,14 @@
     <div class="tabs">
       <div class="tab active" data-tab="selection">Selection</div>
       <div class="tab" data-tab="code">Code</div>
+      <div class="tab" data-tab="auth">Account</div>
     </div>
     
     <div id="selection-tab">
       <p style="font-size: 12px; margin-bottom: 12px; color: #666;">
-        Select any HTML element on the page, then click "Share Selection"
+        Click "Start Selection" then click on any element on the page
       </p>
-      <button id="shareSelection">Share Selection</button>
+      <button id="shareSelection">Start Selection</button>
     </div>
     
     <div id="code-tab" style="display: none;">
@@ -185,9 +226,34 @@
           <option value="js">JavaScript</option>
           <option value="markdown">Markdown</option>
         </select>
-        <input type="text" id="filename" placeholder="Filename (optional)">
       </div>
       <button id="shareCode">Share Code</button>
+    </div>
+    
+    <div id="auth-tab" style="display: none;">
+      <div class="auth-view" id="authView">
+        <form class="auth-form" id="authForm">
+          <div class="form-group">
+            <label for="authEmail">Email</label>
+            <input type="email" id="authEmail" placeholder="your@email.com" required>
+          </div>
+          <div class="form-group">
+            <label for="authPassword">Password</label>
+            <input type="password" id="authPassword" placeholder="Password" required>
+          </div>
+          <button type="submit" id="authSubmit">Login</button>
+        </form>
+        <p class="auth-message" id="authMessage"></p>
+        <div class="divider">or</div>
+        <a href="https://openanthropic.com" target="_blank" style="text-decoration: none;">
+          <button type="button" class="secondary">Create Account</button>
+        </a>
+      </div>
+      
+      <div class="account-view" id="accountView">
+        <p class="account-email" id="accountEmail"></p>
+        <button id="logoutBtn" class="secondary">Logout</button>
+      </div>
     </div>
     
     <div class="loading" id="loading">

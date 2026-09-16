@@ -2,6 +2,7 @@
 
 let selectedElement = null;
 let selectionHighlight = null;
+let isSelecting = false;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -11,14 +12,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else {
       sendResponse({ html: null });
     }
+  } else if (request.action === 'startSelection') {
+    isSelecting = true;
+    document.body.style.cursor = 'crosshair';
+    sendResponse({ success: true });
+  } else if (request.action === 'stopSelection') {
+    isSelecting = false;
+    document.body.style.cursor = '';
+    sendResponse({ success: true });
   }
   return true;
 });
 
 // Add click handler to select elements
 document.addEventListener('click', (e) => {
-  // Check if extension is active (popup is open)
-  if (!chrome.runtime?.id) return;
+  if (!isSelecting) return;
   
   // Prevent default behavior
   e.preventDefault();
@@ -26,8 +34,7 @@ document.addEventListener('click', (e) => {
   
   // Remove previous highlight
   if (selectionHighlight) {
-    selectionHighlight.style.outline = '';
-    selectionHighlight.style.outlineOffset = '';
+    selectionHighlight.classList.remove('oh-my-share-highlight');
   }
   
   // Select the clicked element
@@ -35,13 +42,16 @@ document.addEventListener('click', (e) => {
   
   // Highlight the selected element
   selectionHighlight = selectedElement;
-  selectionHighlight.style.outline = '2px solid #ff5c7c';
-  selectionHighlight.style.outlineOffset = '2px';
+  selectionHighlight.classList.add('oh-my-share-highlight');
   
-  // Store selection in chrome storage
-  chrome.storage.local.set({ 
-    selectedHtml: selectedElement.outerHTML,
-    selectedTag: selectedElement.tagName.toLowerCase()
+  // Stop selecting
+  isSelecting = false;
+  document.body.style.cursor = '';
+  
+  // Notify popup
+  chrome.runtime.sendMessage({ 
+    action: 'elementSelected', 
+    html: selectedElement.outerHTML 
   });
 }, true);
 
@@ -76,12 +86,5 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       // Open popup
       chrome.action.openPopup();
     }
-  }
-});
-
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (changes.contextMenuHtml) {
-    // Code popup will pick this up
   }
 });

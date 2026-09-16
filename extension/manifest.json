@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "contextMenus",
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "https://openanthropic.com/*"
@@ -33,7 +34,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["content.css"]
+      "css": ["content.css"],
+      "run_at": "document_idle"
     }
   ]
 }
