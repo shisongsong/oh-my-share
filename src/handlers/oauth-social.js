@@ -1,4 +1,5 @@
 import { normalizeEmail } from '../auth.js';
+import { bytesToBase64Url, sha256 } from '../crypto.js';
 
 function generateCode() {
   const bytes = new Uint8Array(32);
@@ -125,10 +126,11 @@ export async function handleGoogleCallback(request, env) {
 
     // Create session
     const sessionToken = generateCode();
+    const tokenHash = bytesToBase64Url(await sha256(sessionToken));
     await env.DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
        VALUES (?, ?, strftime('%s','now'), ?)`
-    ).bind(sessionToken, userId, Math.floor(Date.now() / 1000) + 86400).run();
+    ).bind(tokenHash, userId, Math.floor(Date.now() / 1000) + 86400).run();
 
     // Redirect to home page
     const redirectUrl = new URL(url.origin);
@@ -138,7 +140,7 @@ export async function handleGoogleCallback(request, env) {
       status: 302,
       headers: {
         Location: redirectUrl.toString(),
-        'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+        'Set-Cookie': `osh_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
       },
     });
   } catch (e) {
@@ -271,10 +273,11 @@ export async function handleGitHubCallback(request, env) {
 
     // Create session
     const sessionToken = generateCode();
+    const tokenHash = bytesToBase64Url(await sha256(sessionToken));
     await env.DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
        VALUES (?, ?, strftime('%s','now'), ?)`
-    ).bind(sessionToken, userId, Math.floor(Date.now() / 1000) + 86400).run();
+    ).bind(tokenHash, userId, Math.floor(Date.now() / 1000) + 86400).run();
 
     // Redirect to home page
     const redirectUrl = new URL(url.origin);
@@ -284,7 +287,7 @@ export async function handleGitHubCallback(request, env) {
       status: 302,
       headers: {
         Location: redirectUrl.toString(),
-        'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+        'Set-Cookie': `osh_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
       },
     });
   } catch (e) {

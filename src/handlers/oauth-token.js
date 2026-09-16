@@ -1,5 +1,6 @@
 import { json } from '../security.js';
 import { verifyPasswordWithDummy } from '../auth.js';
+import { bytesToBase64Url, sha256 } from '../crypto.js';
 
 function generateCode() {
   const bytes = new Uint8Array(32);
@@ -201,9 +202,10 @@ export async function handleOAuthLogin(request, env) {
 
     // Generate session token for simple web login
     const sessionToken = generateCode();
+    const tokenHash = bytesToBase64Url(await sha256(sessionToken));
     await env.DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
-    ).bind(sessionToken, user.id, Math.floor(Date.now() / 1000) + 86400).run();
+    ).bind(tokenHash, user.id, Math.floor(Date.now() / 1000) + 86400).run();
 
     // If there's an auth request (from MCP/agent flow), handle redirect
     if (authRequest) {
@@ -234,7 +236,7 @@ export async function handleOAuthLogin(request, env) {
       status: 302,
       headers: {
         Location: redirectUrl.toString(),
-        'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+        'Set-Cookie': `osh_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
       },
     });
   }
@@ -276,9 +278,10 @@ export async function handleOAuthToken(request, env) {
     }
 
     const token = generateCode();
+    const tokenHash = bytesToBase64Url(await sha256(token));
     await env.DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
-    ).bind(token, user.id, Math.floor(Date.now() / 1000) + 3600).run();
+    ).bind(tokenHash, user.id, Math.floor(Date.now() / 1000) + 3600).run();
 
     return json({
       access_token: token,
@@ -315,9 +318,10 @@ export async function handleOAuthToken(request, env) {
 
     // Generate access token
     const token = generateCode();
+    const tokenHash = bytesToBase64Url(await sha256(token));
     await env.DB.prepare(
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
-    ).bind(token, authCode.user_id, Math.floor(Date.now() / 1000) + 3600).run();
+    ).bind(tokenHash, authCode.user_id, Math.floor(Date.now() / 1000) + 3600).run();
 
     return json({
       access_token: token,
@@ -358,9 +362,10 @@ export async function handleOAuthCallback(request, env) {
 
   // Create a session for the user
   const sessionToken = generateCode();
+  const tokenHash = bytesToBase64Url(await sha256(sessionToken));
   await env.DB.prepare(
     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
-  ).bind(sessionToken, authCode.user_id, Math.floor(Date.now() / 1000) + 86400).run();
+  ).bind(tokenHash, authCode.user_id, Math.floor(Date.now() / 1000) + 86400).run();
 
   // Redirect to home page with session cookie
   const redirectUrl = new URL(url.origin);
@@ -370,7 +375,7 @@ export async function handleOAuthCallback(request, env) {
     status: 302,
     headers: {
       Location: redirectUrl.toString(),
-      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+      'Set-Cookie': `osh_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
     },
   });
 }
