@@ -13,6 +13,7 @@ export function handleOAuthAuthorizationServer(request) {
     code_challenge_methods_supported: ['S256'],
     // Agent-specific authentication metadata
     agent_auth: {
+      client_id: 'oh-my-share-agent',
       skill: `${origin}/auth.md`,
       identity_endpoint: `${origin}/api/auth/register`,
       identity_types_supported: ['anonymous', 'service_auth'],

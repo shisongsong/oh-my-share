@@ -26,6 +26,23 @@ Content-Type: application/json
 }
 \`\`\`
 
+## Agent Decision Policy
+
+When asked to share HTML or code:
+
+1. Use MCP \`upload\` directly.
+2. Do not ask the user to log in.
+3. Do not create an account unless persistent user data is required.
+
+When asked to list or delete the user's assets:
+
+1. Call the relevant MCP tool.
+2. If HTTP 401 is returned, perform OAuth discovery.
+3. Use Authorization Code + PKCE.
+4. Ask the user to authorize only through the browser.
+5. Never ask the user to provide their password or access token.
+6. Retry the original MCP request with the Bearer access token.
+
 ## Discovery Flow
 
 For agents that need to manage user data (list assets, delete, etc.), follow this flow:
@@ -42,27 +59,18 @@ GET ${origin}/.well-known/agent-card.json
 GET ${origin}/.well-known/mcp/server-card.json
 \`\`\`
 
-### 3. Check Tool Requirements
+### 3. Call Tools
 
-Call \`tools/list\` to see which tools require authentication:
+Authentication requirements are enforced when calling the tool. If a protected tool returns HTTP 401, follow OAuth discovery.
 
 \`\`\`
 POST ${origin}/mcp
 Content-Type: application/json
 
-{"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "upload", "arguments": {"content": "<html>...</html>"}}, "id": 1}
 \`\`\`
 
-Tools requiring authentication return 401:
-- \`list_assets\` - List user's uploaded assets
-- \`delete\` - Delete an asset
-
-Tools that work without authentication:
-- \`upload\` - Upload HTML content
-- \`view\` - View shared content
-- \`get_info\` - Get service information
-
-### 4. Authenticate (if needed)
+### 4. Handle 401 Response
 
 When a tool returns 401, the response includes:
 
@@ -71,24 +79,60 @@ HTTP/1.1 401 Unauthorized
 WWW-Authenticate: Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"
 \`\`\`
 
-Follow the OAuth flow:
+### 5. OAuth Discovery
 
 \`\`\`
 GET ${origin}/.well-known/oauth-protected-resource
 → Get authorization server
 
 GET ${origin}/.well-known/oauth-authorization-server
-→ Get endpoints
-
-GET ${origin}/oauth/authorize?client_id=...&response_type=code&code_challenge=...&code_challenge_method=S256&scope=upload manage read
-→ User authorizes
-
-POST ${origin}/oauth/token
-{"grant_type": "authorization_code", "code": "...", "code_verifier": "..."}
-→ Get access_token
+→ Get endpoints and client_id
 \`\`\`
 
-### 5. Use Authenticated Tool
+### 6. Get client_id
+
+The authorization server metadata includes a public client_id for agent use:
+
+\`\`\`json
+{
+  "agent_auth": {
+    "client_id": "oh-my-share-agent",
+    "authorization_endpoint": "${origin}/oauth/authorize",
+    "token_endpoint": "${origin}/oauth/token"
+  }
+}
+\`\`\`
+
+### 7. Authorization Code + PKCE
+
+\`\`\`
+1. Generate PKCE values:
+   code_verifier = <random-43-char-string>
+   code_challenge = SHA256(code_verifier) → base64url-encoded
+
+2. Redirect user to:
+   GET ${origin}/oauth/authorize
+     ?client_id=oh-my-share-agent
+     &response_type=code
+     &code_challenge=<code_challenge>
+     &code_challenge_method=S256
+     &scope=upload manage read
+     &state=<random-state>
+
+3. User authorizes in browser
+
+4. Exchange code for token:
+   POST ${origin}/oauth/token
+   {
+     "grant_type": "authorization_code",
+     "code": "<authorization_code>",
+     "redirect_uri": "<your-redirect-uri>",
+     "client_id": "oh-my-share-agent",
+     "code_verifier": "<code_verifier>"
+   }
+\`\`\`
+
+### 8. Use Authenticated Tool
 
 \`\`\`
 POST ${origin}/mcp
@@ -106,7 +150,9 @@ Content-Type: application/json
 }
 \`\`\`
 
-## Agent Identity (Optional)
+## Agent Identity (Advanced/Legacy)
+
+This is an advanced/legacy compatibility mechanism. It is not required for normal MCP usage.
 
 For agents that need persistent identity across sessions, register an agent account:
 
