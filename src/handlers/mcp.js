@@ -376,6 +376,30 @@ export async function handleMcp(request, env) {
 
   if (method === 'tools/call') {
     const { name, arguments: args } = params || {};
+
+    // Check if tool requires authentication
+    const requiresAuth = ['list_assets', 'delete'].includes(name);
+    if (requiresAuth && !auth) {
+      const origin = new URL(request.url).origin;
+      return new Response(JSON.stringify({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Authentication required',
+          data: {
+            resource_metadata: `${origin}/.well-known/oauth-protected-resource`,
+          },
+        },
+        id,
+      }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
+        },
+      });
+    }
+
     const result = await handleToolCall(name, args || {}, env, auth);
 
     return json({
