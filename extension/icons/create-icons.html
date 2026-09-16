@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+</head>
+<body>
+  <canvas id="canvas" width="128" height="128"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Draw gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 128, 0);
+    gradient.addColorStop(0, '#ff5c7c');
+    gradient.addColorStop(1, '#5ce1d4');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    
+    // Draw text
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 72px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('OS', 64, 64);
+    
+    // Output as data URL
+    console.log(canvas.toDataURL('image/png'));
+  </script>
+</body>
+</html>
