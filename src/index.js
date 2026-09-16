@@ -70,6 +70,18 @@ export default {
         response = handleRobotsTxt();
       } else if (url.pathname === '/sitemap.xml') {
         response = handleSitemap();
+      } else if (url.pathname === '/extension.zip') {
+        response = await env.MY_BUCKET.get('extension.zip');
+        if (!response) {
+          response = new Response('Not Found', { status: 404 });
+        } else {
+          response = new Response(response.body, {
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Disposition': 'attachment; filename="oh-my-share-extension.zip"',
+            },
+          });
+        }
       } else if (url.pathname === '/og-image.png' || url.pathname === '/favicon.ico') {
         response = await handleStaticAssets(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/upload') {
