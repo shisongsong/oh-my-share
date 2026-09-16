@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Oh My Share",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Share HTML and code snippets instantly",
   "permissions": [
     "contextMenus",

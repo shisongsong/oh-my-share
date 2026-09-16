@@ -2,17 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Oh My Share</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      width: 380px;
+      width: 360px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #fff;
-      color: #1a1a1a;
     }
-    
     .header {
       background: linear-gradient(135deg, #ff5c7c 0%, #5ce1d4 100%);
       padding: 16px 20px;
@@ -20,16 +17,18 @@
       justify-content: space-between;
       align-items: center;
     }
-    .header h1 {
-      font-size: 16px;
+    .header h1 { font-size: 16px; color: white; font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .login-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 12px;
       color: white;
-      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
     }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+    .login-btn:hover { background: rgba(255,255,255,0.3); }
     .user-badge {
       display: none;
       background: rgba(255,255,255,0.2);
@@ -38,89 +37,61 @@
       font-size: 11px;
       color: white;
     }
-    .user-badge.show { display: flex; align-items: center; gap: 6px; }
-    .logout-btn {
-      background: none;
-      border: none;
-      color: rgba(255,255,255,0.8);
-      cursor: pointer;
-      font-size: 11px;
-      padding: 2px;
-    }
-    .logout-btn:hover { color: white; }
-    
+    .user-badge.show { display: flex; align-items: center; gap: 8px; }
+
     .content { padding: 16px; }
-    
-    /* Pending banner */
-    .pending-banner {
-      display: none;
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      border-radius: 8px;
-      padding: 12px;
+
+    .tabs {
+      display: flex;
+      gap: 4px;
       margin-bottom: 16px;
-    }
-    .pending-banner.show { display: block; }
-    .pending-banner h3 { font-size: 12px; color: #166534; margin-bottom: 8px; }
-    .pending-preview {
-      font-size: 11px;
-      color: #666;
-      max-height: 40px;
-      overflow: hidden;
-      word-break: break-all;
-    }
-    
-    /* Quick actions */
-    .quick-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .quick-btn {
-      padding: 16px 8px;
-      border: 2px solid #e5e7eb;
+      background: #f3f4f6;
+      padding: 4px;
       border-radius: 8px;
-      background: #fff;
+    }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      text-align: center;
-      transition: all 0.15s;
+      color: #6b7280;
     }
-    .quick-btn:hover { border-color: #ff5c7c; background: #fef2f2; }
-    .quick-btn svg { width: 24px; height: 24px; margin-bottom: 6px; color: #6b7280; }
-    .quick-btn span { display: block; font-size: 11px; font-weight: 500; color: #374151; }
-    
-    /* Editor */
-    .editor { display: none; }
-    .editor.show { display: block; }
+    .tab.active {
+      background: white;
+      color: #1a1a1a;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
     textarea {
       width: 100%;
-      height: 120px;
+      height: 150px;
       padding: 12px;
       border: 2px solid #e5e7eb;
       border-radius: 8px;
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-family: 'SF Mono', Monaco, monospace;
       font-size: 12px;
       resize: vertical;
       margin-bottom: 12px;
     }
     textarea:focus { outline: none; border-color: #5ce1d4; }
-    
-    .options {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .options select {
-      flex: 1;
+
+    select {
+      width: 100%;
       padding: 8px 12px;
       border: 2px solid #e5e7eb;
       border-radius: 6px;
       font-size: 12px;
-      background: #fff;
+      margin-bottom: 12px;
+      background: white;
     }
-    
-    /* Buttons */
+
     .btn {
       width: 100%;
       padding: 12px;
@@ -129,25 +100,42 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
     }
     .btn-primary {
       background: linear-gradient(135deg, #ff5c7c 0%, #5ce1d4 100%);
       color: white;
     }
     .btn-primary:hover { opacity: 0.9; }
-    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
     .btn-secondary:hover { background: #e5e7eb; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    /* Result */
+
+    .page-preview {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .page-title {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .page-url {
+      font-size: 11px;
+      color: #6b7280;
+      word-break: break-all;
+    }
+
     .result {
       display: none;
       background: #f0fdf4;
       border: 1px solid #86efac;
       border-radius: 8px;
       padding: 16px;
-      margin-top: 16px;
     }
     .result.show { display: block; }
     .result-url {
@@ -161,13 +149,10 @@
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 12px;
-      background: #fff;
     }
-    .result-url input:focus { outline: none; border-color: #5ce1d4; }
     .result-actions { display: flex; gap: 8px; }
     .result-actions .btn { flex: 1; }
-    
-    /* Loading */
+
     .loading { display: none; text-align: center; padding: 24px; }
     .loading.show { display: block; }
     .spinner {
@@ -179,9 +164,7 @@
       margin: 0 auto 8px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-text { font-size: 12px; color: #6b7280; }
-    
-    /* Error */
+
     .error {
       display: none;
       background: #fef2f2;
@@ -192,7 +175,7 @@
     }
     .error.show { display: block; }
     .error-text { font-size: 12px; color: #dc2626; }
-    
+
     /* Login modal */
     .modal-overlay {
       display: none;
@@ -208,20 +191,13 @@
       padding: 24px;
       width: 320px;
     }
-    .modal h2 {
-      font-size: 16px;
-      margin-bottom: 16px;
-      text-align: center;
-    }
-    .form-group {
-      margin-bottom: 12px;
-    }
+    .modal h2 { font-size: 16px; margin-bottom: 16px; text-align: center; }
+    .form-group { margin-bottom: 12px; }
     .form-group label {
       display: block;
       font-size: 12px;
       font-weight: 500;
       margin-bottom: 4px;
-      color: #374151;
     }
     .form-group input {
       width: 100%;
@@ -245,7 +221,6 @@
       background: white;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 500;
       margin-bottom: 8px;
       display: flex;
       align-items: center;
@@ -268,81 +243,52 @@
       text-align: center;
     }
     .modal-error.show { display: block; }
-    .close-modal {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: #9ca3af;
-    }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>Oh My Share</h1>
     <div class="header-right">
+      <button class="login-btn" id="loginBtn">Login</button>
       <span class="user-badge" id="userBadge">
         <span id="userEmail"></span>
-        <button class="logout-btn" id="logoutBtn">x</button>
+        <button class="login-btn" id="logoutBtn" style="padding:2px 6px;">x</button>
       </span>
     </div>
   </div>
   
   <div class="content">
-    <!-- Pending share -->
-    <div class="pending-banner" id="pendingBanner">
-      <h3>Ready to share</h3>
-      <div class="pending-preview" id="pendingPreview"></div>
+    <div class="tabs">
+      <button class="tab active" data-tab="code">Code</button>
+      <button class="tab" data-tab="page">Page</button>
     </div>
     
-    <!-- Quick actions -->
-    <div class="quick-actions" id="quickActions">
-      <button class="quick-btn" id="pageBtn" title="Share current page HTML">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="2" y1="12" x2="22" y2="12"/>
-          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-        </svg>
-        <span>Current Page</span>
-      </button>
-      <button class="quick-btn" id="selectionBtn" title="Select element on page">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
-          <path d="M13 13l6 6"/>
-        </svg>
-        <span>Select Element</span>
-      </button>
-      <button class="quick-btn" id="pasteBtn" title="Paste code">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
-          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-        </svg>
-        <span>Paste Code</span>
-      </button>
-    </div>
-    
-    <!-- Editor -->
-    <div class="editor" id="editor">
+    <!-- Code panel -->
+    <div class="panel active" id="code-panel">
       <textarea id="codeInput" placeholder="Paste your HTML or code here..."></textarea>
-      <div class="options">
-        <select id="language">
-          <option value="html">HTML</option>
-          <option value="css">CSS</option>
-          <option value="js">JavaScript</option>
-          <option value="json">JSON</option>
-          <option value="markdown">Markdown</option>
-        </select>
-      </div>
+      <select id="language">
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="js">JavaScript</option>
+        <option value="json">JSON</option>
+        <option value="markdown">Markdown</option>
+      </select>
       <button class="btn btn-primary" id="shareBtn">Share</button>
+    </div>
+    
+    <!-- Page panel -->
+    <div class="panel" id="page-panel">
+      <div class="page-preview">
+        <div class="page-title" id="pageTitle">Loading...</div>
+        <div class="page-url" id="pageUrl"></div>
+      </div>
+      <button class="btn btn-primary" id="sharePageBtn">Share This Page</button>
     </div>
     
     <!-- Loading -->
     <div class="loading" id="loading">
       <div class="spinner"></div>
-      <div class="loading-text">Uploading...</div>
+      <div style="font-size:12px;color:#6b7280;">Uploading...</div>
     </div>
     
     <!-- Result -->
@@ -366,30 +312,24 @@
   <!-- Login Modal -->
   <div class="modal-overlay" id="loginModal">
     <div class="modal">
-      <h2>Login to Oh My Share</h2>
+      <h2>Login</h2>
       <form id="loginForm">
         <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" placeholder="your@email.com" required>
+          <label>Email</label>
+          <input type="email" id="email" required>
         </div>
         <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" placeholder="Password" required>
+          <label>Password</label>
+          <input type="password" id="password" required>
         </div>
-        <button type="submit" class="btn btn-primary" id="loginSubmit">Login</button>
+        <button type="submit" class="btn btn-primary">Login</button>
       </form>
       <div class="form-divider">or</div>
-      <button class="social-btn" id="githubLogin">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-        Login with GitHub
-      </button>
-      <button class="social-btn" id="googleLogin">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-        Login with Google
-      </button>
+      <button class="social-btn" id="githubLogin">GitHub</button>
+      <button class="social-btn" id="googleLogin">Google</button>
       <div class="modal-error" id="loginError"></div>
       <div class="modal-footer">
-        Don't have an account? <a href="https://openanthropic.com" target="_blank">Sign up</a>
+        <a href="https://openanthropic.com" target="_blank">Sign up</a>
       </div>
     </div>
   </div>

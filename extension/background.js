@@ -1,109 +1,88 @@
-// Background service worker for Oh My Share Chrome Extension
+// Background service worker
 
-// Create context menu on install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'share-selection',
-    title: 'Share selection with Oh My Share',
+    title: 'Share with Oh My Share',
     contexts: ['selection']
   });
-  
   chrome.contextMenus.create({
     id: 'share-link',
     title: 'Share link with Oh My Share',
     contexts: ['link']
   });
-  
   chrome.contextMenus.create({
     id: 'share-image',
     title: 'Share image with Oh My Share',
     contexts: ['image']
   });
-  
   chrome.contextMenus.create({
     id: 'share-page',
-    title: 'Share this page HTML',
+    title: 'Share this page with Oh My Share',
     contexts: ['page']
   });
 });
 
-// Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let content = '';
   let title = '';
   
-  switch (info.menuItemId) {
-    case 'share-selection':
-      content = info.selectionText;
-      title = 'Shared text';
-      break;
-      
-    case 'share-link':
-      content = `<a href="${info.linkUrl}">${info.linkUrl}</a>`;
-      title = info.linkUrl;
-      break;
-      
-    case 'share-image':
-      content = `<img src="${info.srcUrl}" alt="${info.srcUrl}">`;
-      title = 'Shared image';
-      break;
-      
-    case 'share-page':
-      try {
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: () => document.documentElement.outerHTML
-        });
-        content = results[0]?.result || '';
-        title = tab.title;
-      } catch (e) {
-        // Fallback: share just the URL
-        content = `<a href="${tab.url}">${tab.title}</a>`;
-        title = tab.title;
-      }
-      break;
+  if (info.menuItemId === 'share-selection') {
+    content = info.selectionText;
+    title = 'Shared text';
+  } else if (info.menuItemId === 'share-link') {
+    content = `<a href="${info.linkUrl}">${info.linkUrl}</a>`;
+    title = info.linkUrl;
+  } else if (info.menuItemId === 'share-image') {
+    content = `<img src="${info.srcUrl}">`;
+    title = 'Shared image';
+  } else if (info.menuItemId === 'share-page') {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.documentElement.outerHTML
+      });
+      content = results[0]?.result || '';
+      title = tab.title;
+    } catch {
+      content = `<a href="${tab.url}">${tab.title}</a>`;
+      title = tab.title;
+    }
   }
   
   if (content) {
-    await chrome.storage.local.set({ pendingShare: { content, title } });
+    // Upload directly
+    const result = await upload(content, title);
+    // Store result and open popup
+    await chrome.storage.local.set({ shareResult: result });
     chrome.action.openPopup();
   }
 });
 
-// Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getPageContent') {
     chrome.scripting.executeScript({
       target: { tabId: request.tabId },
       func: () => document.documentElement.outerHTML
-    }).then(results => {
-      sendResponse({ content: results[0]?.result || '' });
-    }).catch(() => {
-      sendResponse({ content: '' });
-    });
+    }).then(r => sendResponse({ content: r[0]?.result || '' }))
+      .catch(() => sendResponse({ content: '' }));
     return true;
   }
-  
   if (request.action === 'upload') {
-    uploadContent(request.content, request.title, request.authToken)
-      .then(result => sendResponse({ success: true, ...result }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
+    upload(request.content, request.title || '')
+      .then(r => sendResponse({ success: true, ...r }))
+      .catch(e => sendResponse({ success: false, error: e.message }));
     return true;
   }
 });
 
-// Upload content
-async function uploadContent(content, title, authToken) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  
-  const response = await fetch('https://openanthropic.com/api/upload', {
+async function upload(content, title) {
+  const res = await fetch('https://openanthropic.com/api/upload', {
     method: 'POST',
-    headers,
-    body: JSON.stringify({ code: content, language: 'html', title }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: content, language: 'html', title })
   });
-  
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Upload failed');
-  return result;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data;
 }
