@@ -100,19 +100,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Upload content
   async function uploadContent(content, lang) {
+    const formData = new FormData();
+    formData.append('code', content);
+    formData.append('language', lang || 'html');
+    
     const response = await fetch('https://openanthropic.com/api/upload', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content,
-        language: lang,
-      }),
+      body: formData,
     });
     
     if (!response.ok) {
-      throw new Error('Upload failed');
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
     }
     
     return await response.json();
