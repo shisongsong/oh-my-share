@@ -1,7 +1,8 @@
 import { json } from '../security.js';
 import { validateToken } from './oauth-token.js';
 
-const MCP_VERSION = '2025-03-26';
+const MCP_VERSION = '2026-07-28';
+const SUPPORTED_VERSIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'];
 
 const TOOLS = [
   {
@@ -18,6 +19,12 @@ const TOOLS = [
       },
       required: ['content'],
     },
+    annotations: {
+      title: 'Upload Content',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
   },
   {
     name: 'list_assets',
@@ -25,6 +32,12 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+    annotations: {
+      title: 'List Assets',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
     },
   },
   {
@@ -37,6 +50,12 @@ const TOOLS = [
       },
       required: ['id'],
     },
+    annotations: {
+      title: 'View Content',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
   },
   {
     name: 'delete',
@@ -48,6 +67,12 @@ const TOOLS = [
       },
       required: ['id'],
     },
+    annotations: {
+      title: 'Delete Asset',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+    },
   },
   {
     name: 'get_info',
@@ -55,6 +80,12 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+    annotations: {
+      title: 'Service Info',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
     },
   },
 ];
@@ -77,10 +108,10 @@ async function getAuthContext(request, env) {
   }
 
   const cookies = parseCookies(request.headers.get('cookie'));
-  if (cookies.session) {
+  if (cookies.osh_session) {
     const user = await env.DB.prepare(
       `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
-    ).bind(cookies.session).first();
+    ).bind(cookies.osh_session).first();
     if (user) return { userId: user.user_id, source: 'cookie' };
   }
 
@@ -265,17 +296,54 @@ export async function handleMcp(request, env) {
 
   const { id, method, params } = body;
 
-  if (method === 'initialize') {
-    const origin = new URL(request.url).origin;
+  // Handle server/discover for new protocol versions
+  if (method === 'server/discover') {
     return json({
       jsonrpc: '2.0',
       result: {
-        protocolVersion: MCP_VERSION,
+        name: 'oh-my-share',
+        description: 'HTML and code sharing with end-to-end encryption',
+        version: '2.1.0',
+        protocolVersions: SUPPORTED_VERSIONS,
         capabilities: {
           tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false },
+        },
+      },
+      id,
+    });
+  }
+
+  if (method === 'initialize') {
+    const origin = new URL(request.url).origin;
+    const requestedVersion = params?.protocolVersion || MCP_VERSION;
+
+    // Check if we support the requested version
+    if (!SUPPORTED_VERSIONS.includes(requestedVersion)) {
+      return json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'UnsupportedProtocolVersion',
+          data: { supported: SUPPORTED_VERSIONS },
+        },
+        id,
+      });
+    }
+
+    return json({
+      jsonrpc: '2.0',
+      result: {
+        protocolVersion: requestedVersion,
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false },
         },
         serverInfo: {
           name: 'oh-my-share',
+          description: 'HTML and code sharing with end-to-end encryption',
           version: '2.1.0',
         },
         authentication: {
