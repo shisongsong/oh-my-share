@@ -450,5 +450,5 @@ function I() {
 		signal: t
 	}), () => e.abort();
 }
-window.toggleLang = i, r(e.lang), b(), D(), O(), k(), A(), F(), I(), window.updatePricingDisplay && window.updatePricingDisplay(e.lang);
+window.toggleLang = i, r(e.lang), b(), D(), O(), k(), A(), F(), I(), window.updatePricingDisplay && window.updatePricingDisplay(e.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
 //#endregion

@@ -20,3 +20,8 @@ initWebMcp();
 if (window.updatePricingDisplay) {
   window.updatePricingDisplay(state.lang);
 }
+
+// Clean up OAuth success parameter from URL
+if (window.location.search.includes('oauth_success')) {
+  window.history.replaceState({}, '', window.location.pathname);
+}
