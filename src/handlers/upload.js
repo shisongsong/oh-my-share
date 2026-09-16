@@ -61,21 +61,54 @@ export async function handleUpload(request, env) {
   }
 
   let formData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return json({ error: 'Invalid form data' }, 400);
+  let isJson = false;
+  let jsonData = null;
+  
+  const contentType = request.headers.get('content-type') || '';
+  
+  if (contentType.includes('application/json')) {
+    // JSON 格式
+    isJson = true;
+    try {
+      jsonData = await request.json();
+    } catch {
+      return json({ error: 'Invalid JSON' }, 400);
+    }
+  } else {
+    // FormData 格式
+    try {
+      formData = await request.formData();
+    } catch {
+      return json({ error: 'Invalid form data' }, 400);
+    }
   }
 
-  const file = formData.get('file');
-  const code = formData.get('code');
-  const customSlug = formData.get('slug');
-  const encryptionRequested = formData.get('encrypted') === '1';
-  const title = (formData.get('title') || '').toString().slice(0, 200);
-  const description = (formData.get('description') || '').toString().slice(0, 1000);
-  const tags = (formData.get('tags') || '').toString().slice(0, 500);
-  const password = (formData.get('password') || '').toString();
-  const expiresIn = parseInt(formData.get('expiresIn') || '0', 10);
+  // Extract data from either FormData or JSON
+  let file, code, customSlug, encryptionRequested, title, description, tags, password, expiresIn, encryptionMetadataData;
+  
+  if (isJson) {
+    file = jsonData.file;
+    code = jsonData.code;
+    customSlug = jsonData.slug;
+    encryptionRequested = jsonData.encrypted === '1' || jsonData.encrypted === true;
+    title = (jsonData.title || '').toString().slice(0, 200);
+    description = (jsonData.description || '').toString().slice(0, 1000);
+    tags = (jsonData.tags || '').toString().slice(0, 500);
+    password = (jsonData.password || '').toString();
+    expiresIn = parseInt(jsonData.expiresIn || '0', 10);
+    encryptionMetadataData = jsonData.encryption_metadata || jsonData.encryptionMetadata;
+  } else {
+    file = formData.get('file');
+    code = formData.get('code');
+    customSlug = formData.get('slug');
+    encryptionRequested = formData.get('encrypted') === '1';
+    title = (formData.get('title') || '').toString().slice(0, 200);
+    description = (formData.get('description') || '').toString().slice(0, 1000);
+    tags = (formData.get('tags') || '').toString().slice(0, 500);
+    password = (formData.get('password') || '').toString();
+    expiresIn = parseInt(formData.get('expiresIn') || '0', 10);
+    encryptionMetadataData = formData.get('encryption_metadata') || formData.get('encryptionMetadata');
+  }
 
   let currentUser = null;
   let encryptionMetadata = null;
@@ -86,9 +119,7 @@ export async function handleUpload(request, env) {
     const canEncrypt = await hasPaidEntitlement(env, currentUser.id);
     if (!canEncrypt) return json({ error: 'Paid plan required for encryption' }, 403);
 
-    encryptionMetadata = parseEncryptionMetadata(
-      formData.get('encryption_metadata') || formData.get('encryptionMetadata')
-    );
+    encryptionMetadata = parseEncryptionMetadata(encryptionMetadataData);
     if (!encryptionMetadata) return json({ error: 'Invalid encryption metadata' }, 400);
   } else {
     currentUser = await getCurrentUser(request, env);
@@ -137,7 +168,7 @@ export async function handleUpload(request, env) {
   }
 
   let id;
-  if (customSlug !== null && customSlug !== '') {
+  if (customSlug && customSlug !== null && customSlug !== '') {
     const validated = validateSlug(customSlug);
     if (!validated) return json({ error: 'Invalid slug format' }, 400);
 

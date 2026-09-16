@@ -100,38 +100,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Upload content
   async function uploadContent(content, lang) {
-    const response = await fetch('https://openanthropic.com/mcp', {
+    const response = await fetch('https://openanthropic.com/api/upload', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'tools/call',
-        params: {
-          name: 'upload',
-          arguments: {
-            content,
-            language: lang || 'html',
-          },
-        },
-        id: 1,
+        code: content,
+        language: lang || 'html',
       }),
     });
     
     const result = await response.json();
     
-    if (result.error) {
-      throw new Error(result.error.message || 'Upload failed');
+    if (!response.ok) {
+      throw new Error(result.error || 'Upload failed');
     }
     
-    // Parse the result content
-    const text = result.result?.content?.[0]?.text;
-    if (!text) {
-      throw new Error('Invalid response');
-    }
-    
-    return JSON.parse(text);
+    return result;
   }
 
   // UI helpers
