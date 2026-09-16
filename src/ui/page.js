@@ -45,6 +45,11 @@ ${seoMeta}
 <link rel="alternate" hreflang="en" href="${baseUrl}/">
 <link rel="alternate" hreflang="zh" href="${baseUrl}/?lang=zh">
 <link rel="alternate" hreflang="x-default" href="${baseUrl}/">
+<!-- Agent Discovery -->
+<link rel="agent-card" href="${baseUrl}/.well-known/agent-card.json" type="application/json">
+<link rel="mcp-server" href="${baseUrl}/.well-known/mcp/server-card.json" type="application/json">
+<link rel="oauth-metadata" href="${baseUrl}/.well-known/oauth-protected-resource" type="application/json">
+<meta name="agent-discovery" content="This is an agent-native service. Discover capabilities at /.well-known/agent-card.json">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -65,7 +70,23 @@ ${seoMeta}
     "End-to-end encryption",
     "No registration required",
     "Instant sharing"
-  ]
+  ],
+  "agentCapability": {
+    "@type": "SoftwareApplication",
+    "name": "Oh My Share MCP Server",
+    "url": "${baseUrl}/mcp",
+    "applicationCategory": "DeveloperApplication",
+    "description": "MCP server for HTML and code sharing with end-to-end encryption",
+    "documentation": "${baseUrl}/auth.md",
+    "protocol": "Model Context Protocol",
+    "protocolVersion": "2026-07-28"
+  },
+  "agentDiscovery": {
+    "agentCard": "${baseUrl}/.well-known/agent-card.json",
+    "mcpServer": "${baseUrl}/.well-known/mcp/server-card.json",
+    "oauthMetadata": "${baseUrl}/.well-known/oauth-protected-resource",
+    "authDocumentation": "${baseUrl}/auth.md"
+  }
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
