@@ -53,7 +53,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       break;
       
     case 'share-page':
-      content = `<!-- Shared from: ${tab.url} -->\n${await getPageContent(tab)}`;
+      content = `<a href="${tab.url}">${tab.title}</a>`;
       title = tab.title;
       break;
   }
@@ -68,19 +68,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.action.openPopup();
   }
 });
-
-// Get page content
-async function getPageContent(tab) {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => document.documentElement.outerHTML
-    });
-    return results[0]?.result || '';
-  } catch {
-    return '';
-  }
-}
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

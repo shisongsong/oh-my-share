@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     codeInput.focus();
   });
 
-  // Current page
+  // Current page - share as link
   pageBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     showLoading();
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await chrome.runtime.sendMessage({
         action: 'upload',
-        content: `<!-- ${tab.title} - ${tab.url} -->`,
+        content: `<a href="${tab.url}">${tab.title}</a>`,
         title: tab.title,
       });
 

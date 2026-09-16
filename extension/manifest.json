@@ -6,7 +6,7 @@
   "permissions": [
     "contextMenus",
     "storage",
-    "activeTab"
+    "tabs"
   ],
   "host_permissions": [
     "https://openanthropic.com/*"
