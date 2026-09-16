@@ -114,23 +114,37 @@ The authorization server metadata includes a public client_id for agent use:
    GET ${origin}/oauth/authorize
      ?client_id=oh-my-share-agent
      &response_type=code
+     &redirect_uri=<your-callback-url>
      &code_challenge=<code_challenge>
      &code_challenge_method=S256
      &scope=upload manage read
      &state=<random-state>
 
+   Example:
+   GET ${origin}/oauth/authorize
+     ?client_id=oh-my-share-agent
+     &response_type=code
+     &redirect_uri=https://your-agent.example.com/callback
+     &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+     &code_challenge_method=S256
+     &scope=upload%20manage%20read
+     &state=abc123
+
 3. User authorizes in browser
 
 4. Exchange code for token:
    POST ${origin}/oauth/token
+   Content-Type: application/json
    {
      "grant_type": "authorization_code",
      "code": "<authorization_code>",
-     "redirect_uri": "<your-redirect-uri>",
+     "redirect_uri": "<your-callback-url>",
      "client_id": "oh-my-share-agent",
      "code_verifier": "<code_verifier>"
    }
 \`\`\`
+
+**Note**: The \`redirect_uri\` must match exactly between the authorize request and the token exchange request.
 
 ### 8. Use Authenticated Tool
 
