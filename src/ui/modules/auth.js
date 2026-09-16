@@ -123,35 +123,7 @@ export function initAuth() {
   document.getElementById('accountModal').addEventListener('click', (event) => {
     if (event.target === event.currentTarget) closeAccountModal();
   });
-  document.getElementById('oauthLoginBtn').addEventListener('click', startOAuthLogin);
 
   updateAuthMode();
   loadCurrentUser();
-}
-
-function generateCodeVerifier() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return btoa(String.fromCharCode.apply(null, array))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-async function generateCodeChallenge(verifier) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-export async function startOAuthLogin() {
-  // Generate a temporary auth_id for the login page
-  const authId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  window.location.href = `/oauth/login?auth_id=${authId}`;
 }

@@ -160,30 +160,26 @@ function b() {
 		e.authMode = e.authMode === "login" ? "register" : "login", h(), document.getElementById("authMessage").textContent = "";
 	}), document.getElementById("logoutBtn").addEventListener("click", _), document.getElementById("encryptToggle").addEventListener("change", m), document.getElementById("keyMode").addEventListener("change", m), document.getElementById("accountModal").addEventListener("click", (e) => {
 		e.target === e.currentTarget && y();
-	}), document.getElementById("oauthLoginBtn").addEventListener("click", x), h(), f();
-}
-async function x() {
-	let e = Array.from(crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(8))).map((e) => e.toString(16).padStart(2, "0")).join("");
-	window.location.href = `/oauth/login?auth_id=${e}`;
+	}), h(), f();
 }
 //#endregion
 //#region src/ui/modules/upload.js
-function S(e) {
+function x(e) {
 	let t = e instanceof Uint8Array ? e : new Uint8Array(e), n = "";
 	for (let e = 0; e < t.length; e++) n += String.fromCharCode(t[e]);
 	return btoa(n).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
-async function C(e, t) {
+async function S(e, t) {
 	let r = new Uint8Array(await e.arrayBuffer()), i = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(12)), a, o, s = {
 		version: 1,
 		algorithm: "AES-GCM",
 		keyMode: t,
-		iv: S(i)
+		iv: x(i)
 	};
 	if (t === "random") a = await crypto.subtle.generateKey({
 		name: "AES-GCM",
 		length: 256
-	}, !0, ["encrypt"]), o = S(await crypto.subtle.exportKey("raw", a));
+	}, !0, ["encrypt"]), o = x(await crypto.subtle.exportKey("raw", a));
 	else {
 		let e = document.getElementById("passphraseInput").value;
 		if (!e) throw Error(n("keyRequired"));
@@ -196,7 +192,7 @@ async function C(e, t) {
 		}, r, {
 			name: "AES-GCM",
 			length: 256
-		}, !1, ["encrypt"]), s.salt = S(t), s.iterations = i, o = S(new TextEncoder().encode(e));
+		}, !1, ["encrypt"]), s.salt = x(t), s.iterations = i, o = x(new TextEncoder().encode(e));
 	}
 	let c = await crypto.subtle.encrypt({
 		name: "AES-GCM",
@@ -208,7 +204,7 @@ async function C(e, t) {
 		keyFragment: "#key=" + o
 	};
 }
-async function w(e, t, n, r) {
+async function C(e, t, n, r) {
 	if (document.getElementById("encryptToggle").checked && (!window.crypto || !window.crypto.subtle)) throw Error("Encryption requires a secure context (HTTPS)");
 	let i = new FormData();
 	i.append("slug", r);
@@ -219,13 +215,13 @@ async function w(e, t, n, r) {
 		formData: i,
 		keyFragment: ""
 	};
-	let u = await C(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
+	let u = await S(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
 	return i.append("encrypted", "1"), i.append("encryption_metadata", JSON.stringify(u.metadata)), i.append("file", u.blob, n || "encrypted.html"), {
 		formData: i,
 		keyFragment: u.keyFragment
 	};
 }
-async function T(e, t) {
+async function w(e, t) {
 	let r = t.innerHTML;
 	t.innerHTML = "<div class=\"spinner\"></div> " + n("btnGenerating"), t.disabled = !0, t.dataset.loading = "true";
 	let i = document.getElementById("resultBox"), a = document.getElementById("resultTitle"), o = document.getElementById("resultUrl"), s = document.getElementById("resultHint");
@@ -238,25 +234,25 @@ async function T(e, t) {
 		t.innerHTML = r, t.disabled = !1, t.dataset.loading = "false";
 	}
 }
-function E(e) {
+function T(e) {
 	let t = document.getElementById("dropZone"), r = t.querySelector("p");
 	r.innerHTML = "<span>" + n("selectedPrefix") + "</span><span class=\"link\"></span>", r.querySelector(".link").textContent = e, t.querySelector("svg").style.color = "var(--text-main)";
 }
-function D() {
+function E() {
 	let e = document.getElementById("fileInput"), t = document.getElementById("dropZone");
 	t.addEventListener("click", () => e.click()), t.addEventListener("dragover", (e) => {
 		e.preventDefault(), t.classList.add("dragover");
 	}), t.addEventListener("dragleave", () => t.classList.remove("dragover")), t.addEventListener("drop", (n) => {
-		n.preventDefault(), t.classList.remove("dragover"), n.dataTransfer.files.length && (e.files = n.dataTransfer.files, E(n.dataTransfer.files[0].name));
+		n.preventDefault(), t.classList.remove("dragover"), n.dataTransfer.files.length && (e.files = n.dataTransfer.files, T(n.dataTransfer.files[0].name));
 	}), e.addEventListener("change", () => {
-		e.files.length && E(e.files[0].name);
+		e.files.length && T(e.files[0].name);
 	}), document.getElementById("btn-file").addEventListener("click", function() {
 		if (!e.files.length) {
 			alert(n("errEmptyFile"));
 			return;
 		}
 		let t = e.files[0], r = document.getElementById("slug-file").value;
-		T(() => w("file", t, t.name, r), this);
+		w(() => C("file", t, t.name, r), this);
 	}), document.getElementById("btn-code").addEventListener("click", function() {
 		let e = document.getElementById("codeInput").value.trim();
 		if (!e) {
@@ -264,12 +260,12 @@ function D() {
 			return;
 		}
 		let t = document.getElementById("slug-code").value;
-		T(() => w("code", e, "pasted-code.html", t), this);
+		w(() => C("code", e, "pasted-code.html", t), this);
 	});
 }
 //#endregion
 //#region src/ui/modules/ui.js
-function O() {
+function D() {
 	let e = document.querySelectorAll(".tab"), t = document.querySelectorAll(".panel");
 	e.forEach((n) => {
 		n.addEventListener("click", () => {
@@ -277,7 +273,7 @@ function O() {
 		});
 	});
 }
-function k() {
+function O() {
 	document.getElementById("copyBtn").addEventListener("click", function() {
 		let e = document.getElementById("resultUrl");
 		e.value && navigator.clipboard.writeText(e.value).then(() => {
@@ -289,7 +285,7 @@ function k() {
 		});
 	});
 }
-function A() {
+function k() {
 	let e = document.getElementById("upgradeBtn"), t = document.getElementById("upgradeModal"), r = document.getElementById("upgradeSendBtn"), i = document.getElementById("upgradeSection");
 	e && e.addEventListener("click", () => {
 		t.classList.add("active");
@@ -307,10 +303,10 @@ function A() {
 }
 //#endregion
 //#region src/ui/modules/share.js
-function j(e, t, n, r, i, a) {
+function A(e, t, n, r, i, a) {
 	e.beginPath(), e.moveTo(t + a, n), e.arcTo(t + r, n, t + r, n + i, a), e.arcTo(t + r, n + i, t, n + i, a), e.arcTo(t, n + i, t, n, a), e.arcTo(t, n, t + r, n, a), e.closePath();
 }
-function M(e) {
+function j(e) {
 	if (typeof qrcode > "u") {
 		alert(n("imgFail"));
 		return;
@@ -324,34 +320,34 @@ function M(e) {
 		let i = t.getContext("2d");
 		i.scale(2, 2), i.fillStyle = "#fff", i.fillRect(0, 0, 640, 900);
 		let a = i.createLinearGradient(0, 0, 640, 0);
-		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(n("subtitle"), 320, 130), i.fillStyle = "#f8fafc", j(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(r, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(n("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
+		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(n("subtitle"), 320, 130), i.fillStyle = "#f8fafc", A(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(r, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(n("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
 		let o = e.length > 55 ? e.slice(0, 52) + "..." : e;
 		i.fillText(o, 320, 680), i.strokeStyle = "#e5e5e5", i.lineWidth = 1, i.beginPath(), i.moveTo(80, 800), i.lineTo(560, 800), i.stroke(), i.fillStyle = "#cbd5e1", i.font = "13px -apple-system,sans-serif", i.fillText("Powered by Cloudflare Workers", 320, 840), document.getElementById("imageModal").classList.add("active");
 	}, r.onerror = () => alert(n("imgFail")), r.src = t.createDataURL(8, 0);
 }
-function N() {
+function M() {
 	let e = document.getElementById("shareCanvas");
 	e.width && e.toBlob((e) => {
 		let t = document.createElement("a");
 		t.download = "oh-my-share.png", t.href = URL.createObjectURL(e), t.click(), setTimeout(() => URL.revokeObjectURL(t.href), 1e3);
 	}, "image/png");
 }
-function P() {
+function N() {
 	document.getElementById("imageModal").classList.remove("active");
 }
-function F() {
+function P() {
 	document.getElementById("imgBtn").addEventListener("click", () => {
 		let e = document.getElementById("resultUrl");
-		e.value && M(e.value);
-	}), document.getElementById("downloadBtn").addEventListener("click", N), document.getElementById("imageModal").addEventListener("click", (e) => {
-		e.target === e.currentTarget && P();
+		e.value && j(e.value);
+	}), document.getElementById("downloadBtn").addEventListener("click", M), document.getElementById("imageModal").addEventListener("click", (e) => {
+		e.target === e.currentTarget && N();
 	}), document.addEventListener("keydown", (e) => {
-		e.key === "Escape" && P();
+		e.key === "Escape" && N();
 	});
 }
 //#endregion
 //#region src/ui/modules/webmcp.js
-function I() {
+function F() {
 	if (!navigator.modelContext) return;
 	let e = new AbortController(), { signal: t } = e;
 	return navigator.modelContext.registerTool({
@@ -450,5 +446,5 @@ function I() {
 		signal: t
 	}), () => e.abort();
 }
-window.toggleLang = i, r(e.lang), b(), D(), O(), k(), A(), F(), I(), window.updatePricingDisplay && window.updatePricingDisplay(e.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
+window.toggleLang = i, r(e.lang), b(), E(), D(), O(), k(), P(), F(), window.updatePricingDisplay && window.updatePricingDisplay(e.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
 //#endregion
