@@ -211,11 +211,20 @@ document.addEventListener('DOMContentLoaded', () => {
   githubLogin.addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://openanthropic.com/oauth/github' });
     loginModal.classList.remove('show');
+    chrome.runtime.sendMessage({ action: 'startOAuthPoll' });
   });
 
   googleLogin.addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://openanthropic.com/oauth/google' });
     loginModal.classList.remove('show');
+    chrome.runtime.sendMessage({ action: 'startOAuthPoll' });
+  });
+
+  // Listen for OAuth completion from background
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.action === 'oauthComplete') {
+      loadAuth();
+    }
   });
 
   logoutBtn.addEventListener('click', logout);

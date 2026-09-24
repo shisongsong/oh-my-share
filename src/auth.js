@@ -119,7 +119,14 @@ export async function createSession(request, env, userId) {
 }
 
 export async function getCurrentUser(request, env) {
-  const token = getCookie(request, SESSION_COOKIE);
+  // Support both cookie and Bearer token
+  let token = getCookie(request, SESSION_COOKIE);
+  if (!token) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    }
+  }
   if (!token) return null;
 
   const database = getDatabase(env);

@@ -74,12 +74,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch(e => sendResponse({ success: false, error: e.message }));
     return true;
   }
+  if (request.action === 'startOAuthPoll') {
+    startOAuthPoll();
+    sendResponse({ ok: true });
+    return false;
+  }
 });
 
+// Listen for session cookie being set after OAuth
+let oauthPolling = false;
+function startOAuthPoll() {
+  if (oauthPolling) return;
+  oauthPolling = true;
+  
+  let attempts = 0;
+  const interval = setInterval(async () => {
+    attempts++;
+    if (attempts > 60) { clearInterval(interval); oauthPolling = false; return; }
+
+    try {
+      const cookies = await chrome.cookies.getAll({ domain: 'openanthropic.com' });
+      const session = cookies.find(c => c.name === 'osh_session');
+      if (session && session.value) {
+        clearInterval(interval);
+        oauthPolling = false;
+        await chrome.storage.local.set({ authToken: session.value });
+        // Notify popup if open
+        chrome.runtime.sendMessage({ action: 'oauthComplete' }).catch(() => {});
+      }
+    } catch {}
+  }, 1000);
+}
+
 async function upload(content, title) {
+  const { authToken } = await chrome.storage.local.get(['authToken']);
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  
   const res = await fetch('https://openanthropic.com/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ code: content, language: 'html', title })
   });
   const data = await res.json();
