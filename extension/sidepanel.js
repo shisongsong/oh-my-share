@@ -35,10 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
   checkPendingResult();
 
   function init() {
-    chrome.storage.local.get(['authToken'], (data) => {
+    chrome.storage.local.get(['authToken'], async (data) => {
       if (data.authToken) {
         authToken = data.authToken;
         verifyToken();
+      } else {
+        // Try to get session cookie directly
+        try {
+          const cookies = await chrome.cookies.getAll({ url: 'https://openanthropic.com' });
+          const session = cookies.find(c => c.name === 'osh_session');
+          if (session && session.value) {
+            authToken = session.value;
+            chrome.storage.local.set({ authToken });
+            verifyToken();
+          }
+        } catch {}
       }
     });
   }

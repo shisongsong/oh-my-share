@@ -100,7 +100,7 @@ function startOAuthPoll() {
     if (attempts > 60) { clearInterval(interval); oauthPolling = false; return; }
 
     try {
-      const cookies = await chrome.cookies.getAll({ domain: 'openanthropic.com' });
+      const cookies = await chrome.cookies.getAll({ url: 'https://openanthropic.com' });
       const session = cookies.find(c => c.name === 'osh_session');
       if (session && session.value) {
         clearInterval(interval);
