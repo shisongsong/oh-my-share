@@ -1,5 +1,9 @@
 // Background service worker
 
+// Open side panel on action click
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
+// Context menus
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'share-selection',
@@ -23,6 +27,7 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+// Context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let content = '';
   let title = '';
@@ -51,14 +56,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
   
   if (content) {
-    // Upload directly
-    const result = await upload(content, title);
-    // Store result and open popup
+    const result = await upload(content, title).catch(e => ({ error: e.message }));
     await chrome.storage.local.set({ shareResult: result });
-    chrome.action.openPopup();
+    // Open side panel
+    if (tab) {
+      await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+    }
   }
 });
 
+// Messages
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getPageContent') {
     chrome.scripting.executeScript({
@@ -81,7 +88,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Listen for session cookie being set after OAuth
+// OAuth cookie polling
 let oauthPolling = false;
 function startOAuthPoll() {
   if (oauthPolling) return;
@@ -99,13 +106,13 @@ function startOAuthPoll() {
         clearInterval(interval);
         oauthPolling = false;
         await chrome.storage.local.set({ authToken: session.value });
-        // Notify popup if open
         chrome.runtime.sendMessage({ action: 'oauthComplete' }).catch(() => {});
       }
     } catch {}
   }, 1000);
 }
 
+// Upload
 async function upload(content, title) {
   const { authToken } = await chrome.storage.local.get(['authToken']);
   const headers = { 'Content-Type': 'application/json' };

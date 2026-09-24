@@ -1,11 +1,9 @@
-// Popup script
+// Side panel script
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
   const tabs = document.querySelectorAll('.tab');
   const panels = document.querySelectorAll('.panel');
   const codeInput = document.getElementById('codeInput');
-  const language = document.getElementById('language');
   const shareBtn = document.getElementById('shareBtn');
   const sharePageBtn = document.getElementById('sharePageBtn');
   const pageTitle = document.getElementById('pageTitle');
@@ -19,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const error = document.getElementById('error');
   const errorText = document.getElementById('errorText');
   const loginBtn = document.getElementById('loginBtn');
-  const userBadge = document.getElementById('userBadge');
+  const userInfo = document.getElementById('userInfo');
   const userEmail = document.getElementById('userEmail');
   const logoutBtn = document.getElementById('logoutBtn');
   const loginModal = document.getElementById('loginModal');
@@ -30,44 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const githubLogin = document.getElementById('githubLogin');
   const googleLogin = document.getElementById('googleLogin');
 
-  let currentTab = 'code';
   let authToken = null;
 
-  // Init
-  loadAuth();
+  init();
   loadCurrentTab();
   checkPendingResult();
 
-  // Tab switching
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      panels.forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      currentTab = tab.dataset.tab;
-      document.getElementById(currentTab + '-panel').classList.add('active');
-    });
-  });
-
-  // Load current tab info
-  async function loadCurrentTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    pageTitle.textContent = tab.title || 'Untitled';
-    pageUrl.textContent = tab.url || '';
-  }
-
-  // Check for pending result from context menu
-  function checkPendingResult() {
-    chrome.storage.local.get(['shareResult'], (data) => {
-      if (data.shareResult) {
-        showResult(data.shareResult.url);
-        chrome.storage.local.remove('shareResult');
-      }
-    });
-  }
-
-  // Auth
-  function loadAuth() {
+  function init() {
     chrome.storage.local.get(['authToken'], (data) => {
       if (data.authToken) {
         authToken = data.authToken;
@@ -92,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showLoggedIn(email) {
     loginBtn.style.display = 'none';
-    userBadge.classList.add('show');
+    userInfo.classList.add('show');
     userEmail.textContent = email;
   }
 
@@ -100,23 +67,50 @@ document.addEventListener('DOMContentLoaded', () => {
     authToken = null;
     chrome.storage.local.remove('authToken');
     loginBtn.style.display = '';
-    userBadge.classList.remove('show');
+    userInfo.classList.remove('show');
   }
+
+  async function loadCurrentTab() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    pageTitle.textContent = tab.title || 'Untitled';
+    pageUrl.textContent = tab.url || '';
+  }
+
+  function checkPendingResult() {
+    chrome.storage.local.get(['shareResult'], (data) => {
+      if (data.shareResult && data.shareResult.url) {
+        showResult(data.shareResult.url);
+        chrome.storage.local.remove('shareResult');
+      } else if (data.shareResult && data.shareResult.error) {
+        showError(data.shareResult.error);
+        chrome.storage.local.remove('shareResult');
+      }
+    });
+  }
+
+  // Tabs
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab + '-panel').classList.add('active');
+    });
+  });
 
   // Share code
   shareBtn.addEventListener('click', async () => {
     const content = codeInput.value.trim();
     if (!content) return showError('Please enter some code');
-    
+
     showLoading();
     const res = await chrome.runtime.sendMessage({
       action: 'upload',
       content,
-      title: '',
-      authToken
+      title: ''
     });
     hideLoading();
-    
+
     if (res.success) {
       showResult(res.url);
       codeInput.value = '';
@@ -129,25 +123,24 @@ document.addEventListener('DOMContentLoaded', () => {
   sharePageBtn.addEventListener('click', async () => {
     showLoading();
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     const pageRes = await chrome.runtime.sendMessage({
       action: 'getPageContent',
       tabId: tab.id
     });
-    
+
     if (!pageRes.content) {
       hideLoading();
       return showError('Could not get page content');
     }
-    
+
     const uploadRes = await chrome.runtime.sendMessage({
       action: 'upload',
       content: pageRes.content,
-      title: tab.title,
-      authToken
+      title: tab.title
     });
     hideLoading();
-    
+
     if (uploadRes.success) {
       showResult(uploadRes.url);
     } else {
@@ -170,12 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // New
   newBtn.addEventListener('click', () => {
     result.classList.remove('show');
-    codeInput.value = '';
+    error.classList.remove('show');
   });
 
-  // Login
+  // Login modal
   loginBtn.addEventListener('click', () => loginModal.classList.add('show'));
-  
   loginModal.addEventListener('click', (e) => {
     if (e.target === loginModal) loginModal.classList.remove('show');
   });
@@ -183,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     loginError.classList.remove('show');
-    
+
     try {
       const res = await fetch('https://openanthropic.com/oauth/token', {
         method: 'POST',
@@ -196,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error_description || 'Login failed');
-      
+
       authToken = data.access_token;
       chrome.storage.local.set({ authToken });
       showLoggedIn(emailInput.value);
@@ -220,16 +212,16 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.runtime.sendMessage({ action: 'startOAuthPoll' });
   });
 
-  // Listen for OAuth completion from background
+  logoutBtn.addEventListener('click', logout);
+
+  // Listen for OAuth completion
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.action === 'oauthComplete') {
-      loadAuth();
+      init();
     }
   });
 
-  logoutBtn.addEventListener('click', logout);
-
-  // UI
+  // UI helpers
   function showLoading() {
     loading.classList.add('show');
     error.classList.remove('show');

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Oh My Share",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Share HTML and code snippets instantly",
   "permissions": [
     "contextMenus",
@@ -9,17 +9,20 @@
     "activeTab",
     "scripting",
     "tabs",
-    "cookies"
+    "cookies",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://openanthropic.com/*"
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "icons": {
     "16": "icons/icon16.png",
