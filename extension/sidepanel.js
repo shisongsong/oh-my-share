@@ -29,29 +29,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const googleLogin = document.getElementById('googleLogin');
 
   let authToken = null;
+  let cookiePollInterval = null;
 
   init();
   loadCurrentTab();
   checkPendingResult();
 
-  function init() {
-    chrome.storage.local.get(['authToken'], async (data) => {
-      if (data.authToken) {
-        authToken = data.authToken;
-        verifyToken();
-      } else {
-        // Try to get session cookie directly
-        try {
-          const cookies = await chrome.cookies.getAll({ url: 'https://openanthropic.com' });
-          const session = cookies.find(c => c.name === 'osh_session');
-          if (session && session.value) {
-            authToken = session.value;
-            chrome.storage.local.set({ authToken });
-            verifyToken();
-          }
-        } catch {}
+  async function init() {
+    // First check stored token
+    const data = await chrome.storage.local.get(['authToken']);
+    if (data.authToken) {
+      authToken = data.authToken;
+      const ok = await verifyToken();
+      if (ok) return;
+    }
+    // Then check cookie
+    await checkCookie();
+  }
+
+  async function checkCookie() {
+    try {
+      const cookies = await chrome.cookies.getAll({ url: 'https://openanthropic.com/' });
+      const session = cookies.find(c => c.name === 'osh_session');
+      if (session && session.value) {
+        const token = decodeURIComponent(session.value);
+        authToken = token;
+        await chrome.storage.local.set({ authToken: token });
+        await verifyToken();
+        return true;
       }
-    });
+    } catch {}
+    return false;
   }
 
   async function verifyToken() {
@@ -62,10 +70,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         showLoggedIn(data.email);
+        return true;
       } else {
-        logout();
+        // Token invalid, clear it
+        authToken = null;
+        chrome.storage.local.remove('authToken');
+        loginBtn.style.display = '';
+        userInfo.classList.remove('show');
+        return false;
       }
-    } catch {}
+    } catch {
+      return false;
+    }
+  }
+
+  function startCookiePoll() {
+    if (cookiePollInterval) return;
+    let attempts = 0;
+    cookiePollInterval = setInterval(async () => {
+      attempts++;
+      if (attempts > 30) {
+        clearInterval(cookiePollInterval);
+        cookiePollInterval = null;
+        return;
+      }
+      const found = await checkCookie();
+      if (found) {
+        clearInterval(cookiePollInterval);
+        cookiePollInterval = null;
+      }
+    }, 1000);
   }
 
   function showLoggedIn(email) {
@@ -214,13 +248,13 @@ document.addEventListener('DOMContentLoaded', () => {
   githubLogin.addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://openanthropic.com/oauth/github' });
     loginModal.classList.remove('show');
-    chrome.runtime.sendMessage({ action: 'startOAuthPoll' });
+    startCookiePoll();
   });
 
   googleLogin.addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://openanthropic.com/oauth/google' });
     loginModal.classList.remove('show');
-    chrome.runtime.sendMessage({ action: 'startOAuthPoll' });
+    startCookiePoll();
   });
 
   logoutBtn.addEventListener('click', logout);
