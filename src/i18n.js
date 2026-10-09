@@ -199,6 +199,8 @@ export const I18N = {
     footerTools: '工具',
     footerResources: '资源',
     footerAbuse: '举报内容',
+    footerTerms: '服务条款',
+    footerPrivacy: '隐私政策',
     footerPowered: 'Powered by Cloudflare Workers',
   },
   en: {
@@ -373,6 +375,8 @@ export const I18N = {
     footerTools: 'Tools',
     footerResources: 'Resources',
     footerAbuse: 'Report Abuse',
+    footerTerms: 'Terms',
+    footerPrivacy: 'Privacy',
     footerPowered: 'Powered by Cloudflare Workers',
   },
 };

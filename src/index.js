@@ -17,6 +17,8 @@ import {
 } from './handlers/gallery.js';
 import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
+import { handleLegalPage } from './handlers/legal.js';
+import { handleFeed } from './handlers/feed.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
@@ -58,6 +60,13 @@ export default {
     const url = new URL(request.url);
     let response;
 
+    // HEAD must behave like GET (same status + headers, no body). Routers
+    // gate HTML/API routes on GET, which used to make every HEAD 404.
+    const isHead = request.method === 'HEAD';
+    if (isHead) {
+      request = new Request(request.url, { method: 'GET', headers: request.headers });
+    }
+
     try {
       if (url.pathname === '/.well-known/api-catalog') {
         response = handleApiCatalog(request);
@@ -97,6 +106,12 @@ export default {
         response = handleAuthMd(request);
       } else if (url.pathname === '/llms.txt') {
         response = handleLlmsTxt(request);
+      } else if (url.pathname === '/terms') {
+        response = handleLegalPage('terms', request);
+      } else if (url.pathname === '/privacy') {
+        response = handleLegalPage('privacy', request);
+      } else if (url.pathname === '/feed.xml') {
+        response = await handleFeed(request, env);
       } else if (['/html-viewer', '/code-share', '/codepen-alternative', '/ai-html-publish', '/chatgpt-html-share'].includes(url.pathname)) {
         response = handleLandingPage(url.pathname, resolveLang(request));
       } else if (url.pathname === '/dab46c9c750b7c083d5723b8ed9653a5.txt') {
@@ -220,6 +235,14 @@ export default {
     }
 
     const finalResponse = applySecurityHeaders(response);
+
+    if (isHead) {
+      return new Response(null, {
+        status: finalResponse.status,
+        statusText: finalResponse.statusText,
+        headers: finalResponse.headers,
+      });
+    }
 
     const tracked = recordPageView(request, env, finalResponse);
     if (tracked && ctx && typeof ctx.waitUntil === 'function') {

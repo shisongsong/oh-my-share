@@ -271,6 +271,47 @@ function injectBadge(html) {
   return html + BADGE_HTML;
 }
 
+function escMeta(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Link previews (Slack/X/Discord/WeChat) read og/twitter tags from the shared
+// page. Most uploaded HTML ships without them, so we inject a block unless the
+// author already defined og:title.
+function buildSocialMeta({ id, title, description, origin }) {
+  const effectiveTitle = (title || '').trim() || 'Shared on Oh My Share';
+  const effectiveDesc = (description || '').trim();
+  const url = `${origin}/view/${id}`;
+  const image = `${origin}/og-image.png`;
+  const lines = [
+    `<meta property="og:site_name" content="Oh My Share">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:url" content="${escMeta(url)}">`,
+    `<meta property="og:title" content="${escMeta(effectiveTitle)}">`,
+  ];
+  if (effectiveDesc) {
+    lines.push(`<meta property="og:description" content="${escMeta(effectiveDesc)}">`);
+  }
+  lines.push(
+    `<meta property="og:image" content="${escMeta(image)}">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${escMeta(effectiveTitle)}">`,
+    `<meta name="twitter:image" content="${escMeta(image)}">`
+  );
+  return lines.join('\n');
+}
+
+function injectSocialMeta(html, meta) {
+  if (/\bproperty\s*=\s*["']og:/i.test(html)) return html;
+  if (/<\/head\s*>/i.test(html)) return html.replace(/<\/head\s*>/i, `${meta}</head>`);
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head([^>]*)>/i, `<head$1>${meta}`);
+  return `${meta}\n${html}`;
+}
+
 export async function handleView(request, env) {
   const limited = await enforceViewRateLimit(request, env);
   if (limited) return limited;
@@ -339,7 +380,11 @@ export async function handleView(request, env) {
     if (!metadata || Number(record.encryption_version) !== metadata.version) {
       return new Response('Invalid encryption metadata', { status: 500 });
     }
-    return new Response(renderEncryptedViewer(id, metadata), {
+    return new Response(renderEncryptedViewer(id, metadata, {
+      title: record.title || '',
+      description: record.description || '',
+      origin: url.origin,
+    }), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -384,6 +429,12 @@ export async function handleView(request, env) {
 
   await recordVisit(env, id, request);
   let body = await object.text();
+  body = injectSocialMeta(body, buildSocialMeta({
+    id,
+    title: record.title || '',
+    description: record.description || '',
+    origin: url.origin,
+  }));
   if (!ownerPaid) {
     body = injectBadge(body);
   }

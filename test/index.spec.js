@@ -783,4 +783,118 @@ describe("Oh My Share worker", () => {
 		expect(await init.text()).toContain("2.2.0");
 	});
 
+	it("answers HEAD like GET on HTML routes (200, headers, empty body)", async () => {
+		const head = await fetchWorker(new Request("http://example.com/", { method: "HEAD" }));
+		expect(head.status).toBe(200);
+		expect(head.headers.get("content-type")).toContain("text/html");
+		expect(await head.text()).toBe("");
+
+		const galleryHead = await fetchWorker(
+			new Request("http://example.com/gallery", { method: "HEAD" })
+		);
+		expect(galleryHead.status).toBe(200);
+
+		const unknownHead = await fetchWorker(
+			new Request("http://example.com/no-such-page", { method: "HEAD" })
+		);
+		expect(unknownHead.status).toBe(404);
+	});
+
+	it("serves terms and privacy pages linked from the footer", async () => {
+		const terms = await fetchWorker(new Request("http://example.com/terms"));
+		expect(terms.status).toBe(200);
+		const termsHtml = await terms.text();
+		expect(termsHtml).toContain("Terms of Service");
+		expect(termsHtml).toContain("Oh My Share");
+		expect(terms.headers.get("content-type")).toContain("text/html");
+
+		const privacy = await fetchWorker(new Request("http://example.com/privacy"));
+		expect(privacy.status).toBe(200);
+		expect(await privacy.text()).toContain("Privacy Policy");
+
+		const zhTerms = await fetchWorker(
+			new Request("http://example.com/terms?lang=zh")
+		);
+		expect(zhTerms.status).toBe(200);
+		expect(await zhTerms.text()).toContain("服务条款");
+
+		const home = await fetchWorker(new Request("http://example.com/"));
+		const homeHtml = await home.text();
+		expect(homeHtml).toContain('href="/terms"');
+		expect(homeHtml).toContain('href="/privacy"');
+		expect(homeHtml).toContain('href="/feed.xml"');
+	});
+
+	it("serves an RSS feed of published gallery works", async () => {
+		const feed = await fetchWorker(new Request("http://example.com/feed.xml"));
+		expect(feed.status).toBe(200);
+		expect(feed.headers.get("content-type")).toContain("application/rss+xml");
+		const xml = await feed.text();
+		expect(xml).toContain("<rss version=\"2.0\"");
+		expect(xml).toContain("<channel>");
+		expect(xml).toContain("https://openanthropic.com/feed.xml");
+	});
+
+	it("keeps llms.txt, sitemap and og tags consistent", async () => {
+		const llms = await fetchWorker(new Request("http://example.com/llms.txt"));
+		const llmsText = await llms.text();
+		expect(llms.status).toBe(200);
+		expect(llmsText).not.toContain("[llms.txt registration]");
+		expect(llmsText).toContain("registry.modelcontextprotocol.io");
+		expect(llmsText).toContain("/feed.xml");
+		expect(llmsText).toContain("/terms");
+
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		const sitemapXml = await sitemap.text();
+		expect(sitemap.status).toBe(200);
+		expect(sitemapXml).toContain("https://openanthropic.com/chatgpt-html-share");
+		expect(sitemapXml).toContain("https://openanthropic.com/terms");
+		expect(sitemapXml).toContain("https://openanthropic.com/privacy");
+
+		const home = await fetchWorker(new Request("http://example.com/"));
+		expect(await home.text()).toContain('property="og:site_name"');
+	});
+
+	it("injects social preview meta into shared view pages", async () => {
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({
+					code: "<html><head><title>inner</title></head><body>og-test</body></html>",
+					title: "社交预览测试",
+					description: "预览描述内容",
+				}),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		const view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		const html = await view.text();
+		expect(html).toContain('property="og:site_name" content="Oh My Share"');
+		expect(html).toContain('property="og:title" content="社交预览测试"');
+		expect(html).toContain('property="og:description" content="预览描述内容"');
+		expect(html).toContain('name="twitter:card" content="summary_large_image"');
+		expect(html).toContain(`og:url" content="http://example.com/view/${id}"`);
+
+		// Authored og:title is respected — no duplicate injection
+		const authored = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({
+					code: '<html><head><meta property="og:title" content="mine"></head><body>x</body></html>',
+				}),
+			})
+		);
+		const { id: authoredId } = await authored.json();
+		const authoredView = await fetchWorker(
+			new Request(`http://example.com/view/${authoredId}`)
+		);
+		const authoredHtml = await authoredView.text();
+		expect(authoredHtml.match(/og:title/g)).toHaveLength(1);
+		expect(authoredHtml).not.toContain('og:site_name');
+	});
+
 });

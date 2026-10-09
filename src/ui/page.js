@@ -47,6 +47,7 @@ ${seoMeta}
 <meta name="robots" content="${remixId ? 'noindex, nofollow' : 'index, follow'}">
 <meta name="google-site-verification" content="DBQv1hLP8zAfNxe33rUZVVM4ilMDoNrcpvwtJmoB03c">
 <link rel="canonical" href="${baseUrl}/">
+<meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${baseUrl}/">
 <meta property="og:image" content="${baseUrl}/og-image.png">

@@ -13,7 +13,9 @@ Oh My Share publishes single-file HTML pages for humans and agents. Anonymous up
 - [MCP server](${origin}/mcp): Remote MCP endpoint (streamable HTTP). Tool \`upload\` works anonymously; list/delete require OAuth
 - [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP capability discovery
 - [Agent card](${origin}/.well-known/agent-card.json): A2A-style service metadata
-- [llms.txt registration]: Published in the official MCP Registry as \`io.github.shisongsong/oh-my-share\`
+- Official MCP Registry: published as \`io.github.shisongsong/oh-my-share\` (https://registry.modelcontextprotocol.io/v0.1/servers/io.github.shisongsong%2Foh-my-share)
+- [RSS feed](${origin}/feed.xml): Latest works published to the gallery
+- [Terms](${origin}/terms) · [Privacy](${origin}/privacy): Service terms and privacy policy
 
 ### Anonymous upload (MCP)
 

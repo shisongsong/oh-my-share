@@ -1,6 +1,17 @@
 const BOT_PATTERN = /bot|crawl|spider|slurp|spider|preview|monitor|scan|check|curl|wget|python-requests|axios|node-fetch|headless|lighthouse|pingdom|uptime|feed|validator/i;
 
-const TRACKED_PATHS = new Set(['/', '/html-viewer', '/code-share', '/codepen-alternative', '/auth.md', '/report']);
+const TRACKED_PATHS = new Set([
+  '/',
+  '/gallery',
+  '/html-viewer',
+  '/code-share',
+  '/codepen-alternative',
+  '/ai-html-publish',
+  '/chatgpt-html-share',
+  '/auth.md',
+  '/report',
+  '/abuse',
+]);
 
 function normalizePath(pathname) {
   if (TRACKED_PATHS.has(pathname)) return pathname;

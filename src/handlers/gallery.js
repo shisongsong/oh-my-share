@@ -392,6 +392,17 @@ export async function handleGalleryPage(request, env) {
 <meta name="description" content="${escapeHtml(t.galleryMetaDesc)}">
 ${q ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="canonical" href="${url.origin}/gallery">
+<meta property="og:site_name" content="Oh My Share">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escapeHtml(t.galleryTitle)}">
+<meta property="og:description" content="${escapeHtml(t.galleryMetaDesc)}">
+<meta property="og:url" content="${url.origin}/gallery">
+<meta property="og:image" content="${url.origin}/og-image.png">
+<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHtml(t.galleryTitle)}">
+<meta name="twitter:description" content="${escapeHtml(t.galleryMetaDesc)}">
+<meta name="twitter:image" content="${url.origin}/og-image.png">
 <style>
 ${BASE_CSS}
 ${GALLERY_CSS}
@@ -525,7 +536,12 @@ ${desc ? `<meta property="og:description" content="${escDesc}">` : ''}
 <meta property="og:type" content="website">
 <meta property="og:url" content="${canonical}">
 <meta property="og:image" content="${url.origin}/og-image.png">
+<meta property="og:site_name" content="Oh My Share">
 <meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escTitle}">
+${desc ? `<meta name="twitter:description" content="${escDesc}">` : ''}
+<meta name="twitter:image" content="${url.origin}/og-image.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",

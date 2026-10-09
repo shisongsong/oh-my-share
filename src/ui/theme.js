@@ -727,6 +727,9 @@ export function renderFooter(lang) {
       <a href="/extension.zip">Chrome Extension</a>
       <a href="https://github.com/shisongsong/oh-my-share" target="_blank" rel="noopener">GitHub</a>
       <a href="/abuse" data-i18n="footerAbuse">${t.footerAbuse}</a>
+      <a href="/terms" data-i18n="footerTerms">Terms</a>
+      <a href="/privacy" data-i18n="footerPrivacy">Privacy</a>
+      <a href="/feed.xml">RSS</a>
     </div>
   </div>
   <div class="footer-bottom">

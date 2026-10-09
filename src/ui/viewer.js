@@ -87,14 +87,30 @@ async function renderDecryptedDocument() {
 renderDecryptedDocument();`;
 }
 
-export function renderEncryptedViewer(id, metadata) {
+export function renderEncryptedViewer(id, metadata, social = {}) {
   const nonce = Math.random().toString(36).slice(2);
+  const socialTitle = String(social.title || '').trim() || 'Encrypted page on Oh My Share';
+  const socialDesc = String(social.description || '').trim();
+  const origin = String(social.origin || 'https://openanthropic.com');
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const socialMeta = [
+    `<meta property="og:site_name" content="Oh My Share">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:url" content="${esc(`${origin}/view/${id}`)}">`,
+    `<meta property="og:title" content="${esc(socialTitle)}">`,
+    socialDesc ? `<meta property="og:description" content="${esc(socialDesc)}">` : '',
+    `<meta property="og:image" content="${esc(`${origin}/og-image.png`)}">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${esc(socialTitle)}">`,
+    `<meta name="twitter:image" content="${esc(`${origin}/og-image.png`)}">`,
+  ].filter(Boolean).join('\n');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oh My Share</title>
+${socialMeta}
 <style>
   :root { color-scheme: light; font-family: system-ui, sans-serif; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f6f8; color: #24313d; }

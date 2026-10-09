@@ -424,7 +424,12 @@ function renderLandingPage(slug, lang) {
 <meta property="og:type" content="website">
 <meta property="og:url" content="${BASE_URL}${active}">
 <meta property="og:image" content="${BASE_URL}/og-image.png">
+<meta property="og:site_name" content="Oh My Share">
 <meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${page.title}">
+<meta name="twitter:description" content="${page.description}">
+<meta name="twitter:image" content="${BASE_URL}/og-image.png">
 <style>${BASE_CSS}
 ${LANDING_CSS}</style>
 </head>
