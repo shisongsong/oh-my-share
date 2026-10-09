@@ -165,3 +165,7 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# monitor runtime artifacts
+monitor/data/
+monitor/reports/
