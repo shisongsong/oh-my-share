@@ -11,6 +11,15 @@ export function applyLang(lang) {
   const translations = I18N_DATA[lang];
   if (!translations) return;
 
+  try {
+    window.localStorage.setItem('osh_lang', lang);
+  } catch {}
+
+  // Keep server-rendered pages (landing / 404 / oauth / manage) in sync
+  try {
+    document.cookie = `osh_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+  } catch {}
+
   document.documentElement.lang = translations.htmlLang;
   document.title = 'Oh My Share - ' + translations.subtitle;
 

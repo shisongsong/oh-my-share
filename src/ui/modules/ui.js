@@ -1,8 +1,8 @@
 import { t } from './i18n.js';
 
 export function initTabs() {
-  const tabs = document.querySelectorAll('.tab');
-  const panels = document.querySelectorAll('.panel');
+  const tabs = document.querySelectorAll('.upload-tab');
+  const panels = document.querySelectorAll('.upload-panel');
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -10,7 +10,18 @@ export function initTabs() {
       panels.forEach((p) => p.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(tab.dataset.target).classList.add('active');
-      document.getElementById('resultBox').style.display = 'none';
+
+      const isCode = tab.dataset.target === 'panel-code';
+      const slugInput = document.getElementById('slug-file');
+      if (slugInput) {
+        const key = isCode ? 'slugPlaceholderCode' : 'slugPlaceholderFile';
+        slugInput.dataset.i18n = key;
+        slugInput.placeholder = t(key);
+      }
+
+      // Hide result when switching tabs
+      const resultBox = document.getElementById('resultBox');
+      if (resultBox) resultBox.hidden = true;
     });
   });
 }

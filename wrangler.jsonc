@@ -30,7 +30,11 @@
 			"pattern": "openanthropic.com",
 			"custom_domain": true
 		}
-	]
+	],
+	// 👇 每日 09:00 CST (01:00 UTC) 运行监控
+	"triggers": {
+		"crons": ["0 1 * * *"]
+	},
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

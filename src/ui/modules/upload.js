@@ -74,6 +74,12 @@ export async function createUploadPayload(kind, value, filename, slug) {
   if (password) formData.append('password', password);
   if (expiresIn && expiresIn !== '0') formData.append('expiresIn', expiresIn);
 
+  const publishToggle = document.getElementById('publishToGallery');
+  if (publishToggle && publishToggle.checked) formData.append('published', '1');
+
+  const remixedFrom = document.getElementById('remixedFrom');
+  if (remixedFrom && remixedFrom.value) formData.append('remixedFrom', remixedFrom.value);
+
   if (!document.getElementById('encryptToggle').checked) {
     if (kind === 'code') formData.append('code', value);
     else formData.append('file', value, filename);
@@ -99,25 +105,19 @@ export async function handleUpload(buildPayload, button) {
   button.dataset.loading = 'true';
 
   const resultBox = document.getElementById('resultBox');
-  const resultTitle = document.getElementById('resultTitle');
   const resultUrl = document.getElementById('resultUrl');
-  const resultHint = document.getElementById('resultHint');
 
   try {
     const prepared = await buildPayload();
     const data = await postForm('/api/upload', prepared.formData);
 
-    resultBox.style.display = 'block';
-    resultBox.className = 'result-box success';
-    resultTitle.textContent = t('successMsg');
+    resultBox.hidden = false;
+    resultBox.className = 'result-box';
     resultUrl.value = data.url + (prepared.keyFragment || '');
-    resultHint.textContent = prepared.keyFragment ? t('keyOnceMsg') : t('manageHint');
   } catch (error) {
-    resultBox.style.display = 'block';
+    resultBox.hidden = false;
     resultBox.className = 'result-box error';
-    resultTitle.textContent = '\u274c ' + error.message;
-    resultUrl.value = '';
-    resultHint.textContent = '';
+    resultUrl.value = '❌ ' + error.message;
   } finally {
     button.innerHTML = originalHTML;
     button.disabled = false;
@@ -156,16 +156,18 @@ export function initUpload() {
   });
 
   document.getElementById('btn-file').addEventListener('click', function () {
+    const codePanel = document.getElementById('panel-code');
+    const slug = document.getElementById('slug-file').value;
+
+    if (codePanel && codePanel.classList.contains('active')) {
+      const code = document.getElementById('codeInput').value.trim();
+      if (!code) { alert(t('errEmptyCode')); return; }
+      handleUpload(() => createUploadPayload('code', code, 'pasted-code.html', slug), this);
+      return;
+    }
+
     if (!fileInput.files.length) { alert(t('errEmptyFile')); return; }
     const file = fileInput.files[0];
-    const slug = document.getElementById('slug-file').value;
     handleUpload(() => createUploadPayload('file', file, file.name, slug), this);
-  });
-
-  document.getElementById('btn-code').addEventListener('click', function () {
-    const code = document.getElementById('codeInput').value.trim();
-    if (!code) { alert(t('errEmptyCode')); return; }
-    const slug = document.getElementById('slug-code').value;
-    handleUpload(() => createUploadPayload('code', code, 'pasted-code.html', slug), this);
   });
 }

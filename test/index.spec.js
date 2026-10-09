@@ -1,14 +1,38 @@
 import {
+	applyD1Migrations,
 	createExecutionContext,
 	env,
 	SELF,
 	waitOnExecutionContext,
 } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import worker from "../src";
 import { handleUpload } from "../src/handlers/upload.js";
 import { detectLang } from "../src/i18n.js";
 import { validateSlug } from "../src/security.js";
+
+const migrationFiles = import.meta.glob("../migrations/*.sql", {
+	query: "?raw",
+	import: "default",
+	eager: true,
+});
+
+beforeAll(async () => {
+	const names = Object.keys(migrationFiles).sort((a, b) => {
+		const num = (name) => parseInt(name.split("/").pop().split("_")[0], 10);
+		return num(a) - num(b);
+	});
+	await applyD1Migrations(
+		env.DB,
+		names.map((name) => ({
+			name: name.split("/").pop(),
+			queries: migrationFiles[name]
+				.split(";")
+				.map((query) => query.trim())
+				.filter(Boolean),
+		}))
+	);
+});
 
 async function fetchWorker(request) {
 	const context = createExecutionContext();
@@ -90,11 +114,14 @@ describe("Oh My Share worker", () => {
 		expect(detectLang(request)).toBe("zh");
 	});
 
-	it("returns a 404 for unknown routes", async () => {
+	it("returns a 404 page for unknown routes", async () => {
 		const response = await SELF.fetch("http://example.com/unknown");
 
 		expect(response.status).toBe(404);
-		expect(await response.text()).toBe("Not Found");
+		const html = await response.text();
+		expect(html).toContain("<title>404 - Page Not Found | Oh My Share</title>");
+		expect(html).toContain('content="noindex"');
+		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
 	});
 
@@ -148,4 +175,612 @@ describe("Oh My Share worker", () => {
 
 		expect(duplicateResponse.status).toBe(409);
 	});
+
+	it("deletes an asset that has visit records (FK cascade)", async () => {
+		const email = `del-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+		expect(cookie).toContain("osh_session=");
+
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: JSON.stringify({ code: "<h1>delete me</h1>" }),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		const view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(view.status).toBe(200);
+
+		const remove = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}`, {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(remove.status).toBe(200);
+		expect(await remove.json()).toEqual({ ok: true });
+
+		const gone = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(gone.status).toBe(404);
+	});
+
+	it("publishes assets to the gallery with search, guards and unpublish", async () => {
+		const email = `gal-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: JSON.stringify({
+					code: "<h1>gallery work</h1>",
+					title: "时钟动画 clock",
+					tags: "clock,demo",
+				}),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		// Not visible in the gallery before publishing
+		let page = await fetchWorker(new Request("http://example.com/gallery"));
+		expect(page.status).toBe(200);
+		expect(await page.text()).not.toContain(id);
+
+		// Password protected assets cannot be published
+		const locked = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: JSON.stringify({ code: "<h1>locked</h1>", password: "secret123" }),
+			})
+		);
+		expect(locked.status).toBe(200);
+		const lockedId = (await locked.json()).id;
+		const lockedPublish = await fetchWorker(
+			new Request(`http://example.com/api/assets/${lockedId}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: true }),
+			})
+		);
+		expect(lockedPublish.status).toBe(400);
+		expect((await lockedPublish.json()).code).toBe("errCannotPublish");
+
+		// Owner publishes
+		const publish = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: true }),
+			})
+		);
+		expect(publish.status).toBe(200);
+		expect(await publish.json()).toMatchObject({ ok: true, published: true });
+
+		// Visible in the gallery and searchable
+		page = await fetchWorker(new Request("http://example.com/gallery"));
+		let html = await page.text();
+		expect(html).toContain(id);
+		expect(html).toContain("clock");
+
+		const search = await fetchWorker(new Request("http://example.com/gallery?q=clock"));
+		expect(search.status).toBe(200);
+		expect(search.headers.get("x-robots-tag")).toContain("noindex");
+		expect(await search.text()).toContain(id);
+
+		const miss = await fetchWorker(new Request("http://example.com/gallery?q=zzznomatch9"));
+		expect(await miss.text()).not.toContain(id);
+
+		// Another user cannot modify publishing state
+		const registerB = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email: `galb-${Date.now()}@test.com`, password: "Passw0rd123" }),
+			})
+		);
+		expect(registerB.status).toBe(201);
+		const cookieB = (registerB.headers.get("set-cookie") || "").split(";")[0];
+		const foreign = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookieB },
+				body: JSON.stringify({ published: false }),
+			})
+		);
+		expect(foreign.status).toBe(404);
+		expect((await foreign.json()).code).toBe("errNotFound");
+
+		// Owner unpublishes → gone from the gallery
+		const unpublish = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: false }),
+			})
+		);
+		expect(unpublish.status).toBe(200);
+		page = await fetchWorker(new Request("http://example.com/gallery"));
+		expect(await page.text()).not.toContain(id);
+
+		// Sitemap includes the gallery
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		expect(await sitemap.text()).toContain("/gallery");
+	});
+
+	it("edits shared content in place and revalidates views with ETag", async () => {
+		const email = `edit-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ code: "<h1>version one</h1>", title: "iter" }),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id, editToken } = await upload.json();
+
+		let view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(await view.text()).toContain("version one");
+
+		// Save new content under the same link
+		const save = await fetchWorker(
+			new Request(`http://example.com/api/edit/${id}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({
+					editToken,
+					title: "iter v2",
+					description: "updated",
+					tags: "v2",
+					code: "<h1>version two</h1>",
+				}),
+			})
+		);
+		expect(save.status).toBe(200);
+		expect(await save.json()).toMatchObject({ success: true, contentSaved: true });
+
+		view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		const html = await view.text();
+		expect(html).toContain("version two");
+		expect(html).not.toContain("version one");
+		expect(view.headers.get("cache-control")).toBe("no-cache");
+
+		// ETag revalidation returns 304
+		const etag = view.headers.get("etag");
+		expect(etag).toBeTruthy();
+		const revalidated = await fetchWorker(
+			new Request(`http://example.com/view/${id}`, { headers: { "If-None-Match": etag } })
+		);
+		expect(revalidated.status).toBe(304);
+
+		// Empty content rejected
+		const empty = await fetchWorker(
+			new Request(`http://example.com/api/edit/${id}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ editToken, code: "" }),
+			})
+		);
+		expect(empty.status).toBe(400);
+		expect((await empty.json()).code).toBe("errEmptyContent");
+
+		// Wrong token rejected
+		const wrong = await fetchWorker(
+			new Request(`http://example.com/api/edit/${id}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ editToken: "edt_bogus", code: "<h1>hacked</h1>" }),
+			})
+		);
+		expect(wrong.status).toBe(403);
+
+		// Metadata-only save still works without a code field (back-compat)
+		const metaOnly = await fetchWorker(
+			new Request(`http://example.com/api/edit/${id}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ editToken, title: "meta only" }),
+			})
+		);
+		expect(metaOnly.status).toBe(200);
+		expect((await metaOnly.json()).contentSaved).toBeFalsy();
+	});
+
+	it("serves gallery detail pages, remix prefill and JSON API for published works", async () => {
+		const email = `detail-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: JSON.stringify({
+					code: "<!doctype html><title>Detail Work</title><h1>detail body</h1>",
+					title: "detail work",
+					tags: "detail,test",
+				}),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		// Detail page 404 before publishing
+		expect((await fetchWorker(new Request(`http://example.com/gallery/${id}`))).status).toBe(404);
+
+		const publish = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: true }),
+			})
+		);
+		expect(publish.status).toBe(200);
+
+		// Detail page: indexable, canonical, iframe preview, action buttons
+		const detail = await fetchWorker(new Request(`http://example.com/gallery/${id}`));
+		expect(detail.status).toBe(200);
+		const detailHtml = await detail.text();
+		expect(detailHtml).toContain(`<link rel="canonical" href="http://example.com/gallery/${id}">`);
+		expect(detailHtml).toContain(`src="/view/${id}"`);
+		expect(detailHtml).toContain(`/remix/${id}`);
+		expect(detailHtml).toContain(`/abuse?id=${id}`);
+		expect(detailHtml).toContain("detail work");
+
+		// Remix page prefills the editor with hidden provenance field
+		const remix = await fetchWorker(new Request(`http://example.com/remix/${id}`));
+		expect(remix.status).toBe(200);
+		const remixHtml = await remix.text();
+		expect(remixHtml).toContain(`id="remixedFrom" value="${id}"`);
+		expect(remixHtml).toContain("detail body");
+		expect(remixHtml).toContain('content="noindex, nofollow"');
+
+		// JSON API for agents
+		const api = await fetchWorker(new Request(`http://example.com/api/gallery?q=detail`));
+		expect(api.status).toBe(200);
+		expect(api.headers.get("content-type")).toContain("application/json");
+		const data = await api.json();
+		const found = (data.items || []).find((item) => item.id === id);
+		expect(found).toBeTruthy();
+		expect(found.detail_url).toContain(`/gallery/${id}`);
+		expect(found.tags).toContain("detail");
+
+		// Cards link to the detail page now
+		const list = await fetchWorker(new Request("http://example.com/gallery"));
+		expect((await list.text())).toContain(`/gallery/${id}`);
+	});
+
+	it("reports content: unpublishes, blocks views with 451, and rate limits", async () => {
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ code: "<h1>phishy</h1>" }),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		// Abuse page renders
+		const abuse = await fetchWorker(new Request(`http://example.com/abuse?id=${id}`));
+		expect(abuse.status).toBe(200);
+		expect(await abuse.text()).toContain("/api/report");
+
+		// Valid report succeeds and takes the content down
+		const report = await fetchWorker(
+			new Request("http://example.com/api/report", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ id, reason: "phishing", details: "fake login" }),
+			})
+		);
+		expect(report.status).toBe(200);
+		expect(await report.json()).toMatchObject({ ok: true });
+
+		const view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(view.status).toBe(451);
+		expect(view.headers.get("x-robots-tag")).toContain("noindex");
+		const viewHtml = await view.text();
+		expect(viewHtml).toContain("Content Removed");
+		expect(viewHtml).toContain("1400875096@qq.com");
+		expect(view.headers.get("referrer-policy")).toBe("no-referrer");
+
+		// Invalid id rejected
+		const bad = await fetchWorker(
+			new Request("http://example.com/api/report", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ id: "not valid!", reason: "other" }),
+			})
+		);
+		expect(bad.status).toBe(400);
+
+		// IP rate limit: 5 reports/hour then 429
+		let last = null;
+		for (let i = 0; i < 6; i++) {
+			last = await fetchWorker(
+				new Request("http://example.com/api/report", {
+					method: "POST",
+					headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+					body: JSON.stringify({ id, reason: "other" }),
+				})
+			);
+		}
+		expect(last.status).toBe(429);
+	});
+
+	it("injects the powered-by badge for anonymous content but not for paid/trial owners", async () => {
+		// Anonymous upload → badge
+		const anon = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ code: "<!doctype html><body><h1>anon</h1></body>" }),
+			})
+		);
+		const anonId = (await anon.json()).id;
+		const anonView = await fetchWorker(new Request(`http://example.com/view/${anonId}`));
+		const anonHtml = await anonView.text();
+		expect(anonHtml).toContain("Made with Oh My Share");
+		expect(anonView.headers.get("referrer-policy")).toBe("no-referrer");
+		expect(anonView.headers.get("etag")).toContain("-b");
+
+		// Registered owner gets a 3-day trial entitlement → no badge
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email: `badge-${Date.now()}@test.com`, password: "Passw0rd123" }),
+			})
+		);
+		const registerBody = await register.json();
+		expect(register.status).toBe(201);
+
+		// Trial subscription row exists and is active
+		const sub = await env.DB.prepare(
+			"SELECT plan, status, current_period_end FROM subscriptions WHERE user_id = ?"
+		).bind(registerBody.user.id).first();
+		expect(sub).toBeTruthy();
+		expect(sub.plan).toBe("paid");
+		expect(sub.status).toBe("trialing");
+		expect(sub.current_period_end).toBeGreaterThan(Math.floor(Date.now() / 1000));
+
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+		const owned = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: JSON.stringify({ code: "<!doctype html><body><h1>owned</h1></body>" }),
+			})
+		);
+		const ownedId = (await owned.json()).id;
+		const ownedView = await fetchWorker(new Request(`http://example.com/view/${ownedId}`));
+		expect(await ownedView.text()).not.toContain("Made with Oh My Share");
+		expect(ownedView.headers.get("etag")).not.toContain("-b");
+	});
+
+	it("serves the ai-html-publish landing page and alias", async () => {
+		const page = await fetchWorker(new Request("http://example.com/ai-html-publish"));
+		expect(page.status).toBe(200);
+		const html = await page.text();
+		expect(html).toContain("Publish AI-Generated HTML");
+		expect(html).toContain('<link rel="canonical" href="https://openanthropic.com/ai-html-publish">');
+		expect(html).toContain('href="/ai-html-publish"'); // footer link
+		expect(html).toContain("Report Abuse");
+
+		const zh = await fetchWorker(new Request("http://example.com/ai-html-publish?lang=zh"));
+		expect((await zh.text())).toContain("发布 AI 生成的 HTML");
+
+		// Alias canonicalizes to the primary slug
+		const alias = await fetchWorker(new Request("http://example.com/chatgpt-html-share"));
+		expect(alias.status).toBe(200);
+		expect(await alias.text()).toContain('href="https://openanthropic.com/ai-html-publish"');
+
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		expect(await sitemap.text()).toContain("/ai-html-publish");
+	});
+
+	it("speaks A2A JSON-RPC: SendMessage publishes, GetTask resolves", async () => {
+		// agent card declares a JSONRPC transport
+		const card = await fetchWorker(new Request("http://example.com/.well-known/agent-card.json"));
+		expect(card.status).toBe(200);
+		const cardJson = await card.json();
+		expect(cardJson.supportedInterfaces[0]).toMatchObject({
+			protocolBinding: "JSONRPC",
+			protocolVersion: "1.0",
+		});
+		expect(cardJson.supportedInterfaces[0].url).toContain("/a2a");
+
+		// GET on the endpoint is 405
+		expect((await fetchWorker(new Request("http://example.com/a2a"))).status).toBe(405);
+
+		// SendMessage with HTML → completed task with share URL
+		const send = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "SendMessage",
+					params: {
+						message: {
+							messageId: "m1",
+							role: "ROLE_USER",
+							parts: [
+								{ text: "<!doctype html><html><body><h1>a2a page</h1></body></html>" },
+							],
+						},
+					},
+				}),
+			})
+		);
+		expect(send.status).toBe(200);
+		const sent = await send.json();
+		expect(sent.jsonrpc).toBe("2.0");
+		expect(sent.id).toBe(1);
+		expect(sent.result.task.status.state).toBe("TASK_STATE_COMPLETED");
+		const shareText = sent.result.task.artifacts[0].parts.map((p) => p.text).join("\n");
+		expect(shareText).toContain("/view/");
+		const shareId = sent.result.task.id;
+		expect(shareId).toMatch(/^[a-f0-9]{12}$/);
+
+		// The shared page is live (and carries the badge, owner is anonymous)
+		const view = await fetchWorker(new Request(`http://example.com/view/${shareId}`));
+		expect(view.status).toBe(200);
+		expect(await view.text()).toContain("a2a page");
+
+		// GetTask synthesizes the completed task from the files table
+		const getTask = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "GetTask", params: { id: shareId } }),
+			})
+		);
+		const task = await getTask.json();
+		expect(task.result.status.state).toBe("TASK_STATE_COMPLETED");
+
+		// Unknown task → -32001, unknown method → -32601, bad JSON → -32700
+		const missing = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "GetTask", params: { id: "deadbeef0000" } }),
+			})
+		);
+		expect((await missing.json()).error.code).toBe(-32001);
+
+		const nope = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "Wibble" }),
+			})
+		);
+		expect((await nope.json()).error.code).toBe(-32601);
+
+		const broken = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: "{oops",
+			})
+		);
+		expect(broken.status).toBe(200);
+		expect((await broken.json()).error.code).toBe(-32700);
+
+		// Non-HTML message → help text, no upload
+		const help = await fetchWorker(
+			new Request("http://example.com/a2a", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 5,
+					method: "SendMessage",
+					params: {
+						message: {
+							messageId: "m2",
+							role: "ROLE_USER",
+							parts: [{ text: "hello what can you do" }],
+						},
+					},
+				}),
+			})
+		);
+		const helpJson = await help.json();
+		expect(helpJson.result.message.parts[0].text).toContain("Commands");
+	});
+
+	it("exposes search_gallery through the MCP server", async () => {
+		const list = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+				body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+			})
+		);
+		expect(list.status).toBe(200);
+		const text = await list.text();
+		expect(text).toContain("search_gallery");
+		expect(JSON.parse(text).result.tools.map((tool) => tool.name)).toContain("search_gallery");
+
+		// initialize reports the new server version
+		const init = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "initialize",
+					params: {
+						protocolVersion: "2025-06-18",
+						capabilities: {},
+						clientInfo: { name: "test", version: "1.0" },
+					},
+				}),
+			})
+		);
+		expect(await init.text()).toContain("2.2.0");
+	});
+
 });

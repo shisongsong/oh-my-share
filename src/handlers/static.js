@@ -9,7 +9,8 @@ export async function handleStaticAssets(request, env) {
     return new Response('Storage not configured', { status: 500 });
   }
 
-  const object = await bucket.get(path);
+  const key = path.startsWith('/') ? path.slice(1) : path;
+  const object = await bucket.get(key);
   if (!object) {
     return new Response('Not Found', { status: 404 });
   }

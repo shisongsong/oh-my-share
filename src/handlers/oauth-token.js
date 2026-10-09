@@ -1,6 +1,153 @@
 import { json } from '../security.js';
 import { verifyPasswordWithDummy } from '../auth.js';
 import { bytesToBase64Url, sha256 } from '../crypto.js';
+import { BASE_CSS } from '../ui/theme.js';
+import { I18N, resolveLang } from '../i18n.js';
+
+const AUTH_CSS = `
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: var(--space-5);
+}
+.auth-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-8);
+  max-width: 400px;
+  width: 100%;
+}
+.auth-box h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+.auth-box .form-group {
+  margin-bottom: var(--space-4);
+}
+.auth-box label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+  color: var(--color-text);
+}
+.auth-box input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-input);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.auth-box input:focus {
+  outline: none;
+  border-color: var(--color-accent-pink);
+  box-shadow: var(--shadow-glow);
+}
+.auth-box button[type=submit] {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: filter var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+.auth-box button[type=submit]:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.auth-error {
+  color: var(--error);
+  font-size: 13.5px;
+  margin-bottom: var(--space-3);
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: var(--space-6) 0;
+  color: var(--color-text-tertiary);
+  font-size: 12.5px;
+  gap: var(--space-3);
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.social-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  transition: background var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+.social-btn:hover {
+  background: var(--color-fill);
+}
+.social-btn:active {
+  transform: scale(0.985);
+}
+.social-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.auth-link {
+  text-align: center;
+  margin-top: var(--space-5);
+  font-size: 13.5px;
+  color: var(--color-text-secondary);
+}
+.auth-link a {
+  color: var(--color-link);
+  font-weight: 500;
+}
+.auth-btn-outline {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+.auth-btn-outline:hover {
+  background: var(--color-fill);
+}
+`;
 
 function generateCode() {
   const bytes = new Uint8Array(32);
@@ -71,65 +218,51 @@ export async function handleOAuthLogin(request, env) {
         .join('');
     }
 
+    const lang = resolveLang(request);
+    const t = I18N[lang] || I18N.en;
+
     const loginPage = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <title>Login - Oh My Share</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Silkscreen', monospace; background: #f5f5f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .login-box { background: white; border: 3px solid #1a1a1a; padding: 2rem; max-width: 400px; width: 90%; }
-    h1 { font-family: 'Press Start 2P', monospace; font-size: 1rem; margin-bottom: 1.5rem; background: linear-gradient(90deg, #ff5c7c, #5ce1d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .form-group { margin-bottom: 1rem; }
-    label { display: block; font-size: 0.8rem; margin-bottom: 0.5rem; }
-    input { width: 100%; padding: 0.75rem; border: 2px solid #1a1a1a; font-family: 'VT323', monospace; font-size: 1rem; background: #f5f5f0; }
-    input:focus { outline: none; border-color: #ff5c7c; }
-    button { width: 100%; padding: 0.75rem; border: 2px solid #1a1a1a; background: linear-gradient(90deg, #ff5c7c, #5ce1d4); color: white; font-family: 'Silkscreen', monospace; font-size: 0.9rem; cursor: pointer; font-weight: bold; }
-    button:hover { opacity: 0.9; }
-    .error { color: #ff5c7c; font-size: 0.8rem; margin-top: 0.5rem; }
-    .divider { display: flex; align-items: center; margin: 1.5rem 0; color: #5a5a5a; font-size: 0.8rem; }
-    .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #1a1a1a33; }
-    .divider::before { margin-right: 1rem; }
-    .divider::after { margin-left: 1rem; }
-    .social-btn { width: 100%; padding: 0.75rem; border: 2px solid #1a1a1a; background: white; color: #1a1a1a; font-family: 'Silkscreen', monospace; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.75rem; }
-    .social-btn:hover { background: #f5f5f0; }
-    .social-btn svg { width: 20px; height: 20px; }
-    .register-link { text-align: center; margin-top: 1rem; font-size: 0.8rem; }
-    .register-link a { color: #ff5c7c; }
-  </style>
+  <style>${BASE_CSS}
+${AUTH_CSS}</style>
 </head>
 <body>
-  <div class="login-box">
-    <h1>Login</h1>
-    <a href="/oauth/google?auth_id=${authId}" style="text-decoration: none;">
-      <button type="button" class="social-btn">
-        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Sign in with Google
-      </button>
-    </a>
-    <a href="/oauth/github?auth_id=${authId}" style="text-decoration: none;">
-      <button type="button" class="social-btn">
-        <svg viewBox="0 0 24 24"><path fill="#1a1a1a" d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-        Sign in with GitHub
-      </button>
-    </a>
-    <div class="divider">or</div>
-    <form method="POST" action="/oauth/login">
-      <input type="hidden" name="auth_id" value="${authId}">
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" name="email" required autocomplete="email">
+  <div class="auth-page">
+    <div class="auth-box">
+      <h1>${t.oauthLoginTitle}</h1>
+      <a href="/oauth/google?auth_id=${authId}" style="text-decoration: none;">
+        <button type="button" class="social-btn">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          ${t.oauthGoogle}
+        </button>
+      </a>
+      <a href="/oauth/github?auth_id=${authId}" style="text-decoration: none;">
+        <button type="button" class="social-btn">
+          <svg viewBox="0 0 24 24"><path fill="#1a1a1a" d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          ${t.oauthGithub}
+        </button>
+      </a>
+      <div class="auth-divider">${t.orContinueWith}</div>
+      <form method="POST" action="/oauth/login">
+        <input type="hidden" name="auth_id" value="${authId}">
+        <div class="form-group">
+          <label>${t.emailLabel}</label>
+          <input type="email" name="email" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>${t.passwordLabel}</label>
+          <input type="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit">${t.oauthContinueEmail}</button>
+      </form>
+      <div class="auth-link">
+        ${t.oauthNoAccount} <a href="/register">${t.oauthRegister}</a>
       </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" name="password" required autocomplete="current-password">
-      </div>
-      <button type="submit">Login with Email</button>
-    </form>
-    <div class="register-link">
-      Don't have an account? <a href="/register">Register</a>
     </div>
   </div>
 </body>
@@ -163,26 +296,27 @@ export async function handleOAuthLogin(request, env) {
 
     const valid = await verifyPasswordWithDummy(password, user);
     if (!valid) {
+      const errLang = resolveLang(request);
+      const et = I18N[errLang] || I18N.en;
       const errorPage = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${errLang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login Failed - Oh My Share</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Silkscreen', monospace; background: #f5f5f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .login-box { background: white; border: 3px solid #1a1a1a; padding: 2rem; max-width: 400px; width: 90%; }
-    h1 { font-family: 'Press Start 2P', monospace; font-size: 1rem; margin-bottom: 1.5rem; color: #ff5c7c; }
-    .error { color: #ff5c7c; margin-bottom: 1rem; }
-    button { width: 100%; padding: 0.75rem; border: 2px solid #1a1a1a; background: #f5f5f0; font-family: 'Silkscreen', monospace; font-size: 0.9rem; cursor: pointer; }
-  </style>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <title>${et.oauthLoginFailed} - Oh My Share</title>
+  <style>${BASE_CSS}
+${AUTH_CSS}</style>
 </head>
 <body>
-  <div class="login-box">
-    <h1>Login Failed</h1>
-    <p class="error">Invalid email or password</p>
-    <a href="/oauth/login?auth_id=${authId}"><button>Try Again</button></a>
+  <div class="auth-page">
+    <div class="auth-box">
+      <h1>${et.oauthLoginFailed}</h1>
+      <p class="auth-error">${et.oauthInvalidCred}</p>
+      <a href="/oauth/login?auth_id=${authId}" style="text-decoration: none;">
+        <button type="button" class="auth-btn-outline">${et.oauthTryAgain}</button>
+      </a>
+    </div>
   </div>
 </body>
 </html>`;

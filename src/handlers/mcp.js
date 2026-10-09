@@ -1,5 +1,6 @@
 import { json } from '../security.js';
 import { validateToken } from './oauth-token.js';
+import { queryGallery } from './gallery.js';
 
 const MCP_VERSION = '2026-07-28';
 const SUPPORTED_VERSIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'];
@@ -83,6 +84,25 @@ const TOOLS = [
     },
     annotations: {
       title: 'Service Info',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  {
+    name: 'search_gallery',
+    description: 'Search the public gallery of published HTML works by keyword (title, description, tags, id)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search keyword' },
+        sort: { type: 'string', enum: ['new', 'hot'], default: 'new', description: 'Sort by newest or popular' },
+        page: { type: 'integer', minimum: 1, default: 1, description: 'Page number' },
+        limit: { type: 'integer', minimum: 1, maximum: 20, default: 10, description: 'Results per page (max 20)' },
+      },
+    },
+    annotations: {
+      title: 'Search Gallery',
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
@@ -207,11 +227,35 @@ async function handleToolCall(name, args, env, auth) {
       return { success: true, message: `Asset ${id} deleted` };
     }
 
+    case 'search_gallery': {
+      const data = await queryGallery(env, {
+        q: args.query,
+        sort: args.sort,
+        page: args.page,
+        perPage: args.limit,
+      });
+      return {
+        total: data.total,
+        page: data.page,
+        pages: data.pages,
+        sort: data.sort,
+        items: data.items.map((item) => ({
+          id: item.id,
+          title: item.title || item.filename || item.id,
+          description: item.description || '',
+          tags: String(item.tags || '').split(',').map((t) => t.trim()).filter(Boolean),
+          views: item.views,
+          url: `https://openanthropic.com/view/${item.id}`,
+          detailUrl: `https://openanthropic.com/gallery/${item.id}`,
+          remixUrl: `https://openanthropic.com/remix/${item.id}`,
+        })),
+      };
+    }
     case 'get_info': {
       return {
         name: 'Oh My Share',
         description: 'HTML and code sharing with end-to-end encryption',
-        version: '2.1.0',
+        version: '2.2.0',
         url: 'https://openanthropic.com',
         endpoints: {
           upload: 'POST /api/upload',
@@ -241,7 +285,7 @@ export async function handleMcp(request, env) {
   if (request.method === 'GET') {
     return new Response(JSON.stringify({
       name: 'oh-my-share',
-      version: '2.1.0',
+      version: '2.2.0',
       protocolVersion: MCP_VERSION,
       capabilities: {
         tools: { listChanged: false },
@@ -303,7 +347,7 @@ export async function handleMcp(request, env) {
       result: {
         name: 'oh-my-share',
         description: 'HTML and code sharing with end-to-end encryption',
-        version: '2.1.0',
+        version: '2.2.0',
         protocolVersions: SUPPORTED_VERSIONS,
         capabilities: {
           tools: { listChanged: false },
@@ -344,7 +388,7 @@ export async function handleMcp(request, env) {
         serverInfo: {
           name: 'oh-my-share',
           description: 'HTML and code sharing with end-to-end encryption',
-          version: '2.1.0',
+          version: '2.2.0',
         },
         authentication: {
           type: 'oauth2',

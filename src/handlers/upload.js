@@ -84,7 +84,7 @@ export async function handleUpload(request, env) {
   }
 
   // Extract data from either FormData or JSON
-  let file, code, customSlug, encryptionRequested, title, description, tags, password, expiresIn, encryptionMetadataData;
+  let file, code, customSlug, encryptionRequested, title, description, tags, password, expiresIn, encryptionMetadataData, publishRequested, remixedFrom;
   
   if (isJson) {
     file = jsonData.file;
@@ -97,6 +97,8 @@ export async function handleUpload(request, env) {
     password = (jsonData.password || '').toString();
     expiresIn = parseInt(jsonData.expiresIn || '0', 10);
     encryptionMetadataData = jsonData.encryption_metadata || jsonData.encryptionMetadata;
+    publishRequested = jsonData.published === true || jsonData.published === '1';
+    remixedFrom = (jsonData.remixedFrom || jsonData.remixed_from || '').toString();
   } else {
     file = formData.get('file');
     code = formData.get('code');
@@ -108,6 +110,8 @@ export async function handleUpload(request, env) {
     password = (formData.get('password') || '').toString();
     expiresIn = parseInt(formData.get('expiresIn') || '0', 10);
     encryptionMetadataData = formData.get('encryption_metadata') || formData.get('encryptionMetadata');
+    publishRequested = formData.get('published') === '1';
+    remixedFrom = (formData.get('remixedFrom') || '').toString();
   }
 
   let currentUser = null;
@@ -123,6 +127,16 @@ export async function handleUpload(request, env) {
     if (!encryptionMetadata) return json({ error: 'Invalid encryption metadata' }, 400);
   } else {
     currentUser = await getCurrentUser(request, env);
+  }
+
+  if (publishRequested) {
+    if (!currentUser) return json({ error: 'Authentication required', code: 'errUnauthorized' }, 401);
+    if (encryptionRequested) {
+      return json({ error: 'Encrypted uploads cannot be published', code: 'errCannotPublish' }, 400);
+    }
+    if (password && password.length > 0) {
+      return json({ error: 'Password protected uploads cannot be published', code: 'errCannotPublish' }, 400);
+    }
   }
 
   let fileContent;
@@ -218,8 +232,8 @@ export async function handleUpload(request, env) {
       .prepare(
         `INSERT INTO files
          (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, 
-          title, description, tags, created_at, edit_token, password_hash, expires_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          title, description, tags, created_at, edit_token, password_hash, expires_at, updated_at, published_at, remixed_from)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -235,7 +249,9 @@ export async function handleUpload(request, env) {
         editToken,
         passwordHash,
         expiresAt,
-        createdAt
+        createdAt,
+        publishRequested ? createdAt : 0,
+        remixedFrom && /^[a-z0-9-]{1,64}$/i.test(remixedFrom) ? remixedFrom : null
       )
       .run();
   } catch (error) {

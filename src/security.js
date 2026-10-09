@@ -62,8 +62,13 @@ export function applySecurityHeaders(response) {
   const headers = new Headers(response.headers);
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', 'SAMEORIGIN');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (!headers.has('Referrer-Policy')) {
+    headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  }
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (response.headers.get('Strict-Transport-Security') === null) {
+    headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
 
   return new Response(response.body, {
     status: response.status,

@@ -1,3 +1,4 @@
+import { startTrialSubscription } from '../entitlements.js';
 import { normalizeEmail } from '../auth.js';
 import { bytesToBase64Url, sha256 } from '../crypto.js';
 
@@ -122,6 +123,7 @@ export async function handleGoogleCallback(request, env) {
         `INSERT INTO users (id, email, password_hash, password_salt, created_at)
          VALUES (?, ?, '', '', strftime('%s','now'))`
       ).bind(userId, email).run();
+      await startTrialSubscription(env, userId);
     }
 
     // Create session
@@ -269,6 +271,7 @@ export async function handleGitHubCallback(request, env) {
         `INSERT INTO users (id, email, password_hash, password_salt, created_at)
          VALUES (?, ?, '', '', strftime('%s','now'))`
       ).bind(userId, email).run();
+      await startTrialSubscription(env, userId);
     }
 
     // Create session

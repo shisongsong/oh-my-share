@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { hasPaidEntitlement } from '../entitlements.js';
+import { hasPaidEntitlement, startTrialSubscription} from '../entitlements.js';
 import {
   createSession,
   getCurrentUser,
@@ -104,6 +104,8 @@ export async function handleRegister(request, env) {
     )
     .bind(id, email, passwordData.hash, passwordData.salt, createdAt)
     .run();
+
+  await startTrialSubscription(env, id, createdAt);
 
   const session = await createSession(request, env, id);
   return userResponse({ id, email }, 201, session);

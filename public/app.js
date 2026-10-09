@@ -1,17 +1,33 @@
 //#region src/ui/modules/state.js
-var e = {
+function e() {
+	if (typeof window > "u") return "zh";
+	let e = new URLSearchParams(window.location.search).get("lang");
+	if (e === "zh" || e === "en") return e;
+	try {
+		let e = window.localStorage.getItem("osh_lang");
+		if (e === "zh" || e === "en") return e;
+	} catch {}
+	return window.CURRENT_LANG === "zh" || window.CURRENT_LANG === "en" ? window.CURRENT_LANG : "zh";
+}
+var t = {
 	user: null,
 	canEncrypt: !1,
-	lang: "zh",
+	lang: e(),
 	authMode: "login"
-}, t = JSON.parse(document.getElementById("i18n-data").textContent);
-function n(n) {
-	return t[e.lang]?.[n] || t.en?.[n] || n;
+}, n = JSON.parse(document.getElementById("i18n-data").textContent);
+function r(e) {
+	return n[t.lang]?.[e] || n.en?.[e] || e;
 }
-function r(n) {
-	e.lang = n;
-	let r = t[n];
+function i(e) {
+	t.lang = e;
+	let r = n[e];
 	if (!r) return;
+	try {
+		window.localStorage.setItem("osh_lang", e);
+	} catch {}
+	try {
+		document.cookie = `osh_lang=${e}; path=/; max-age=31536000; SameSite=Lax`;
+	} catch {}
 	document.documentElement.lang = r.htmlLang, document.title = "Oh My Share - " + r.subtitle;
 	let i = document.querySelectorAll("[data-i18n]");
 	for (let e = 0; e < i.length; e++) {
@@ -23,274 +39,305 @@ function r(n) {
 		}
 	}
 	let a = document.getElementById("langBtnText");
-	a && (a.textContent = n === "zh" ? "EN" : "中文"), window.updatePricingDisplay && window.updatePricingDisplay(n);
+	a && (a.textContent = e === "zh" ? "EN" : "中文"), window.updatePricingDisplay && window.updatePricingDisplay(e);
 }
-function i() {
-	r(e.lang === "zh" ? "en" : "zh");
+function a() {
+	i(t.lang === "zh" ? "en" : "zh");
 }
 //#endregion
 //#region src/ui/modules/api.js
-async function a(e, t = {}) {
-	let r = await fetch(e, t), i = await r.text(), a;
+async function o(e, t = {}) {
+	let n = await fetch(e, t), i = await n.text(), a;
 	try {
 		a = JSON.parse(i);
 	} catch {
 		a = { error: i };
 	}
-	if (!r.ok) throw Error(a.error || n("authError"));
+	if (!n.ok) {
+		let e = a.code && r(a.code) !== a.code ? r(a.code) : null;
+		throw Error(e || a.error || r("authError"));
+	}
 	return a;
 }
-function o(e) {
-	return a(e, { headers: { Accept: "application/json" } });
+function s(e) {
+	return o(e, { headers: { Accept: "application/json" } });
 }
-function s(e, t) {
-	return a(e, {
+function c(e, t) {
+	return o(e, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(t)
 	});
 }
-function c(e, t) {
-	return a(e, {
+function l(e, t) {
+	return o(e, {
 		method: "POST",
 		body: t
 	});
 }
-function l(e) {
-	return a(e, { method: "DELETE" });
+function u(e) {
+	return o(e, { method: "DELETE" });
 }
 //#endregion
 //#region src/ui/modules/assets.js
-async function u() {
-	if (!e.user) return;
-	let t = document.getElementById("assetList");
-	t.replaceChildren();
+async function d() {
+	if (!t.user) return;
+	let e = document.getElementById("assetList");
+	e.replaceChildren();
 	try {
-		let e = await o("/api/assets");
-		if (!e.assets.length) {
-			let e = document.createElement("div");
-			e.className = "asset-empty", e.textContent = n("assetsEmpty"), t.appendChild(e);
+		let t = await s("/api/assets");
+		if (!t.assets.length) {
+			let t = document.createElement("div");
+			t.className = "asset-empty", t.textContent = r("assetsEmpty"), e.appendChild(t);
 			return;
 		}
-		e.assets.forEach((e) => {
-			let r = document.createElement("div");
-			r.className = "asset-row";
+		t.assets.forEach((t) => {
+			let n = document.createElement("div");
+			n.className = "asset-row";
 			let i = document.createElement("div");
 			i.style.cssText = "flex:1;min-width:0";
 			let a = document.createElement("a");
-			if (a.href = e.url, a.target = "_blank", a.rel = "noopener noreferrer", a.textContent = e.title || e.filename || e.id, a.className = "asset-title", i.appendChild(a), e.tags) {
-				let t = document.createElement("div");
-				t.className = "asset-tags", e.tags.split(",").forEach((e) => {
-					if (e = e.trim(), e) {
+			if (a.href = t.url, a.target = "_blank", a.rel = "noopener noreferrer", a.textContent = t.title || t.filename || t.id, a.className = "asset-title", i.appendChild(a), t.published) {
+				let e = document.createElement("span");
+				e.className = "asset-badge", e.textContent = r("publishedBadge"), i.appendChild(e);
+			}
+			if (t.tags) {
+				let e = document.createElement("div");
+				e.className = "asset-tags", t.tags.split(",").forEach((t) => {
+					if (t = t.trim(), t) {
 						let n = document.createElement("span");
-						n.className = "asset-tag", n.textContent = e, t.appendChild(n);
+						n.className = "asset-tag", n.textContent = t, e.appendChild(n);
 					}
-				}), i.appendChild(t);
+				}), i.appendChild(e);
 			}
 			let o = document.createElement("small");
-			o.textContent = e.encrypted ? "AES-GCM" : "HTML";
+			o.textContent = t.encrypted ? "AES-GCM" : "HTML";
 			let s = document.createElement("div");
 			s.className = "asset-actions";
 			let c = document.createElement("a");
-			c.href = e.editToken ? `/manage/${e.id}?token=${e.editToken}` : `/view/${e.id}`, c.target = "_blank", c.className = "asset-manage", c.textContent = n("manageBtn"), s.appendChild(c);
+			c.href = t.editToken ? `/manage/${t.id}?token=${t.editToken}` : `/view/${t.id}`, c.target = "_blank", c.className = "asset-manage", c.textContent = r("manageBtn"), s.appendChild(c);
 			let l = document.createElement("button");
-			l.className = "asset-delete", l.type = "button", l.textContent = n("deleteAsset"), l.addEventListener("click", () => d(e.id)), s.appendChild(l), r.appendChild(i), r.appendChild(o), r.appendChild(s), t.appendChild(r);
+			l.className = "asset-publish", l.type = "button", l.textContent = t.published ? r("unpublishBtn") : r("publishBtn");
+			let u = t.expiresAt && t.expiresAt * 1e3 <= Date.now(), d = t.encrypted || t.passwordProtected || u;
+			!t.published && d && (l.disabled = !0, l.title = r("errCannotPublish")), l.addEventListener("click", () => p(t)), s.appendChild(l);
+			let m = document.createElement("button");
+			m.className = "asset-delete", m.type = "button", m.textContent = r("deleteAsset"), m.addEventListener("click", () => f(t.id)), s.appendChild(m), n.appendChild(i), n.appendChild(o), n.appendChild(s), e.appendChild(n);
 		});
-	} catch (e) {
-		let r = document.createElement("div");
-		r.className = "asset-empty", r.textContent = e.message || n("authError"), t.appendChild(r);
+	} catch (t) {
+		let n = document.createElement("div");
+		n.className = "asset-empty", n.textContent = t.message || r("authError"), e.appendChild(n);
 	}
 }
-async function d(e) {
-	if (window.confirm(n("deleteConfirm"))) try {
-		await l("/api/assets/" + encodeURIComponent(e)), u();
+async function f(e) {
+	if (window.confirm(r("deleteConfirm"))) try {
+		await u("/api/assets/" + encodeURIComponent(e)), d();
 	} catch (e) {
-		window.alert(e.message || n("authError"));
+		window.alert(e.message || r("authError"));
+	}
+}
+async function p(e) {
+	try {
+		await c("/api/assets/" + encodeURIComponent(e.id) + "/publish", { published: !e.published }), d();
+	} catch (e) {
+		window.alert(e.message || r("authError"));
 	}
 }
 //#endregion
 //#region src/ui/modules/auth.js
-async function f() {
+async function m() {
 	try {
-		let t = await o("/api/auth/me");
-		e.user = t.user, e.canEncrypt = t.canEncrypt === !0;
+		let e = await s("/api/auth/me");
+		t.user = e.user, t.canEncrypt = e.canEncrypt === !0;
 	} catch {
-		e.user = null, e.canEncrypt = !1;
+		t.user = null, t.canEncrypt = !1;
 	}
-	p();
-}
-function p() {
-	let t = document.getElementById("accountBtn"), r = document.getElementById("authView"), i = document.getElementById("accountView");
-	e.user ? (t.textContent = e.user.email, r.hidden = !0, i.hidden = !1, document.getElementById("accountEmail").textContent = e.user.email, u()) : (t.textContent = n("accountBtn"), r.hidden = !1, i.hidden = !0), m(), window.updateUpgradeVisibility && window.updateUpgradeVisibility(e.canEncrypt);
-}
-function m() {
-	let t = document.getElementById("encryptToggle"), r = document.getElementById("encryptStatus"), i = document.getElementById("encryptDetails"), a = document.getElementById("passphraseInput");
-	t.disabled = !e.canEncrypt, r.textContent = e.user ? e.canEncrypt ? n("encryptReady") : n("encryptPaidRequired") : n("encryptSignIn"), e.canEncrypt || (t.checked = !1), i.hidden = !t.checked, a.hidden = !t.checked || document.getElementById("keyMode").value !== "passphrase";
+	h();
 }
 function h() {
-	let t = e.authMode === "register";
-	document.getElementById("authModeTitle").textContent = n(t ? "registerTitle" : "loginTitle"), document.getElementById("authSubmit").textContent = n(t ? "registerSubmit" : "loginSubmit"), document.getElementById("authModeSwitch").textContent = n(t ? "switchToLogin" : "switchToRegister"), document.getElementById("authPassword").autocomplete = t ? "new-password" : "current-password";
+	let e = document.getElementById("accountBtn"), n = document.getElementById("authView"), i = document.getElementById("accountView");
+	t.user ? (e.textContent = t.user.email, n.hidden = !0, i.hidden = !1, document.getElementById("accountEmail").textContent = t.user.email, d()) : (e.textContent = r("accountBtn"), n.hidden = !1, i.hidden = !0), g(), window.updateUpgradeVisibility && window.updateUpgradeVisibility(t.canEncrypt);
 }
-async function g(t) {
-	t.preventDefault();
-	let r = document.getElementById("authSubmit"), i = document.getElementById("authMessage");
-	r.disabled = !0, i.textContent = "";
+function g() {
+	let e = document.getElementById("encryptToggle"), n = document.getElementById("encryptStatus"), i = document.getElementById("encryptDetails"), a = document.getElementById("passphraseInput");
+	e.disabled = !t.canEncrypt, n.textContent = t.user ? t.canEncrypt ? r("encryptReady") : r("encryptPaidRequired") : r("encryptSignIn"), t.canEncrypt || (e.checked = !1), i.hidden = !e.checked, a.hidden = !e.checked || document.getElementById("keyMode").value !== "passphrase";
+}
+function _() {
+	let e = t.authMode === "register";
+	document.getElementById("authModeTitle").textContent = r(e ? "registerTitle" : "loginTitle"), document.getElementById("authSubmit").textContent = r(e ? "registerSubmit" : "loginSubmit"), document.getElementById("authModeSwitch").textContent = r(e ? "switchToLogin" : "switchToRegister"), document.getElementById("authPassword").autocomplete = e ? "new-password" : "current-password";
+}
+async function v(e) {
+	e.preventDefault();
+	let n = document.getElementById("authSubmit"), i = document.getElementById("authMessage");
+	n.disabled = !0, i.textContent = "";
 	try {
-		e.user = (await s("/api/auth/" + e.authMode, {
+		t.user = (await c("/api/auth/" + t.authMode, {
 			email: document.getElementById("authEmail").value,
 			password: document.getElementById("authPassword").value
-		})).user, e.canEncrypt = !1, await f(), document.getElementById("authPassword").value = "";
+		})).user, t.canEncrypt = !1, await m(), document.getElementById("authPassword").value = "";
 	} catch (e) {
-		i.textContent = e.message || n("authError");
+		i.textContent = e.message || r("authError");
 	} finally {
-		r.disabled = !1;
+		n.disabled = !1;
 	}
 }
-async function _() {
-	await fetch("/api/auth/logout", { method: "POST" }), e.user = null, e.canEncrypt = !1, p();
-}
-function v() {
-	document.getElementById("accountModal").classList.add("active"), e.user && u();
-}
-function y() {
-	document.getElementById("accountModal").classList.remove("active"), document.getElementById("authMessage").textContent = "";
+async function y() {
+	await fetch("/api/auth/logout", { method: "POST" }), t.user = null, t.canEncrypt = !1, h();
 }
 function b() {
-	document.getElementById("accountBtn").addEventListener("click", v), document.getElementById("accountClose").addEventListener("click", y), document.getElementById("authForm").addEventListener("submit", g), document.getElementById("authModeSwitch").addEventListener("click", () => {
-		e.authMode = e.authMode === "login" ? "register" : "login", h(), document.getElementById("authMessage").textContent = "";
-	}), document.getElementById("logoutBtn").addEventListener("click", _), document.getElementById("encryptToggle").addEventListener("change", m), document.getElementById("keyMode").addEventListener("change", m), document.getElementById("accountModal").addEventListener("click", (e) => {
-		e.target === e.currentTarget && y();
-	}), h(), f();
+	document.getElementById("accountModal").classList.add("active"), t.user && d();
+}
+function x() {
+	document.getElementById("accountModal").classList.remove("active"), document.getElementById("authMessage").textContent = "";
+}
+function S() {
+	document.getElementById("accountBtn").addEventListener("click", b), document.getElementById("accountClose").addEventListener("click", x), document.getElementById("authForm").addEventListener("submit", v), document.getElementById("authModeSwitch").addEventListener("click", () => {
+		t.authMode = t.authMode === "login" ? "register" : "login", _(), document.getElementById("authMessage").textContent = "";
+	}), document.getElementById("logoutBtn").addEventListener("click", y), document.getElementById("encryptToggle").addEventListener("change", g), document.getElementById("keyMode").addEventListener("change", g), document.getElementById("accountModal").addEventListener("click", (e) => {
+		e.target === e.currentTarget && x();
+	}), _(), m();
 }
 //#endregion
 //#region src/ui/modules/upload.js
-function x(e) {
+function C(e) {
 	let t = e instanceof Uint8Array ? e : new Uint8Array(e), n = "";
 	for (let e = 0; e < t.length; e++) n += String.fromCharCode(t[e]);
 	return btoa(n).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
-async function S(e, t) {
-	let r = new Uint8Array(await e.arrayBuffer()), i = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(12)), a, o, s = {
+async function w(e, t) {
+	let n = new Uint8Array(await e.arrayBuffer()), i = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(12)), a, o, s = {
 		version: 1,
 		algorithm: "AES-GCM",
 		keyMode: t,
-		iv: x(i)
+		iv: C(i)
 	};
 	if (t === "random") a = await crypto.subtle.generateKey({
 		name: "AES-GCM",
 		length: 256
-	}, !0, ["encrypt"]), o = x(await crypto.subtle.exportKey("raw", a));
+	}, !0, ["encrypt"]), o = C(await crypto.subtle.exportKey("raw", a));
 	else {
 		let e = document.getElementById("passphraseInput").value;
-		if (!e) throw Error(n("keyRequired"));
-		let t = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(16)), r = await crypto.subtle.importKey("raw", new TextEncoder().encode(e), "PBKDF2", !1, ["deriveKey"]), i = 21e4;
+		if (!e) throw Error(r("keyRequired"));
+		let t = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(16)), n = await crypto.subtle.importKey("raw", new TextEncoder().encode(e), "PBKDF2", !1, ["deriveKey"]), i = 21e4;
 		a = await crypto.subtle.deriveKey({
 			name: "PBKDF2",
 			salt: t,
 			iterations: i,
 			hash: "SHA-256"
-		}, r, {
+		}, n, {
 			name: "AES-GCM",
 			length: 256
-		}, !1, ["encrypt"]), s.salt = x(t), s.iterations = i, o = x(new TextEncoder().encode(e));
+		}, !1, ["encrypt"]), s.salt = C(t), s.iterations = i, o = C(new TextEncoder().encode(e));
 	}
 	let c = await crypto.subtle.encrypt({
 		name: "AES-GCM",
 		iv: i
-	}, a, r);
+	}, a, n);
 	return {
 		blob: new Blob([c], { type: "application/octet-stream" }),
 		metadata: s,
 		keyFragment: "#key=" + o
 	};
 }
-async function C(e, t, n, r) {
+async function T(e, t, n, r) {
 	if (document.getElementById("encryptToggle").checked && (!window.crypto || !window.crypto.subtle)) throw Error("Encryption requires a secure context (HTTPS)");
 	let i = new FormData();
 	i.append("slug", r);
 	let a = document.getElementById("metaTitle").value.trim(), o = document.getElementById("metaDescription").value.trim(), s = document.getElementById("metaTags").value.trim();
 	a && i.append("title", a), o && i.append("description", o), s && i.append("tags", s);
 	let c = document.getElementById("sharePassword").value, l = document.getElementById("expirySelect").value;
-	if (c && i.append("password", c), l && l !== "0" && i.append("expiresIn", l), !document.getElementById("encryptToggle").checked) return e === "code" ? i.append("code", t) : i.append("file", t, n), {
+	c && i.append("password", c), l && l !== "0" && i.append("expiresIn", l);
+	let u = document.getElementById("publishToGallery");
+	u && u.checked && i.append("published", "1");
+	let d = document.getElementById("remixedFrom");
+	if (d && d.value && i.append("remixedFrom", d.value), !document.getElementById("encryptToggle").checked) return e === "code" ? i.append("code", t) : i.append("file", t, n), {
 		formData: i,
 		keyFragment: ""
 	};
-	let u = await S(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
-	return i.append("encrypted", "1"), i.append("encryption_metadata", JSON.stringify(u.metadata)), i.append("file", u.blob, n || "encrypted.html"), {
+	let f = await w(e === "code" ? new Blob([t], { type: "text/html" }) : t, document.getElementById("keyMode").value);
+	return i.append("encrypted", "1"), i.append("encryption_metadata", JSON.stringify(f.metadata)), i.append("file", f.blob, n || "encrypted.html"), {
 		formData: i,
-		keyFragment: u.keyFragment
+		keyFragment: f.keyFragment
 	};
 }
-async function w(e, t) {
-	let r = t.innerHTML;
-	t.innerHTML = "<div class=\"spinner\"></div> " + n("btnGenerating"), t.disabled = !0, t.dataset.loading = "true";
-	let i = document.getElementById("resultBox"), a = document.getElementById("resultTitle"), o = document.getElementById("resultUrl"), s = document.getElementById("resultHint");
+async function E(e, t) {
+	let n = t.innerHTML;
+	t.innerHTML = "<div class=\"spinner\"></div> " + r("btnGenerating"), t.disabled = !0, t.dataset.loading = "true";
+	let i = document.getElementById("resultBox"), a = document.getElementById("resultUrl");
 	try {
-		let t = await e(), r = await c("/api/upload", t.formData);
-		i.style.display = "block", i.className = "result-box success", a.textContent = n("successMsg"), o.value = r.url + (t.keyFragment || ""), s.textContent = t.keyFragment ? n("keyOnceMsg") : n("manageHint");
+		let t = await e(), n = await l("/api/upload", t.formData);
+		i.hidden = !1, i.className = "result-box", a.value = n.url + (t.keyFragment || "");
 	} catch (e) {
-		i.style.display = "block", i.className = "result-box error", a.textContent = "❌ " + e.message, o.value = "", s.textContent = "";
+		i.hidden = !1, i.className = "result-box error", a.value = "❌ " + e.message;
 	} finally {
-		t.innerHTML = r, t.disabled = !1, t.dataset.loading = "false";
+		t.innerHTML = n, t.disabled = !1, t.dataset.loading = "false";
 	}
 }
-function T(e) {
-	let t = document.getElementById("dropZone"), r = t.querySelector("p");
-	r.innerHTML = "<span>" + n("selectedPrefix") + "</span><span class=\"link\"></span>", r.querySelector(".link").textContent = e, t.querySelector("svg").style.color = "var(--text-main)";
+function D(e) {
+	let t = document.getElementById("dropZone"), n = t.querySelector("p");
+	n.innerHTML = "<span>" + r("selectedPrefix") + "</span><span class=\"link\"></span>", n.querySelector(".link").textContent = e, t.querySelector("svg").style.color = "var(--text-main)";
 }
-function E() {
+function O() {
 	let e = document.getElementById("fileInput"), t = document.getElementById("dropZone");
 	t.addEventListener("click", () => e.click()), t.addEventListener("dragover", (e) => {
 		e.preventDefault(), t.classList.add("dragover");
 	}), t.addEventListener("dragleave", () => t.classList.remove("dragover")), t.addEventListener("drop", (n) => {
-		n.preventDefault(), t.classList.remove("dragover"), n.dataTransfer.files.length && (e.files = n.dataTransfer.files, T(n.dataTransfer.files[0].name));
+		n.preventDefault(), t.classList.remove("dragover"), n.dataTransfer.files.length && (e.files = n.dataTransfer.files, D(n.dataTransfer.files[0].name));
 	}), e.addEventListener("change", () => {
-		e.files.length && T(e.files[0].name);
+		e.files.length && D(e.files[0].name);
 	}), document.getElementById("btn-file").addEventListener("click", function() {
+		let t = document.getElementById("panel-code"), n = document.getElementById("slug-file").value;
+		if (t && t.classList.contains("active")) {
+			let e = document.getElementById("codeInput").value.trim();
+			if (!e) {
+				alert(r("errEmptyCode"));
+				return;
+			}
+			E(() => T("code", e, "pasted-code.html", n), this);
+			return;
+		}
 		if (!e.files.length) {
-			alert(n("errEmptyFile"));
+			alert(r("errEmptyFile"));
 			return;
 		}
-		let t = e.files[0], r = document.getElementById("slug-file").value;
-		w(() => C("file", t, t.name, r), this);
-	}), document.getElementById("btn-code").addEventListener("click", function() {
-		let e = document.getElementById("codeInput").value.trim();
-		if (!e) {
-			alert(n("errEmptyCode"));
-			return;
-		}
-		let t = document.getElementById("slug-code").value;
-		w(() => C("code", e, "pasted-code.html", t), this);
+		let i = e.files[0];
+		E(() => T("file", i, i.name, n), this);
 	});
 }
 //#endregion
 //#region src/ui/modules/ui.js
-function D() {
-	let e = document.querySelectorAll(".tab"), t = document.querySelectorAll(".panel");
+function k() {
+	let e = document.querySelectorAll(".upload-tab"), t = document.querySelectorAll(".upload-panel");
 	e.forEach((n) => {
 		n.addEventListener("click", () => {
-			e.forEach((e) => e.classList.remove("active")), t.forEach((e) => e.classList.remove("active")), n.classList.add("active"), document.getElementById(n.dataset.target).classList.add("active"), document.getElementById("resultBox").style.display = "none";
+			e.forEach((e) => e.classList.remove("active")), t.forEach((e) => e.classList.remove("active")), n.classList.add("active"), document.getElementById(n.dataset.target).classList.add("active");
+			let i = n.dataset.target === "panel-code", a = document.getElementById("slug-file");
+			if (a) {
+				let e = i ? "slugPlaceholderCode" : "slugPlaceholderFile";
+				a.dataset.i18n = e, a.placeholder = r(e);
+			}
+			let o = document.getElementById("resultBox");
+			o && (o.hidden = !0);
 		});
 	});
 }
-function O() {
+function A() {
 	document.getElementById("copyBtn").addEventListener("click", function() {
 		let e = document.getElementById("resultUrl");
 		e.value && navigator.clipboard.writeText(e.value).then(() => {
-			this.textContent = n("copiedBtn"), this.classList.add("copied"), setTimeout(() => {
-				this.textContent = n("copyBtn"), this.classList.remove("copied");
+			this.textContent = r("copiedBtn"), this.classList.add("copied"), setTimeout(() => {
+				this.textContent = r("copyBtn"), this.classList.remove("copied");
 			}, 2e3);
 		}).catch(() => {
-			alert(n("errCopy"));
+			alert(r("errCopy"));
 		});
 	});
 }
-function k() {
-	let e = document.getElementById("upgradeBtn"), t = document.getElementById("upgradeModal"), r = document.getElementById("upgradeSendBtn"), i = document.getElementById("upgradeSection");
+function j() {
+	let e = document.getElementById("upgradeBtn"), t = document.getElementById("upgradeModal"), n = document.getElementById("upgradeSendBtn"), i = document.getElementById("upgradeSection");
 	e && e.addEventListener("click", () => {
 		t.classList.add("active");
-	}), r && r.addEventListener("click", () => {
-		let e = encodeURIComponent(n("upgradeEmailSubject")), t = encodeURIComponent(n("upgradeEmailBody"));
+	}), n && n.addEventListener("click", () => {
+		let e = encodeURIComponent(r("upgradeEmailSubject")), t = encodeURIComponent(r("upgradeEmailBody"));
 		window.location.href = `mailto:1400875096@qq.com?subject=${e}&body=${t}`;
 	}), window.closeUpgradeModal = function() {
 		t.classList.remove("active");
@@ -303,51 +350,51 @@ function k() {
 }
 //#endregion
 //#region src/ui/modules/share.js
-function A(e, t, n, r, i, a) {
+function M(e, t, n, r, i, a) {
 	e.beginPath(), e.moveTo(t + a, n), e.arcTo(t + r, n, t + r, n + i, a), e.arcTo(t + r, n + i, t, n + i, a), e.arcTo(t, n + i, t, n, a), e.arcTo(t, n, t + r, n, a), e.closePath();
 }
-function j(e) {
+function N(e) {
 	if (typeof qrcode > "u") {
-		alert(n("imgFail"));
+		alert(r("imgFail"));
 		return;
 	}
 	let t = qrcode(0, "M");
 	t.addData(e), t.make();
-	let r = new Image();
-	r.onload = () => {
+	let n = new Image();
+	n.onload = () => {
 		let t = document.getElementById("shareCanvas");
 		t.width = 1280, t.height = 1800, t.style.width = "100%", t.style.maxWidth = "380px";
 		let i = t.getContext("2d");
 		i.scale(2, 2), i.fillStyle = "#fff", i.fillRect(0, 0, 640, 900);
 		let a = i.createLinearGradient(0, 0, 640, 0);
-		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(n("subtitle"), 320, 130), i.fillStyle = "#f8fafc", A(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(r, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(n("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
+		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(r("subtitle"), 320, 130), i.fillStyle = "#f8fafc", M(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(n, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(r("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
 		let o = e.length > 55 ? e.slice(0, 52) + "..." : e;
 		i.fillText(o, 320, 680), i.strokeStyle = "#e5e5e5", i.lineWidth = 1, i.beginPath(), i.moveTo(80, 800), i.lineTo(560, 800), i.stroke(), i.fillStyle = "#cbd5e1", i.font = "13px -apple-system,sans-serif", i.fillText("Powered by Cloudflare Workers", 320, 840), document.getElementById("imageModal").classList.add("active");
-	}, r.onerror = () => alert(n("imgFail")), r.src = t.createDataURL(8, 0);
+	}, n.onerror = () => alert(r("imgFail")), n.src = t.createDataURL(8, 0);
 }
-function M() {
+function P() {
 	let e = document.getElementById("shareCanvas");
 	e.width && e.toBlob((e) => {
 		let t = document.createElement("a");
 		t.download = "oh-my-share.png", t.href = URL.createObjectURL(e), t.click(), setTimeout(() => URL.revokeObjectURL(t.href), 1e3);
 	}, "image/png");
 }
-function N() {
+function F() {
 	document.getElementById("imageModal").classList.remove("active");
 }
-function P() {
+function I() {
 	document.getElementById("imgBtn").addEventListener("click", () => {
 		let e = document.getElementById("resultUrl");
-		e.value && j(e.value);
-	}), document.getElementById("downloadBtn").addEventListener("click", M), document.getElementById("imageModal").addEventListener("click", (e) => {
-		e.target === e.currentTarget && N();
+		e.value && N(e.value);
+	}), document.getElementById("downloadBtn").addEventListener("click", P), document.getElementById("imageModal").addEventListener("click", (e) => {
+		e.target === e.currentTarget && F();
 	}), document.addEventListener("keydown", (e) => {
-		e.key === "Escape" && N();
+		e.key === "Escape" && F();
 	});
 }
 //#endregion
 //#region src/ui/modules/webmcp.js
-function F() {
+function L() {
 	if (!navigator.modelContext) return;
 	let e = new AbortController(), { signal: t } = e;
 	return navigator.modelContext.registerTool({
@@ -446,5 +493,5 @@ function F() {
 		signal: t
 	}), () => e.abort();
 }
-window.toggleLang = i, r(e.lang), b(), E(), D(), O(), k(), P(), F(), window.updatePricingDisplay && window.updatePricingDisplay(e.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
+window.toggleLang = a, i(t.lang), S(), O(), k(), A(), j(), I(), L(), window.updatePricingDisplay && window.updatePricingDisplay(t.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
 //#endregion

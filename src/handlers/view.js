@@ -1,7 +1,10 @@
 import { CONFIG } from '../config.js';
+import { BASE_CSS } from '../ui/theme.js';
+import { resolveLang } from '../i18n.js';
 import { parseEncryptionMetadata } from '../encryption.js';
 import { renderEncryptedViewer } from '../ui/viewer.js';
 import { hashPassword, hashIp } from '../crypto.js';
+import { hasPaidEntitlement } from '../entitlements.js';
 import {
   checkRateLimit,
   getBucket,
@@ -34,7 +37,8 @@ async function getFileRecord(env, id) {
     .prepare(
       `SELECT id, encrypted, encryption_version, encryption_metadata,
               title, description, tags, created_at, owner_id,
-              edit_token, password_hash, expires_at, updated_at
+              edit_token, password_hash, expires_at, updated_at,
+              reported_at
        FROM files
        WHERE id = ?`
     )
@@ -67,6 +71,84 @@ async function recordVisit(env, id, request) {
   }
 }
 
+const GATE_CSS = `
+.gate-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: var(--space-5);
+}
+.gate-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-8);
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+.gate-box h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-5);
+}
+.gate-box input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-input);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  margin-bottom: var(--space-3);
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.gate-box input:focus {
+  outline: none;
+  border-color: var(--color-accent-pink);
+  box-shadow: var(--shadow-glow);
+}
+.gate-box button {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: filter var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+.gate-box button:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.gate-box button:active { transform: translateY(0) scale(0.985); }
+.gate-error {
+  color: var(--error);
+  margin-bottom: var(--space-3);
+  font-size: 13.5px;
+}
+.gate-desc {
+  color: var(--color-text-secondary);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.gate-link {
+  display: inline-block;
+  margin-top: var(--space-5);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-link);
+}
+`;
+
 function renderPasswordPage(id, lang, error) {
   const messages = {
     zh: {
@@ -90,82 +172,21 @@ function renderPasswordPage(id, lang, error) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <title>${t.title}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root {
-    --color-bg: #f5f5f0;
-    --color-bg-elevated: #ffffff;
-    --color-border: #1a1a1a;
-    --color-text: #1a1a1a;
-    --color-accent-pink: #ff5c7c;
-    --color-accent-cyan: #5ce1d4;
-    --gradient-primary: linear-gradient(90deg, #ff5c7c 0%, #5ce1d4 100%);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-bg: #0f1423;
-      --color-bg-elevated: #1a2035;
-      --color-border: #ffffff;
-      --color-text: #ffffff;
-    }
-  }
-  body {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-family: 'Silkscreen', monospace;
-  }
-  .pwd-box {
-    background: var(--color-bg-elevated);
-    border: 3px solid var(--color-border);
-    padding: 2rem;
-    max-width: 400px;
-    width: 90%;
-    text-align: center;
-  }
-  .pwd-box h2 {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 1rem;
-    margin-bottom: 1.5rem;
-  }
-  .pwd-box input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 3px solid var(--color-border);
-    font-family: 'Silkscreen', monospace;
-    font-size: 1rem;
-    margin-bottom: 1rem;
-    background: var(--color-bg-elevated);
-    color: var(--color-text);
-  }
-  .pwd-box button {
-    width: 100%;
-    padding: 0.75rem;
-    border: 3px solid var(--color-border);
-    background: var(--gradient-primary);
-    color: white;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 0.8rem;
-    cursor: pointer;
-    text-transform: uppercase;
-  }
-  .pwd-box button:hover { opacity: 0.9; }
-  .error { color: var(--color-accent-pink); margin-bottom: 1rem; font-size: 0.8rem; }
-</style>
+<style>${BASE_CSS}
+${GATE_CSS}</style>
 </head>
 <body>
-<div class="pwd-box">
-  <h2>${t.title}</h2>
-  ${error ? `<p class="error">${t.error}</p>` : ''}
-  <form method="POST" action="/api/verify-password/${id}">
-    <input type="password" name="password" placeholder="${t.placeholder}" autofocus required>
-    <button type="submit">${t.submit}</button>
-  </form>
+<div class="gate-page">
+  <div class="gate-box">
+    <h2>${t.title}</h2>
+    ${error ? `<p class="gate-error">${t.error}</p>` : ''}
+    <form method="POST" action="/api/verify-password/${id}">
+      <input type="password" name="password" placeholder="${t.placeholder}" autofocus required>
+      <button type="submit">${t.submit}</button>
+    </form>
+  </div>
 </div>
 </body>
 </html>`;
@@ -173,8 +194,8 @@ function renderPasswordPage(id, lang, error) {
 
 function renderExpiredPage(lang) {
   const messages = {
-    zh: { title: '内容已过期', desc: '此分享内容已超过有效期，无法访问。' },
-    en: { title: 'Content Expired', desc: 'This shared content has expired and is no longer accessible.' },
+    zh: { title: '内容已过期', desc: '此分享内容已超过有效期，无法访问。', home: '返回首页' },
+    en: { title: 'Content Expired', desc: 'This shared content has expired and is no longer accessible.', home: 'Back to Home' },
   };
   const t = messages[lang] || messages.en;
   return `<!DOCTYPE html>
@@ -182,54 +203,72 @@ function renderExpiredPage(lang) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <title>${t.title}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root {
-    --color-bg: #f5f5f0;
-    --color-bg-elevated: #ffffff;
-    --color-border: #1a1a1a;
-    --color-text: #1a1a1a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-bg: #0f1423;
-      --color-bg-elevated: #1a2035;
-      --color-border: #ffffff;
-      --color-text: #ffffff;
-    }
-  }
-  body {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-family: 'Silkscreen', monospace;
-  }
-  .expired-box {
-    text-align: center;
-    padding: 2rem;
-    background: var(--color-bg-elevated);
-    border: 3px solid var(--color-border);
-    max-width: 400px;
-  }
-  .expired-box h2 {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 1rem;
-    margin-bottom: 1rem;
-  }
-</style>
+<style>${BASE_CSS}
+${GATE_CSS}</style>
 </head>
 <body>
-<div class="expired-box">
-  <h2>${t.title}</h2>
-  <p>${t.desc}</p>
+<div class="gate-page">
+  <div class="gate-box">
+    <h2>${t.title}</h2>
+    <p class="gate-desc">${t.desc}</p>
+    <a class="gate-link" href="/">${t.home}</a>
+  </div>
 </div>
 </body>
 </html>`;
+}
+
+function renderReportedPage(lang) {
+  const messages = {
+    zh: {
+      title: '内容已下架',
+      desc: '该内容因收到举报已暂时下架，正在人工审核。',
+      appeal: '如果你是内容所有者且认为这是误判，请发送邮件至 1400875096@qq.com 申诉（请附内容 ID）。',
+      home: '返回首页',
+      report: '举报其他内容',
+    },
+    en: {
+      title: 'Content Removed',
+      desc: 'This content has been taken down after receiving a report and is under manual review.',
+      appeal: 'If you are the content owner and believe this is a mistake, email 1400875096@qq.com to appeal (please include the content ID).',
+      home: 'Back to Home',
+      report: 'Report other content',
+    },
+  };
+  const t = messages[lang] || messages.en;
+  return `<!DOCTYPE html>
+<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<title>${t.title}</title>
+<style>${BASE_CSS}
+${GATE_CSS}</style>
+</head>
+<body>
+<div class="gate-page">
+  <div class="gate-box">
+    <h2>${t.title}</h2>
+    <p class="gate-desc">${t.desc}</p>
+    <p class="gate-desc">${t.appeal}</p>
+    <a class="gate-link" href="/">${t.home}</a>
+    <a class="gate-link" href="/abuse">${t.report}</a>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+const BADGE_HTML = '<a href="/?utm_source=badge" target="_blank" rel="noopener" style="position:fixed;bottom:14px;right:14px;z-index:2147483647;background:#111827;color:#fff;font:600 12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:999px;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);opacity:.92;">Made with Oh My Share</a>';
+
+function injectBadge(html) {
+  if (/<\/body\s*>/i.test(html)) {
+    return html.replace(/<\/body\s*>/i, `${BADGE_HTML}</body>`);
+  }
+  return html + BADGE_HTML;
 }
 
 export async function handleView(request, env) {
@@ -240,14 +279,31 @@ export async function handleView(request, env) {
   const id = url.pathname.slice('/view/'.length);
   if (!validId(id)) return new Response('Invalid ID', { status: 400 });
 
-  const lang = url.searchParams.get('lang') === 'zh' ? 'zh' : 'en';
+  const lang = resolveLang(request);
   const record = await getFileRecord(env, id);
   if (!record) return new Response('Not Found', { status: 404 });
+
+  // 被举报内容:451 已下架(可申诉)
+  if (record.reported_at) {
+    return new Response(renderReportedPage(lang), {
+      status: 451,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Robots-Tag': 'noindex, nofollow',
+        'Referrer-Policy': 'no-referrer',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
 
   // 检查是否过期
   if (isExpired(record)) {
     return new Response(renderExpiredPage(lang), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Robots-Tag': 'noindex, nofollow',
+        'Referrer-Policy': 'no-referrer',
+      },
     });
   }
 
@@ -257,13 +313,21 @@ export async function handleView(request, env) {
     const match = cookie.match(new RegExp(`osh_pwd_${id}=([a-f0-9]+)`));
     if (!match) {
       return new Response(renderPasswordPage(id, lang, false), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Robots-Tag': 'noindex, nofollow',
+          'Referrer-Policy': 'no-referrer',
+        },
       });
     }
     const providedHash = match[1];
     if (providedHash !== record.password_hash) {
       return new Response(renderPasswordPage(id, lang, true), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Robots-Tag': 'noindex, nofollow',
+          'Referrer-Policy': 'no-referrer',
+        },
       });
     }
   }
@@ -283,6 +347,7 @@ export async function handleView(request, env) {
         'Content-Security-Policy':
           "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'",
         'X-Robots-Tag': 'noindex',
+        'Referrer-Policy': 'no-referrer',
       },
     });
   }
@@ -291,14 +356,47 @@ export async function handleView(request, env) {
   const object = await getBucket(env).get(id);
   if (!object) return new Response('Not Found', { status: 404 });
 
+  // Badge is injected for non-paid owners; fold badge state into the ETag
+  // so 304 revalidation stays correct when entitlement changes.
+  const ownerPaid = record.owner_id ? await hasPaidEntitlement(env, record.owner_id) : false;
+
+  const updatedAt = (record?.updated_at || 0) * 1000;
+  const etag = `"${id}-${record?.updated_at || 0}${ownerPaid ? '' : '-b'}"`;
+  const lastModified = new Date(updatedAt).toUTCString();
+
+  // Revalidate: strong/weak ETag echo (Cloudflare may downgrade strong → weak)
+  const inboundEtag = (request.headers.get('if-none-match') || '').replace(/^W\//, '');
+  const ifModifiedSince = Date.parse(request.headers.get('if-modified-since') || '');
+  const notModified =
+    (inboundEtag && inboundEtag === etag) ||
+    (!inboundEtag && ifModifiedSince && ifModifiedSince >= updatedAt);
+  if (notModified) {
+    return new Response(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Last-Modified': lastModified,
+        'Cache-Control': 'no-cache',
+        'Referrer-Policy': 'no-referrer',
+      },
+    });
+  }
+
   await recordVisit(env, id, request);
-  return new Response(object.body, {
+  let body = await object.text();
+  if (!ownerPaid) {
+    body = injectBadge(body);
+  }
+  return new Response(body, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-cache',
+      ETag: etag,
+      'Last-Modified': lastModified,
       'Content-Security-Policy':
         'sandbox allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox',
       'X-Robots-Tag': 'noindex',
+      'Referrer-Policy': 'no-referrer',
     },
   });
 }
@@ -323,9 +421,12 @@ export async function handleVerifyPassword(request, env) {
   const passwordHash = await hashPassword(password);
 
   if (passwordHash !== record.password_hash) {
-    const lang = url.searchParams.get('lang') === 'zh' ? 'zh' : 'en';
+    const lang = resolveLang(request);
     return new Response(renderPasswordPage(id, lang, true), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Referrer-Policy': 'no-referrer',
+      },
     });
   }
 
@@ -360,6 +461,7 @@ export async function handlePublicContent(request, env) {
       'Content-Type': 'application/octet-stream',
       'Cache-Control': 'public, max-age=3600',
       'X-Robots-Tag': 'noindex',
+      'Referrer-Policy': 'no-referrer',
     },
   });
 }

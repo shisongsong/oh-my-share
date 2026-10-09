@@ -5,7 +5,7 @@ export function handleMcpServerCard(request) {
     serverInfo: {
       name: 'oh-my-share',
       description: 'HTML and code sharing with end-to-end encryption',
-      version: '2.1.0',
+      version: '2.2.0',
     },
     endpoint: `${origin}/mcp`,
     authentication: {

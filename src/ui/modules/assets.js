@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { t } from './i18n.js';
-import { get, del } from './api.js';
+import { get, post, del } from './api.js';
 
 export async function loadAssets() {
   if (!state.user) return;
@@ -32,6 +32,13 @@ export async function loadAssets() {
       link.textContent = asset.title || asset.filename || asset.id;
       link.className = 'asset-title';
       info.appendChild(link);
+
+      if (asset.published) {
+        const badge = document.createElement('span');
+        badge.className = 'asset-badge';
+        badge.textContent = t('publishedBadge');
+        info.appendChild(badge);
+      }
 
       if (asset.tags) {
         const tagsDiv = document.createElement('div');
@@ -65,6 +72,19 @@ export async function loadAssets() {
       manageBtn.textContent = t('manageBtn');
       actions.appendChild(manageBtn);
 
+      const publishButton = document.createElement('button');
+      publishButton.className = 'asset-publish';
+      publishButton.type = 'button';
+      publishButton.textContent = asset.published ? t('unpublishBtn') : t('publishBtn');
+      const expired = asset.expiresAt && asset.expiresAt * 1000 <= Date.now();
+      const cannotPublish = asset.encrypted || asset.passwordProtected || expired;
+      if (!asset.published && cannotPublish) {
+        publishButton.disabled = true;
+        publishButton.title = t('errCannotPublish');
+      }
+      publishButton.addEventListener('click', () => togglePublish(asset));
+      actions.appendChild(publishButton);
+
       const deleteButton = document.createElement('button');
       deleteButton.className = 'asset-delete';
       deleteButton.type = 'button';
@@ -89,6 +109,17 @@ export async function deleteAsset(id) {
   if (!window.confirm(t('deleteConfirm'))) return;
   try {
     await del('/api/assets/' + encodeURIComponent(id));
+    loadAssets();
+  } catch (error) {
+    window.alert(error.message || t('authError'));
+  }
+}
+
+export async function togglePublish(asset) {
+  try {
+    await post('/api/assets/' + encodeURIComponent(asset.id) + '/publish', {
+      published: !asset.published,
+    });
     loadAssets();
   } catch (error) {
     window.alert(error.message || t('authError'));

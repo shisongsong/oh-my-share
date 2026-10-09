@@ -1,6 +1,7 @@
 import { getDatabase, json } from '../security.js';
-import { I18N } from '../i18n.js';
+import { I18N, resolveLang } from '../i18n.js';
 import { STYLES } from '../ui/styles.js';
+import { renderNav, renderFooter } from '../ui/theme.js';
 
 function validId(id) {
   return Boolean(id) && /^[a-z0-9-]+$/i.test(id);
@@ -67,7 +68,7 @@ export async function handleStats(request, env) {
 
 export async function handleReport(request, env) {
   const url = new URL(request.url);
-  const lang = url.searchParams.get('lang') === 'zh' ? 'zh' : 'en';
+  const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
 
   const database = getDatabase(env);
@@ -129,10 +130,17 @@ export async function handleReport(request, env) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <title>${msg.title}</title>
 <style>${STYLES}</style>
 </head>
 <body>
+${renderNav(
+  lang,
+  '',
+  `<button class="lang-switch" id="langBtn" onclick="var u=new URL(location.href);u.searchParams.set('lang',u.searchParams.get('lang')==='zh'?'en':'zh');location.href=u.toString()"><span id="langBtnText">${lang === 'zh' ? 'EN' : '中'}</span></button>
+      <button class="account-button" id="accountBtn" onclick="location.href='/'">${t.accountBtn}</button>`
+)}
 <div class="container">
   <div class="header">
     <h1>Oh My Share</h1>
@@ -171,6 +179,7 @@ export async function handleReport(request, env) {
     </div>
   </div>
 </div>
+${renderFooter(lang)}
 </body>
 </html>`, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },

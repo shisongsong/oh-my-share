@@ -10,7 +10,8 @@ export async function request(url, options = {}) {
     data = { error: text };
   }
   if (!response.ok) {
-    throw new Error(data.error || t('authError'));
+    const translated = data.code && t(data.code) !== data.code ? t(data.code) : null;
+    throw new Error(translated || data.error || t('authError'));
   }
   return data;
 }

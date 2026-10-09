@@ -29,3 +29,19 @@ export async function hasPaidEntitlement(env, userId, now = Math.floor(Date.now(
     return false;
   }
 }
+export async function startTrialSubscription(env, userId, now = Math.floor(Date.now() / 1000)) {
+  const database = getDatabase(env);
+  if (!database || !userId) return;
+  try {
+    await database
+      .prepare(
+        `INSERT INTO subscriptions (user_id, plan, status, current_period_end, created_at, updated_at)
+         VALUES (?, 'paid', 'trialing', ?, ?, ?)
+         ON CONFLICT(user_id) DO NOTHING`
+      )
+      .bind(userId, now + 3 * 86400, now, now)
+      .run();
+  } catch (error) {
+    console.error('Trial subscription failed:', error);
+  }
+}

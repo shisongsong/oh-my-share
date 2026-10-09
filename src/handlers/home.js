@@ -1,10 +1,9 @@
-import { detectLang } from '../i18n.js';
+import { resolveLang } from '../i18n.js';
 import { renderPage } from '../ui/page.js';
 
 export async function handleHome(request) {
-  const lang = detectLang(request);
+  const lang = resolveLang(request);
   const html = renderPage(lang);
-  const origin = new URL(request.url).origin;
 
   return new Response(html, {
     headers: {
