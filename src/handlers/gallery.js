@@ -1,9 +1,19 @@
 import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { getDatabase, getBucket, json } from '../security.js';
+import { getCurrentUser } from '../auth.js';
 import { renderPage } from '../ui/page.js';
+import {
+  queryCommunityFeed,
+  renderFeedCards,
+  renderComposer,
+  fetchComments,
+  renderCommentsSection,
+  COMMENT_CSS,
+  COMMUNITY_SCRIPT,
+} from './posts.js';
 
-const GALLERY_CSS = `
+export const GALLERY_CSS = `
 .g-main { max-width: 1120px; margin: 0 auto; padding: 40px 20px 72px; }
 .g-hero { text-align: center; margin-bottom: 32px; }
 .g-hero h1 {
@@ -209,12 +219,30 @@ const GALLERY_CSS = `
 .g-btn.primary { color: #fff; background: var(--gradient-primary); border-color: transparent; }
 .g-btn.danger { color: var(--color-accent-strong); }
 .g-detail-note { font-size: 12.5px; color: var(--color-text-tertiary); margin-bottom: 32px; }
+.g-card { display: block; position: relative; }
+.g-card-title { display: block; }
+.g-card-title::after { content: ''; position: absolute; inset: 0; }
+.g-card-author {
+  display: inline-flex; align-items: center; gap: 5px;
+  position: relative; z-index: 2; color: inherit; text-decoration: none; font-size: 12.5px;
+}
+.g-card-author:hover span { text-decoration: underline; }
+.g-card-author .g-avatar { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 1px solid var(--color-hairline); }
+.g-like {
+  position: relative; z-index: 2;
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--color-hairline-strong); background: var(--color-surface);
+  border-radius: var(--radius-pill); padding: 2px 9px; margin-left: auto;
+  font-size: 12px; color: var(--color-text-secondary); cursor: pointer; font-family: inherit;
+}
+.g-like:hover { border-color: #e25555; color: #e25555; }
+.g-like.liked { color: #e25555; border-color: #e25555; }
 @media (max-width: 640px) {
   .g-detail-frame { height: 360px; }
 }
 `;
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -243,17 +271,17 @@ export async function queryGallery(env, opts = {}) {
   const now = Math.floor(Date.now() / 1000);
 
   const conditions = [
-    'published_at > 0',
-    'encrypted = 0',
-    "(password_hash IS NULL OR password_hash = '')",
-    '(expires_at IS NULL OR expires_at = 0 OR expires_at > ?)',
-    'reported_at IS NULL',
+    'f.published_at > 0',
+    'f.encrypted = 0',
+    "(f.password_hash IS NULL OR f.password_hash = '')",
+    '(f.expires_at IS NULL OR f.expires_at = 0 OR f.expires_at > ?)',
+    'f.reported_at IS NULL',
   ];
   const params = [now];
   if (q) {
     const pattern = `%${escapeLike(q)}%`;
     conditions.push(
-      `(title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\')`
+      `(f.title LIKE ? ESCAPE '\\' OR f.description LIKE ? ESCAPE '\\' OR f.tags LIKE ? ESCAPE '\\' OR f.id LIKE ? ESCAPE '\\')`
     );
     params.push(pattern, pattern, pattern, pattern);
   }
@@ -261,7 +289,7 @@ export async function queryGallery(env, opts = {}) {
 
   const database = getDatabase(env);
   const totalRow = await database
-    .prepare(`SELECT COUNT(*) AS total FROM files WHERE ${where}`)
+    .prepare(`SELECT COUNT(*) AS total FROM files f WHERE ${where}`)
     .bind(...params)
     .first();
   const total = totalRow?.total || 0;
@@ -270,14 +298,16 @@ export async function queryGallery(env, opts = {}) {
 
   const order =
     sort === 'hot'
-      ? '(SELECT COUNT(*) FROM visits v WHERE v.file_id = files.id) DESC, published_at DESC'
-      : 'published_at DESC, id DESC';
+      ? '(SELECT COUNT(*) FROM likes l WHERE l.file_id = f.id) DESC, (SELECT COUNT(*) FROM visits v WHERE v.file_id = f.id) DESC, f.published_at DESC'
+      : 'f.published_at DESC, f.id DESC';
 
   const result = await database
     .prepare(
-      `SELECT id, title, description, tags, filename, published_at,
-              (SELECT COUNT(*) FROM visits v WHERE v.file_id = files.id) AS views
-       FROM files
+      `SELECT f.id, f.title, f.description, f.tags, f.filename, f.published_at, f.owner_id,
+              u.nickname,
+              (SELECT COUNT(*) FROM visits v WHERE v.file_id = f.id) AS views,
+              (SELECT COUNT(*) FROM likes l WHERE l.file_id = f.id) AS likes
+       FROM files f LEFT JOIN users u ON u.id = f.owner_id
        WHERE ${where}
        ORDER BY ${order}
        LIMIT ? OFFSET ?`
@@ -295,19 +325,10 @@ export async function queryGallery(env, opts = {}) {
   };
 }
 
-export async function handleGalleryPage(request, env) {
-  const lang = resolveLang(request);
-  const t = I18N[lang] || I18N.en;
-  const url = new URL(request.url);
-
-  const { items, total, page: safePage, pages: totalPages, q, sort } = await queryGallery(env, {
-    q: url.searchParams.get('q'),
-    sort: url.searchParams.get('sort'),
-    page: url.searchParams.get('page'),
-    perPage: 24,
-  });
-
-  const cards = items
+// Community work card: title link covers the card, author links to /u/:id and
+// the like button sits above the stretched link.
+export function renderWorkCards(items, t) {
+  return items
     .map((item) => {
       const title = item.title || item.filename || item.id;
       const tags = (item.tags || '')
@@ -320,18 +341,64 @@ export async function handleGalleryPage(request, env) {
       const date = item.published_at
         ? new Date(item.published_at * 1000).toISOString().slice(0, 10)
         : '';
-      return `      <a class="g-card" href="/gallery/${encodeURIComponent(item.id)}">
-        <div class="g-card-title">${escapeHtml(title)}</div>
+      const authorHtml = item.owner_id
+        ? `<a class="g-card-author" href="/u/${encodeURIComponent(item.owner_id)}"><img class="g-avatar" src="/avatar/${encodeURIComponent(item.owner_id)}.svg" alt="" width="18" height="18"><span>${escapeHtml(item.nickname || fill(t.userPrefix, { n: item.owner_id.slice(0, 8) }))}</span></a>`
+        : `<span class="g-card-author g-card-anon">${escapeHtml(fill(t.galleryAuthor, { n: t.communityAnon }))}</span>`;
+      const likes = item.likes || 0;
+      return `      <div class="g-card">
+        <a class="g-card-title" href="/gallery/${encodeURIComponent(item.id)}">${escapeHtml(title)}</a>
         ${item.description ? `<p class="g-card-desc">${escapeHtml(item.description)}</p>` : ''}
         ${tags ? `<div class="g-card-tags">${tags}</div>` : ''}
         <div class="g-card-meta">
-          <span>${escapeHtml(fill(t.galleryAuthor, { n: item.id.slice(0, 8) }))}</span>
+          ${authorHtml}
           <span>${escapeHtml(fill(t.galleryViews, { n: item.views }))}</span>
+          <button type="button" class="g-like" data-file="${escapeHtml(item.id)}" title="${escapeHtml(t.likesTitle)}" aria-label="${escapeHtml(t.likesTitle)}"><span class="g-like-heart">♥</span><span class="g-like-count">${likes}</span></button>
           <span>${date}</span>
         </div>
-      </a>`;
+      </div>`;
     })
     .join('\n');
+}
+
+// Delegated like-toggle behaviour for community pages (gallery + profiles).
+export const LIKE_SCRIPT = `
+document.addEventListener('click', async function (e) {
+  var btn = e.target.closest('.g-like');
+  if (!btn) return;
+  e.preventDefault();
+  try {
+    var res = await fetch('/api/likes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: btn.dataset.file })
+    });
+    if (res.status === 401) { location.href = '/'; return; }
+    if (!res.ok) return;
+    var data = await res.json();
+    btn.classList.toggle('liked', !!data.liked);
+    var count = btn.querySelector('.g-like-count');
+    if (count) count.textContent = String(data.count);
+  } catch (err) {}
+});
+`;
+
+export async function handleGalleryPage(request, env) {
+  const lang = resolveLang(request);
+  const t = I18N[lang] || I18N.en;
+  const url = new URL(request.url);
+  const viewer = await getCurrentUser(request, env);
+
+  const { items, total, page: safePage, pages: totalPages, q, sort } = await queryCommunityFeed(
+    env,
+    {
+      q: url.searchParams.get('q'),
+      sort: url.searchParams.get('sort'),
+      page: url.searchParams.get('page'),
+      perPage: 24,
+    }
+  );
+
+  const { html: cards, workCount } = renderFeedCards(items, t);
 
   let itemsHtml;
   if (items.length > 0) {
@@ -424,6 +491,7 @@ ${nav}
       <button type="submit">${escapeHtml(t.gallerySearchBtn)}</button>
     </form>
   </header>
+  ${renderComposer(t, viewer)}
   <nav class="g-tabs">
     <a class="g-tab${sort === 'new' ? ' active' : ''}" href="${tabHref('new')}">${escapeHtml(t.gallerySortNew)}</a>
     <a class="g-tab${sort === 'hot' ? ' active' : ''}" href="${tabHref('hot')}">${escapeHtml(t.gallerySortHot)}</a>
@@ -433,6 +501,7 @@ ${nav}
   ${pagerHtml}
 </main>
 ${renderFooter(lang)}
+<script>${COMMUNITY_SCRIPT}</script>
 </body>
 </html>`;
 
@@ -456,15 +525,17 @@ function splitTags(raw) {
 async function getPublishedItem(database, id, now) {
   return database
     .prepare(
-      `SELECT id, title, description, tags, filename, created_at, published_at, owner_id, remixed_from,
-              (SELECT COUNT(*) FROM visits v WHERE v.file_id = files.id) AS views
-       FROM files
-       WHERE id = ?
-         AND published_at > 0
-         AND encrypted = 0
-         AND (password_hash IS NULL OR password_hash = '')
-         AND (expires_at IS NULL OR expires_at = 0 OR expires_at > ?)
-         AND reported_at IS NULL`
+      `SELECT f.id, f.title, f.description, f.tags, f.filename, f.created_at, f.published_at, f.owner_id, f.remixed_from,
+              u.nickname,
+              (SELECT COUNT(*) FROM visits v WHERE v.file_id = f.id) AS views,
+              (SELECT COUNT(*) FROM likes l WHERE l.file_id = f.id) AS likes
+       FROM files f LEFT JOIN users u ON u.id = f.owner_id
+       WHERE f.id = ?
+         AND f.published_at > 0
+         AND f.encrypted = 0
+         AND (f.password_hash IS NULL OR f.password_hash = '')
+         AND (f.expires_at IS NULL OR f.expires_at = 0 OR f.expires_at > ?)
+         AND f.reported_at IS NULL`
     )
     .bind(id, now)
     .first();
@@ -493,6 +564,8 @@ export async function handleGalleryItem(request, env, id) {
   const date = item.published_at
     ? new Date(item.published_at * 1000).toISOString().slice(0, 10)
     : '';
+  const viewer = await getCurrentUser(request, env);
+  const comments = await fetchComments(env, 'work', id);
 
   const tagsHtml = tags
     .map((tag) => `<span class="g-card-tag">${escapeHtml(tag)}</span>`)
@@ -561,6 +634,7 @@ ${desc ? `<meta name="twitter:description" content="${escDesc}">` : ''}
 <style>
 ${BASE_CSS}
 ${GALLERY_CSS}
+${COMMENT_CSS}
 ${DETAIL_CSS_EXTRA}
 </style>
 </head>
@@ -570,8 +644,11 @@ ${nav}
   <div class="g-detail-crumb"><a href="/gallery">${escapeHtml(t.galleryH1)}</a> /</div>
   <h1>${escTitle}</h1>
   <div class="g-detail-meta">
-    <span>${escapeHtml(fill(t.galleryAuthor, { n: id.slice(0, 8) }))}</span>
+    ${item.owner_id
+      ? `<a class="g-card-author" href="/u/${encodeURIComponent(item.owner_id)}" style="color:inherit"><img class="g-avatar" src="/avatar/${encodeURIComponent(item.owner_id)}.svg" alt="" width="18" height="18"><span>${escapeHtml(item.nickname || fill(t.userPrefix, { n: item.owner_id.slice(0, 8) }))}</span></a>`
+      : `<span>${escapeHtml(fill(t.galleryAuthor, { n: id.slice(0, 8) }))}</span>`}
     <span>${escapeHtml(fill(t.galleryViews, { n: item.views }))}</span>
+    <button type="button" class="g-like" data-file="${escapeHtml(item.id)}" title="${escapeHtml(t.likesTitle)}" aria-label="${escapeHtml(t.likesTitle)}"><span class="g-like-heart">♥</span><span class="g-like-count">${item.likes || 0}</span></button>
     ${date ? `<span>${escapeHtml(fill(t.galleryPublishedOn, { n: date }))}</span>` : ''}
     ${remixLine}
   </div>
@@ -584,8 +661,10 @@ ${nav}
     <a class="g-btn" href="/remix/${encodeURIComponent(id)}">${escapeHtml(t.galleryRemix)}</a>
     <a class="g-btn danger" href="/abuse?id=${encodeURIComponent(id)}">${escapeHtml(t.galleryReport)}</a>
   </div>
+${renderCommentsSection(comments, t, { viewerId: viewer ? viewer.id : null, targetType: 'work', targetId: id })}
 </main>
 ${renderFooter(lang)}
+<script>${COMMUNITY_SCRIPT}</script>
 </body>
 </html>`;
 

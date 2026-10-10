@@ -22,6 +22,19 @@ import { handleFeed } from './handlers/feed.js';
 import { handleDemo } from './handlers/demo.js';
 import { handleMcpGuide } from './handlers/mcp-guide.js';
 import { handleCorsProxy, handleCorsKeyApi } from './handlers/cors-proxy.js';
+import {
+  handleLikeApi,
+  handleProfileApi,
+  handleProfilePage,
+  renderAvatarResponse,
+} from './handlers/community.js';
+import {
+  handleCreatePost,
+  handleDeletePost,
+  handleCreateComment,
+  handleDeleteComment,
+  handlePostPage,
+} from './handlers/posts.js';
 import { purgeExpiredFiles } from './handlers/purge.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
@@ -196,6 +209,23 @@ export default {
         response = await handleGalleryPage(request, env);
       } else if (request.method === 'GET' && url.pathname.startsWith('/gallery/')) {
         response = await handleGalleryItem(request, env, url.pathname.slice('/gallery/'.length));
+      } else if (request.method === 'GET' && url.pathname === '/community') {
+        response = Response.redirect(`${url.origin}/gallery`, 301);
+      } else if (request.method === 'GET' && url.pathname.startsWith('/post/')) {
+        const postId = url.pathname.slice(6);
+        response = /^[A-Za-z0-9-]{1,64}$/.test(postId)
+          ? await handlePostPage(request, env, postId)
+          : new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      } else if (request.method === 'GET' && url.pathname.startsWith('/u/')) {
+        const profileId = url.pathname.slice(3);
+        response = /^[A-Za-z0-9-]{1,64}$/.test(profileId)
+          ? await handleProfilePage(request, env, profileId)
+          : new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      } else if (request.method === 'GET' && url.pathname.startsWith('/avatar/')) {
+        const avatarMatch = url.pathname.match(/^\/avatar\/([A-Za-z0-9-]{1,64})\.svg$/);
+        response = avatarMatch
+          ? renderAvatarResponse(avatarMatch[1])
+          : new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       } else if (request.method === 'GET' && url.pathname.startsWith('/remix/')) {
         response = await handleRemixPage(request, env, url.pathname.slice('/remix/'.length));
       } else if (request.method === 'GET' && url.pathname === '/api/gallery') {
@@ -208,6 +238,32 @@ export default {
         response = await handleListShares(request, env);
       } else if (url.pathname === '/api/cors-key') {
         response = await handleCorsKeyApi(request, env);
+      } else if (request.method === 'POST' && url.pathname === '/api/likes') {
+        response = await handleLikeApi(request, env);
+      } else if (request.method === 'POST' && url.pathname === '/api/posts') {
+        response = await handleCreatePost(request, env);
+      } else if (request.method === 'DELETE' && url.pathname.startsWith('/api/posts/')) {
+        const rawPostId = url.pathname.slice('/api/posts/'.length);
+        let postId = rawPostId;
+        try {
+          postId = decodeURIComponent(rawPostId);
+        } catch {
+          postId = '';
+        }
+        response = await handleDeletePost(request, env, postId);
+      } else if (request.method === 'POST' && url.pathname === '/api/comments') {
+        response = await handleCreateComment(request, env);
+      } else if (request.method === 'DELETE' && url.pathname.startsWith('/api/comments/')) {
+        const rawCommentId = url.pathname.slice('/api/comments/'.length);
+        let commentId = rawCommentId;
+        try {
+          commentId = decodeURIComponent(rawCommentId);
+        } catch {
+          commentId = '';
+        }
+        response = await handleDeleteComment(request, env, commentId);
+      } else if (request.method === 'POST' && url.pathname === '/api/profile') {
+        response = await handleProfileApi(request, env);
       } else if (request.method === 'DELETE' && url.pathname.startsWith('/api/assets/')) {
         const rawId = url.pathname.slice('/api/assets/'.length);
         let id = rawId;

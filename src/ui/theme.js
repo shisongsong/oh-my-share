@@ -696,11 +696,10 @@ a {
 
 export function renderNav(lang, activePath, actionsHtml) {
   const t = I18N[lang] || I18N.en;
+  // Slim nav: community + the two integration entry points. Everything else
+  // lives in the footer and the home-page "More tools" section.
   const links = [
     { href: '/gallery', key: 'navGallery' },
-    { href: '/html-viewer', key: 'navHtmlViewer' },
-    { href: '/code-share', key: 'navCodeShare' },
-    { href: '/codepen-alternative', key: 'navAlternative' },
     { href: '/mcp-guide', key: 'navMcp' },
     { href: '/corsproxy', key: 'navCors' },
   ];

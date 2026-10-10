@@ -1365,3 +1365,371 @@ describe("CORS proxy", () => {
 		expect(freshData.key).not.toBe(rotatedData.key);
 	});
 });
+
+describe("Community", () => {
+	async function registerUser(tag) {
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email: `${tag}-${Date.now()}@test.com`, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+		const me = await fetchWorker(
+			new Request("http://example.com/api/auth/me", { headers: { Cookie: cookie } })
+		);
+		const { user } = await me.json();
+		return { cookie, userId: user.id };
+	}
+
+	async function publishFile(id, ownerId, title) {
+		const now = Math.floor(Date.now() / 1000);
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, published_at, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind(id, `${id}.html`, ownerId, now, "edt_x", now, now, title)
+			.run();
+	}
+
+	it("slims the nav and adds a More tools section on the home page", async () => {
+		const home = await fetchWorker(new Request("http://example.com/"));
+		const html = await home.text();
+
+		const navStart = html.indexOf("<nav");
+		const navEnd = html.indexOf("</nav>");
+		const navHtml = html.slice(navStart, navEnd);
+		expect(navHtml).toContain('href="/gallery"');
+		expect(navHtml).toContain('href="/mcp-guide"');
+		expect(navHtml).toContain('href="/corsproxy"');
+		expect(navHtml).not.toContain('href="/html-viewer"');
+		expect(navHtml).not.toContain('href="/code-share"');
+		expect(navHtml).not.toContain('href="/codepen-alternative"');
+
+		// removed nav links stay reachable from the tools section + footer
+		expect(html).toContain('id="tools"');
+		expect(html).toContain('data-i18n="toolViewerDesc"');
+		expect(html).toContain('data-i18n="toolShareDesc"');
+		expect(html).toContain('data-i18n="toolCorsDesc"');
+		expect(html).toContain('href="/html-viewer"');
+	});
+
+	it("shows authors, avatars and like buttons on the community feed", async () => {
+		const { cookie, userId } = await registerUser("feed");
+		const nick = await fetchWorker(
+			new Request("http://example.com/api/profile", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ nickname: "社区 tester", bio: "hello bio" }),
+			})
+		);
+		expect(nick.status).toBe(200);
+
+		await publishFile("commfeed00001", userId, "Feed work title");
+
+		const page = await fetchWorker(new Request("http://example.com/gallery"));
+		expect(page.status).toBe(200);
+		const html = await page.text();
+		expect(html).toContain(`/u/${userId}`);
+		expect(html).toContain("社区 tester");
+		expect(html).toContain('data-file="commfeed00001"');
+		expect(html).toContain(`/avatar/${userId}.svg`);
+		expect(html).toContain("Feed work title");
+	});
+
+	it("redirects /community to the community feed", async () => {
+		const res = await fetchWorker(new Request("http://example.com/community"));
+		expect(res.status).toBe(301);
+		expect(res.headers.get("location")).toContain("/gallery");
+	});
+
+	it("toggles likes through the API", async () => {
+		const { cookie } = await registerUser("liker");
+		await publishFile("commlike00001", null, "Likeable");
+
+		const unauth = await fetchWorker(
+			new Request("http://example.com/api/likes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ file_id: "commlike00001" }),
+			})
+		);
+		expect(unauth.status).toBe(401);
+		expect((await unauth.json()).code).toBe("errAuthRequired");
+
+		const like = await fetchWorker(
+			new Request("http://example.com/api/likes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ file_id: "commlike00001" }),
+			})
+		);
+		expect(like.status).toBe(200);
+		expect(await like.json()).toEqual({ liked: true, count: 1 });
+
+		const unlike = await fetchWorker(
+			new Request("http://example.com/api/likes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ file_id: "commlike00001" }),
+			})
+		);
+		expect(await unlike.json()).toEqual({ liked: false, count: 0 });
+
+		const missing = await fetchWorker(
+			new Request("http://example.com/api/likes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ file_id: "doesnotexist99" }),
+			})
+		);
+		expect(missing.status).toBe(404);
+
+		const invalid = await fetchWorker(
+			new Request("http://example.com/api/likes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ file_id: "bad id!" }),
+			})
+		);
+		expect(invalid.status).toBe(400);
+	});
+
+	it("renders profiles with works, bio and an owner edit form", async () => {
+		const { cookie, userId } = await registerUser("prof");
+		await fetchWorker(
+			new Request("http://example.com/api/profile", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ nickname: "prof nick", bio: "profile bio line" }),
+			})
+		);
+		await publishFile("commprof00001", userId, "Profile work");
+
+		const profile = await fetchWorker(
+			new Request(`http://example.com/u/${userId}`, { headers: { Cookie: cookie } })
+		);
+		expect(profile.status).toBe(200);
+		const html = await profile.text();
+		expect(html).toContain("prof nick");
+		expect(html).toContain("profile bio line");
+		expect(html).toContain('id="profileForm"');
+		expect(html).toContain("Profile work");
+		expect(html).toContain('"@type":"ProfilePage"');
+
+		// another visitor sees no edit form
+		const visitor = await registerUser("vist");
+		const view = await fetchWorker(
+			new Request(`http://example.com/u/${userId}`, { headers: { Cookie: visitor.cookie } })
+		);
+		expect((await view.text())).not.toContain('id="profileForm"');
+
+		const missing = await fetchWorker(new Request("http://example.com/u/nobody-here-999?lang=en"));
+		expect(missing.status).toBe(404);
+		expect(await missing.text()).toContain("User not found");
+	});
+
+	it("validates profile updates and serves identicon avatars", async () => {
+		const { cookie, userId } = await registerUser("avat");
+
+		const bad = await fetchWorker(
+			new Request("http://example.com/api/profile", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ nickname: "x", bio: "" }),
+			})
+		);
+		expect(bad.status).toBe(400);
+
+		const avatar = await fetchWorker(new Request(`http://example.com/avatar/${userId}.svg`));
+		expect(avatar.status).toBe(200);
+		expect(avatar.headers.get("content-type")).toContain("image/svg+xml");
+		expect(await avatar.text()).toContain("<svg");
+
+		const badAvatar = await fetchWorker(new Request("http://example.com/avatar/nope!.svg"));
+		expect(badAvatar.status).toBe(404);
+	});
+
+	it("creates discussion posts that appear in the feed and have a detail page", async () => {
+		const { cookie, userId } = await registerUser("post");
+
+		const unauth = await fetchWorker(
+			new Request("http://example.com/api/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ content: "hello world this is a post" }),
+			})
+		);
+		expect(unauth.status).toBe(401);
+
+		const tooShort = await fetchWorker(
+			new Request("http://example.com/api/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ content: "short" }),
+			})
+		);
+		expect(tooShort.status).toBe(400);
+
+		const created = await fetchWorker(
+			new Request("http://example.com/api/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ title: "How do I publish?", content: "I want to share my dashboard HTML with the community." }),
+			})
+		);
+		expect(created.status).toBe(201);
+		const { id: postId } = await created.json();
+
+		const feed = await fetchWorker(new Request("http://example.com/gallery"));
+		const feedHtml = await feed.text();
+		expect(feedHtml).toContain(`/post/${postId}`);
+		expect(feedHtml).toContain("How do I publish?");
+		expect(feedHtml).toContain("Discussion");
+
+		const page = await fetchWorker(
+			new Request(`http://example.com/post/${postId}`, { headers: { Cookie: cookie } })
+		);
+		expect(page.status).toBe(200);
+		const html = await page.text();
+		expect(html).toContain("How do I publish?");
+		expect(html).toContain("I want to share my dashboard HTML");
+		expect(html).toContain(`href="/u/${userId}"`);
+		expect(html).toContain('"@type":"DiscussionForumPosting"');
+		expect(html).toContain('id="commentForm"');
+
+		const missing = await fetchWorker(new Request("http://example.com/post/no-such-post-99"));
+		expect(missing.status).toBe(404);
+	});
+
+	it("supports threaded comments on posts and published works", async () => {
+		const author = await registerUser("cmta");
+		const commenter = await registerUser("cmtb");
+		await publishFile("commcmt00001", author.userId, "Commentable work");
+
+		const created = await fetchWorker(
+			new Request("http://example.com/api/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: author.cookie },
+				body: JSON.stringify({ title: "Discuss this", content: "A long enough post body for discussion purposes." }),
+			})
+		);
+		const { id: postId } = await created.json();
+
+		const unauth = await fetchWorker(
+			new Request("http://example.com/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ target_type: "post", target_id: postId, content: "anon comment" }),
+			})
+		);
+		expect(unauth.status).toBe(401);
+
+		const c1 = await fetchWorker(
+			new Request("http://example.com/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: commenter.cookie },
+				body: JSON.stringify({ target_type: "post", target_id: postId, content: "First comment on the post" }),
+			})
+		);
+		expect(c1.status).toBe(201);
+		const { id: commentId } = await c1.json();
+
+		const reply = await fetchWorker(
+			new Request("http://example.com/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: author.cookie },
+				body: JSON.stringify({ target_type: "post", target_id: postId, parent_id: commentId, content: "Replying to you" }),
+			})
+		);
+		expect(reply.status).toBe(201);
+
+		const page = await fetchWorker(new Request(`http://example.com/post/${postId}`));
+		const html = await page.text();
+		expect(html).toContain("First comment on the post");
+		expect(html).toContain("Replying to you");
+		expect(html).toContain("c-replies");
+		expect(html).toContain("Comments · 2");
+
+		// comments also work on published works
+		const workComment = await fetchWorker(
+			new Request("http://example.com/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: commenter.cookie },
+				body: JSON.stringify({ target_type: "work", target_id: "commcmt00001", content: "Nice work!" }),
+			})
+		);
+		expect(workComment.status).toBe(201);
+
+		const workPage = await fetchWorker(
+			new Request("http://example.com/gallery/commcmt00001?lang=en", {
+				headers: { Cookie: commenter.cookie },
+			})
+		);
+		const workHtml = await workPage.text();
+		expect(workHtml).toContain("Nice work!");
+		expect(workHtml).toContain('id="commentForm"');
+
+		// invalid target rejected
+		const badTarget = await fetchWorker(
+			new Request("http://example.com/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: commenter.cookie },
+				body: JSON.stringify({ target_type: "post", target_id: "missing-post-99", content: "nope" }),
+			})
+		);
+		expect(badTarget.status).toBe(404);
+
+		// owner deletes the comment, others cannot
+		const foreignDelete = await fetchWorker(
+			new Request(`http://example.com/api/comments/${commentId}`, {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: author.cookie },
+			})
+		);
+		expect(foreignDelete.status).toBe(403);
+
+		const ownDelete = await fetchWorker(
+			new Request(`http://example.com/api/comments/${commentId}`, {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: commenter.cookie },
+			})
+		);
+		expect(ownDelete.status).toBe(200);
+
+		const after = await fetchWorker(new Request(`http://example.com/post/${postId}`));
+		expect(await after.text()).not.toContain("First comment on the post");
+	});
+
+	it("lists posts on the profile page and removes them on delete", async () => {
+		const { cookie, userId } = await registerUser("pdel");
+		const created = await fetchWorker(
+			new Request("http://example.com/api/posts", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ title: "Temp post", content: "This post will be deleted in the test." }),
+			})
+		);
+		const { id: postId } = await created.json();
+
+		const profile = await fetchWorker(
+			new Request(`http://example.com/u/${userId}`, { headers: { Cookie: cookie } })
+		);
+		expect(await profile.text()).toContain(`/post/${postId}`);
+
+		const removed = await fetchWorker(
+			new Request(`http://example.com/api/posts/${postId}`, {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(removed.status).toBe(200);
+
+		const feed = await fetchWorker(new Request("http://example.com/gallery"));
+		expect(await feed.text()).not.toContain(`/post/${postId}`);
+
+		const page = await fetchWorker(new Request(`http://example.com/post/${postId}`));
+		expect(page.status).toBe(404);
+	});
+});

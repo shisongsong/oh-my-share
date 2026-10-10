@@ -175,6 +175,24 @@ export async function handleSitemap(env) {
         lastmod: new Date(file.created_at * 1000).toISOString().split('T')[0],
       });
     }
+
+    const recentPosts = await db
+      .prepare(`
+        SELECT id, created_at 
+        FROM posts 
+        ORDER BY created_at DESC 
+        LIMIT 100
+      `)
+      .all();
+
+    for (const post of recentPosts.results || []) {
+      urls.push({
+        loc: `${BASE_URL}/post/${post.id}`,
+        priority: '0.5',
+        changefreq: 'weekly',
+        lastmod: new Date(post.created_at * 1000).toISOString().split('T')[0],
+      });
+    }
   } catch (e) {
     console.error('Sitemap DB error:', e);
   }

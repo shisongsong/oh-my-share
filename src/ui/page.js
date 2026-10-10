@@ -11,6 +11,14 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
+function toolCard(href, icon, titleKey, title, descKey, desc) {
+  return `    <a class="tool-card" href="${href}">
+      <div class="tool-icon">${icon}</div>
+      <h3 data-i18n="${titleKey}">${esc(title)}</h3>
+      <p data-i18n="${descKey}">${esc(desc)}</p>
+    </a>`;
+}
+
 export function renderPage(lang, prefill = null) {
   const t = I18N[lang] || I18N.en;
   const baseUrl = 'https://openanthropic.com';
@@ -224,6 +232,22 @@ ${renderNav(
       <h3 data-i18n="feature4Title"></h3>
       <p data-i18n="feature4Desc"></p>
     </div>
+  </div>
+</section>
+
+<!-- More tools -->
+<section class="tools" id="tools">
+  <div class="tools-head">
+    <h2 data-i18n="toolsTitle">${esc(t.toolsTitle)}</h2>
+    <p class="tools-desc" data-i18n="toolsDesc">${esc(t.toolsDesc)}</p>
+  </div>
+  <div class="tools-grid">
+${toolCard('/html-viewer', '📄', 'navHtmlViewer', t.navHtmlViewer, 'toolViewerDesc', t.toolViewerDesc)}
+${toolCard('/code-share', '🔗', 'navCodeShare', t.navCodeShare, 'toolShareDesc', t.toolShareDesc)}
+${toolCard('/codepen-alternative', '🎨', 'navAlternative', t.navAlternative, 'toolPenDesc', t.toolPenDesc)}
+${toolCard('/ai-html-publish', '🤖', 'navAiPublish', t.navAiPublish, 'toolAiDesc', t.toolAiDesc)}
+${toolCard('/mcp-guide', '🧩', 'navMcp', t.navMcp, 'toolMcpDesc', t.toolMcpDesc)}
+${toolCard('/corsproxy', '🌐', 'navCors', t.navCors, 'toolCorsDesc', t.toolCorsDesc)}
   </div>
 </section>
 

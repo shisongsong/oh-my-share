@@ -38,7 +38,10 @@ curl -F "file=@page.html" ${origin}/api/upload
 
 - Upload (REST): POST ${origin}/api/upload — returns JSON with the share link
 - View: GET ${origin}/view/<id> — renders the page
-- Gallery: ${origin}/gallery — voluntarily published works, searchable (?q=), sorted by new/hot
+- Community: ${origin}/gallery — mixed feed of published works and discussion posts with authors and likes, searchable (?q=), sorted by new/hot
+- Profiles: ${origin}/u/<userId> — a creator's bio, posts and published works; like via POST /api/likes {file_id}
+- Posts: ${origin}/post/<postId> — a discussion post with comments; create via POST /api/posts {title, content}, delete via DELETE /api/posts/<postId>
+- Comments: POST /api/comments {target_type: "post"|"work", target_id, content, parent_id?} — comment on a post or published work; delete via DELETE /api/comments/<id>
 - Stats: GET ${origin}/api/stats/<id>?token=<edit_token> — visit counts by day/country
 - CORS proxy: GET ${origin}/corsproxy?key=<key>&url=<encoded> — relay any public http(s) URL to the browser with CORS headers (free account + API key required, 100 req/h per key, nothing stored)
 
