@@ -679,6 +679,7 @@ export function renderNav(lang, activePath, actionsHtml) {
     { href: '/code-share', key: 'navCodeShare' },
     { href: '/codepen-alternative', key: 'navAlternative' },
     { href: '/mcp-guide', key: 'navMcp' },
+    { href: '/corsproxy', key: 'navCors' },
   ];
 
   const linkHtml = links
@@ -722,6 +723,7 @@ export function renderFooter(lang) {
       <a href="/codepen-alternative" data-i18n="navAlternative">${t.navAlternative}</a>
       <a href="/ai-html-publish" data-i18n="navAiPublish">${t.navAiPublish}</a>
       <a href="/mcp-guide" data-i18n="navMcp">${t.navMcp}</a>
+      <a href="/corsproxy" data-i18n="navCors">${t.navCors}</a>
     </div>
     <div class="footer-col">
       <h4 data-i18n="footerResources">${t.footerResources}</h4>

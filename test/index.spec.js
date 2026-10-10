@@ -5,9 +5,10 @@ import {
 	SELF,
 	waitOnExecutionContext,
 } from "cloudflare:test";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../src";
 import { handleUpload } from "../src/handlers/upload.js";
+import { CORS_RATE_PER_HOUR } from "../src/handlers/cors-proxy.js";
 import { detectLang } from "../src/i18n.js";
 import { validateSlug } from "../src/security.js";
 
@@ -1017,5 +1018,158 @@ describe("Oh My Share worker", () => {
 
 		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
 		expect(await sitemap.text()).toContain("https://openanthropic.com/mcp-guide");
+	});
+});
+
+describe("CORS proxy", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("serves the bilingual product page with playground", async () => {
+		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
+		expect(page.status).toBe(200);
+		expect(page.headers.get("content-type")).toContain("text/html");
+		const html = await page.text();
+		expect(html).toContain("openanthropic.com/corsproxy?url=");
+		expect(html).toContain('id="pgForm"');
+		expect(html).toContain("Access-Control-Allow-Origin: *");
+		expect(html).toContain("60");
+		expect(html).toContain('href="/corsproxy"');
+
+		const zh = await fetchWorker(
+			new Request("http://example.com/corsproxy", {
+				headers: { "Accept-Language": "zh-CN,zh;q=0.9" },
+			})
+		);
+		expect(await zh.text()).toContain("终结跨域报错");
+
+		const head = await fetchWorker(
+			new Request("http://example.com/corsproxy", { method: "HEAD" })
+		);
+		expect(head.status).toBe(200);
+	});
+
+	it("is reachable from nav, footer, sitemap, robots and llms.txt", async () => {
+		const home = await fetchWorker(new Request("http://example.com/"));
+		expect(await home.text()).toContain('href="/corsproxy"');
+
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		expect(await sitemap.text()).toContain("https://openanthropic.com/corsproxy");
+
+		const robots = await fetchWorker(new Request("http://example.com/robots.txt"));
+		expect(await robots.text()).toContain("Disallow: /corsproxy?url=");
+
+		const llms = await fetchWorker(new Request("http://example.com/llms.txt"));
+		expect(await llms.text()).toContain("/corsproxy?url=");
+	});
+
+	it("answers preflight OPTIONS with permissive CORS headers", async () => {
+		const response = await fetchWorker(
+			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com", {
+				method: "OPTIONS",
+				headers: {
+					Origin: "https://myapp.example",
+					"Access-Control-Request-Method": "POST",
+					"Access-Control-Request-Headers": "authorization,content-type",
+				},
+			})
+		);
+		expect(response.status).toBe(204);
+		expect(response.headers.get("access-control-allow-origin")).toBe("*");
+		expect(response.headers.get("access-control-allow-methods")).toContain("DELETE");
+		expect(response.headers.get("access-control-allow-headers")).toBe("authorization,content-type");
+	});
+
+	it("rejects malformed, non-http, private and self targets", async () => {
+		const cases = [
+			["not-a-URL", 400],
+			["ftp://example.com/file", 400],
+			["http://127.0.0.1:8080/", 403],
+			["http://localhost/", 403],
+			["http://10.1.2.3/", 403],
+			["http://192.168.1.1/", 403],
+			["http://169.254.169.254/latest/meta-data/", 403],
+			["http://[::1]/", 403],
+			["https://openanthropic.com/", 403],
+		];
+		for (const [target, status] of cases) {
+			const response = await fetchWorker(
+				new Request(`http://example.com/corsproxy?url=${encodeURIComponent(target)}`)
+			);
+			expect(response.status, target).toBe(status);
+		}
+	});
+
+	it("proxies upstream, streams the body and rewrites CORS headers", async () => {
+		const fetchMock = vi.fn(async () =>
+			new Response('{"ok":true}', {
+				status: 200,
+				headers: {
+					"Content-Type": "application/json",
+					"X-Upstream": "unit-test",
+					"Access-Control-Allow-Origin": "https://other.example",
+					"Content-Security-Policy": "default-src 'none'",
+					"Strict-Transport-Security": "max-age=99999999",
+					"Set-Cookie": "evil=1; Path=/",
+				},
+			})
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const response = await fetchWorker(
+			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fapi.example.com%2Fdata", {
+				headers: { "CF-Connecting-IP": "8.8.8.8", Authorization: "Bearer token-123" },
+			})
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe('{"ok":true}');
+		expect(response.headers.get("access-control-allow-origin")).toBe("*");
+		expect(response.headers.get("x-upstream")).toBe("unit-test");
+		expect(response.headers.get("set-cookie")).toBeNull();
+		expect(response.headers.get("content-security-policy")).toBeNull();
+		// upstream HSTS must not be adopted as this origin's policy
+		expect(response.headers.get("strict-transport-security")).not.toContain("99999999");
+		expect(response.headers.get("x-cors-proxy")).toBe("openanthropic.com");
+		expect(response.headers.get("x-ratelimit-remaining")).toBe(String(CORS_RATE_PER_HOUR - 1));
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [target, init] = fetchMock.mock.calls[0];
+		expect(target).toBe("https://api.example.com/data");
+		expect(init.headers.get("Authorization")).toBe("Bearer token-123");
+	});
+
+	it("rate limits per IP after the hourly quota", async () => {
+		const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const request = (ip) =>
+			fetchWorker(
+				new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com%2Fdata", {
+					headers: { "CF-Connecting-IP": ip },
+				})
+			);
+
+		let last;
+		for (let i = 0; i < CORS_RATE_PER_HOUR; i++) {
+			last = await request("9.9.9.9");
+			expect(last.status, `request ${i + 1}`).toBe(200);
+		}
+		expect(fetchMock).toHaveBeenCalledTimes(CORS_RATE_PER_HOUR);
+
+		const blocked = await request("9.9.9.9");
+		expect(blocked.status).toBe(429);
+		expect(blocked.headers.get("retry-after")).toBeTruthy();
+		const payload = JSON.parse(await blocked.text());
+		expect(payload.error).toContain("Rate limit exceeded");
+
+		// a different IP is unaffected
+		const other = await request("7.7.7.7");
+		expect(other.status).toBe(200);
+
+		// proxied requests without a url parameter are page loads, not quota hits
+		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
+		expect(page.status).toBe(200);
 	});
 });
