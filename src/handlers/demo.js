@@ -1,4 +1,4 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
 import { resolveLang } from '../i18n.js';
 import { checkRateLimit, getClientIp } from '../security.js';
 
@@ -381,6 +381,7 @@ export async function handleDemo(request, env) {
 <meta name="description" content="${esc(t.desc)}">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="${BASE_URL}/demo">
+${hreflangLinks(BASE_URL, '/demo')}
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
 <meta property="og:title" content="${esc(t.title)}">

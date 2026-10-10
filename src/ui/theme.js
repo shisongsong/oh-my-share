@@ -1,5 +1,28 @@
 import { I18N } from '../i18n.js';
 
+// hreflang alternates for a bilingual path: en = bare URL, zh = ?lang=zh,
+// x-default = en. Add to <head> of every indexable marketing page.
+export function hreflangLinks(origin, path) {
+  const en = `${origin}${path}`;
+  return `<link rel="alternate" hreflang="en" href="${en}">
+<link rel="alternate" hreflang="zh" href="${origin}${path}?lang=zh">
+<link rel="alternate" hreflang="x-default" href="${en}">`;
+}
+
+// FAQPage JSON-LD from a [[question, answer], …] list — matches the on-page
+// <details> FAQ so search and answer engines see the same content.
+export function faqJsonLd(faq) {
+  const mainEntity = (faq || []).map(([q, a]) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  }));
+  if (!mainEntity.length) return '';
+  return `<script type="application/ld+json">
+${JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity })}
+</script>`;
+}
+
 // Shared design system: tokens + common components used by all pages.
 // Visual direction: refined, Apple-inspired product UI — system typography,
 // generous whitespace, frosted sticky nav, soft layered shadows, hairline
@@ -714,7 +737,7 @@ export function renderFooter(lang) {
   <div class="footer-grid">
     <div class="footer-col">
       <h4>Oh My Share</h4>
-      <p>${t.footerDesc}</p>
+      <p data-i18n="footerDesc">${t.footerDesc}</p>
     </div>
     <div class="footer-col">
       <h4 data-i18n="footerTools">${t.footerTools}</h4>
@@ -729,7 +752,7 @@ export function renderFooter(lang) {
     <div class="footer-col">
       <h4 data-i18n="footerResources">${t.footerResources}</h4>
       <a href="/auth.md">API Docs</a>
-      <a href="/demo">${lang === 'zh' ? '产品演示' : 'Product Demo'}</a>
+      <a href="/demo" data-i18n="footerDemo">${t.footerDemo}</a>
       <a href="/extension.zip">Chrome Extension</a>
       <a href="https://github.com/shisongsong/oh-my-share" target="_blank" rel="noopener">GitHub</a>
       <a href="/abuse" data-i18n="footerAbuse">${t.footerAbuse}</a>

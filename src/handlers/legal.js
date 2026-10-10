@@ -1,4 +1,4 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
 import { resolveLang } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
@@ -89,6 +89,7 @@ export function handleLegalPage(kind, request) {
 <meta name="description" content="${esc(page.intro.slice(0, 160))}">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="${BASE_URL}/${kind}">
+${hreflangLinks(BASE_URL, `/${kind}`)}
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:title" content="${esc(page.title)} | Oh My Share">

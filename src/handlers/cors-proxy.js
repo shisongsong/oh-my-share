@@ -1,4 +1,4 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter, hreflangLinks, faqJsonLd } from '../ui/theme.js';
 import { resolveLang } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { checkRateLimit, getClientIp, json } from '../security.js';
@@ -811,6 +811,8 @@ function renderCorsPage(request) {
 <title>${esc(t.title)}</title>
 <meta name="description" content="${esc(t.desc)}">
 <link rel="canonical" href="${BASE_URL}/corsproxy">
+${hreflangLinks(BASE_URL, '/corsproxy')}
+${faqJsonLd(t.faq)}
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
 <meta property="og:title" content="${esc(t.title)}">

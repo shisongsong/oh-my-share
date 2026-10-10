@@ -1,4 +1,4 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter, hreflangLinks, faqJsonLd } from '../ui/theme.js';
 import { resolveLang } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
@@ -397,6 +397,8 @@ ${steps.map((s) => `          <li>${esc(s)}</li>`).join('\n')}
 <meta name="description" content="${esc(t.desc)}">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="${BASE_URL}/mcp-guide">
+${hreflangLinks(BASE_URL, '/mcp-guide')}
+${faqJsonLd(t.faq)}
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
 <meta property="og:title" content="${esc(t.title)}">

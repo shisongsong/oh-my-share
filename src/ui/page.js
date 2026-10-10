@@ -89,8 +89,8 @@ ${renderNav(
 <!-- Hero with Upload -->
 <section class="hero">
   <div class="hero-content">
-    <h1 class="hero-title">${t.heroTitle}</h1>
-    <p class="hero-subtitle">${t.heroSubtitle}</p>
+    <h1 class="hero-title" data-i18n="heroTitle">${t.heroTitle}</h1>
+    <p class="hero-subtitle" data-i18n="heroSubtitle">${t.heroSubtitle}</p>
     
     <!-- Upload Form -->
     <div class="upload-card">

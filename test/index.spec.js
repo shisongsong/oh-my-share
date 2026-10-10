@@ -1016,8 +1016,22 @@ describe("Oh My Share worker", () => {
 		const home = await fetchWorker(new Request("http://example.com/"));
 		expect(await home.text()).toContain('href="/mcp-guide"');
 
+		// SEO: hreflang + FAQ structured data
+		expect(html).toContain('hreflang="en" href="https://openanthropic.com/mcp-guide"');
+		expect(html).toContain('"@type":"FAQPage"');
+
 		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
 		expect(await sitemap.text()).toContain("https://openanthropic.com/mcp-guide");
+	});
+
+	it("lets answer-engine crawlers index public pages via robots.txt", async () => {
+		const robots = await fetchWorker(new Request("http://example.com/robots.txt"));
+		const text = await robots.text();
+		for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended", "CCBot"]) {
+			expect(text).toContain(`User-agent: ${bot}`);
+		}
+		// private endpoints stay disallowed for everyone
+		expect(text).toContain("Disallow: /api/");
 	});
 });
 
@@ -1084,6 +1098,11 @@ describe("CORS proxy", () => {
 		const homeHtml = await home.text();
 		expect(homeHtml).toContain('href="/corsproxy"');
 		expect(homeHtml).toContain('href="/gallery" data-i18n="navGallery"');
+		// instant client-side language switch: hero + footer are tagged
+		expect(homeHtml).toContain('data-i18n="heroTitle"');
+		expect(homeHtml).toContain('data-i18n="heroSubtitle"');
+		expect(homeHtml).toContain('data-i18n="footerDesc"');
+		expect(homeHtml).toContain('data-i18n="footerDemo"');
 
 		// password gate page keeps the shared chrome
 		const gateId = "testgategate01";
@@ -1125,6 +1144,15 @@ describe("CORS proxy", () => {
 	});
 
 	it("requires a valid API key for every proxy call", async () => {
+		// SEO: hreflang alternates + FAQ structured data on the product page
+		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
+		const pageHtml = await page.text();
+		expect(pageHtml).toContain('hreflang="en" href="https://openanthropic.com/corsproxy"');
+		expect(pageHtml).toContain('hreflang="zh" href="https://openanthropic.com/corsproxy?lang=zh"');
+		expect(pageHtml).toContain('hreflang="x-default"');
+		expect(pageHtml).toContain('"@type":"FAQPage"');
+		expect(pageHtml).toContain("Do I need an account?");
+
 		const noKey = await fetchWorker(
 			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com")
 		);

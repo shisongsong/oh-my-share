@@ -82,6 +82,40 @@ Disallow: /corsproxy?url=
 User-agent: Googlebot
 Allow: /
 
+# Answer engines & AI crawlers — public pages only (same rules as above)
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
 Sitemap: ${BASE_URL}/sitemap.xml
 
 # Oh My Share - Free HTML & Code Sharing Tool

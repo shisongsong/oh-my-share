@@ -1,4 +1,4 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { getDatabase, getBucket, json } from '../security.js';
 import { renderPage } from '../ui/page.js';
@@ -392,6 +392,10 @@ export async function handleGalleryPage(request, env) {
 <meta name="description" content="${escapeHtml(t.galleryMetaDesc)}">
 ${q ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="canonical" href="${url.origin}/gallery">
+${q ? '' : hreflangLinks(url.origin, '/gallery')}
+${q ? '' : `<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"CollectionPage","name":${JSON.stringify(t.galleryTitle)},"description":${JSON.stringify(t.galleryMetaDesc)},"url":"${url.origin}/gallery","isPartOf":{"@type":"WebSite","name":"Oh My Share","url":"${url.origin}"}}
+</script>`}
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
 <meta property="og:title" content="${escapeHtml(t.galleryTitle)}">
@@ -531,6 +535,7 @@ export async function handleGalleryItem(request, env, id) {
 ${desc ? `<meta name="description" content="${escDesc}">` : ''}
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="${canonical}">
+${hreflangLinks(url.origin, `/gallery/${encodeURIComponent(id)}`)}
 <meta property="og:title" content="${escTitle}">
 ${desc ? `<meta property="og:description" content="${escDesc}">` : ''}
 <meta property="og:type" content="website">
