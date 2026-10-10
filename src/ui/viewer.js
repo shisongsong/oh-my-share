@@ -1,4 +1,5 @@
 import { safeViewerMetadata } from '../encryption.js';
+import { BASE_CSS, renderNav, renderFooter } from './theme.js';
 
 function viewerScript(id, nonce, metadata) {
   const endpoint = `/api/content/${encodeURIComponent(id)}`;
@@ -87,12 +88,20 @@ async function renderDecryptedDocument() {
 renderDecryptedDocument();`;
 }
 
-export function renderEncryptedViewer(id, metadata, social = {}) {
+export function renderEncryptedViewer(id, metadata, social = {}, lang = 'en') {
   const nonce = Math.random().toString(36).slice(2);
   const socialTitle = String(social.title || '').trim() || 'Encrypted page on Oh My Share';
   const socialDesc = String(social.description || '').trim();
   const origin = String(social.origin || 'https://openanthropic.com');
   const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const other = lang === 'zh' ? 'en' : 'zh';
+  const nav = renderNav(
+    lang,
+    '',
+    `<a class="lang-switch" href="?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
+     <a class="account-button" href="/">${lang === 'zh' ? '回到应用' : 'Back to app'}</a>`
+  );
+  const footer = renderFooter(lang);
   const socialMeta = [
     `<meta property="og:site_name" content="Oh My Share">`,
     `<meta property="og:type" content="website">`,
@@ -105,23 +114,33 @@ export function renderEncryptedViewer(id, metadata, social = {}) {
     `<meta name="twitter:image" content="${esc(`${origin}/og-image.png`)}">`,
   ].filter(Boolean).join('\n');
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oh My Share</title>
 ${socialMeta}
-<style>
-  :root { color-scheme: light; font-family: system-ui, sans-serif; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f6f8; color: #24313d; }
-  #status { padding: 1.5rem; }
+<style>${BASE_CSS}
+  body { margin: 0; min-height: 100vh; background: #f4f6f8; color: #24313d; display: block; }
+  .viewer-shell { padding: 16px; }
+  #status { padding: 1.5rem; text-align: center; }
   #status.error { color: #a32626; }
-  iframe { width: 100%; min-height: 100vh; border: 0; background: white; }
+  iframe {
+    width: 100%;
+    min-height: calc(100vh - var(--nav-height, 64px) - 240px);
+    border: 0;
+    background: white;
+    display: block;
+  }
 </style>
 </head>
 <body>
-<p id="status">Decrypting shared content...</p>
-<iframe id="content" hidden sandbox="allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox"></iframe>
+${nav}
+<div class="viewer-shell">
+  <p id="status">Decrypting shared content...</p>
+  <iframe id="content" hidden sandbox="allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox"></iframe>
+</div>
+${footer}
 <script>${viewerScript(id, nonce, metadata)}</script>
 </body>
 </html>`;

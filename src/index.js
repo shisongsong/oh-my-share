@@ -21,7 +21,7 @@ import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
 import { handleDemo } from './handlers/demo.js';
 import { handleMcpGuide } from './handlers/mcp-guide.js';
-import { handleCorsProxy } from './handlers/cors-proxy.js';
+import { handleCorsProxy, handleCorsKeyApi } from './handlers/cors-proxy.js';
 import { purgeExpiredFiles } from './handlers/purge.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
@@ -206,6 +206,8 @@ export default {
         response = await handleAbusePage(request, env);
       } else if (request.method === 'GET' && url.pathname === '/api/shares') {
         response = await handleListShares(request, env);
+      } else if (url.pathname === '/api/cors-key') {
+        response = await handleCorsKeyApi(request, env);
       } else if (request.method === 'DELETE' && url.pathname.startsWith('/api/assets/')) {
         const rawId = url.pathname.slice('/api/assets/'.length);
         let id = rawId;

@@ -13,6 +13,8 @@ export const CONFIG = Object.freeze({
   PASSWORD_ITERATIONS: 10000,
   SESSION_TTL_SECONDS: 60 * 60 * 24 * 30,
   RATE_AUTH_PER_HOUR: 20,
+  RATE_CORS_PER_HOUR: 100,
+  RATE_CORS_IP_PER_HOUR: 300,
   EXPIRY_OPTIONS: {
     '1h': 60 * 60,
     '1d': 60 * 60 * 24,

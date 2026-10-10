@@ -718,6 +718,7 @@ export function renderFooter(lang) {
     </div>
     <div class="footer-col">
       <h4 data-i18n="footerTools">${t.footerTools}</h4>
+      <a href="/gallery" data-i18n="navGallery">${t.navGallery}</a>
       <a href="/html-viewer" data-i18n="navHtmlViewer">${t.navHtmlViewer}</a>
       <a href="/code-share" data-i18n="navCodeShare">${t.navCodeShare}</a>
       <a href="/codepen-alternative" data-i18n="navAlternative">${t.navAlternative}</a>

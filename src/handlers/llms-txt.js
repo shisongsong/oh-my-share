@@ -40,13 +40,13 @@ curl -F "file=@page.html" ${origin}/api/upload
 - View: GET ${origin}/view/<id> — renders the page
 - Gallery: ${origin}/gallery — voluntarily published works, searchable (?q=), sorted by new/hot
 - Stats: GET ${origin}/api/stats/<id>?token=<edit_token> — visit counts by day/country
-- CORS proxy: GET ${origin}/corsproxy?url=<encoded> — relay any public http(s) URL to the browser with CORS headers (60 req/h per IP, nothing stored)
+- CORS proxy: GET ${origin}/corsproxy?key=<key>&url=<encoded> — relay any public http(s) URL to the browser with CORS headers (free account + API key required, 100 req/h per key, nothing stored)
 
 ## Pages
 
 - [Home](${origin}/): Main app — paste HTML, get a link
 - [Product demo](${origin}/demo): Animated walkthrough of the sharing flow
-- [CORS proxy](${origin}/corsproxy): Free browser CORS relay — docs, limits and interactive playground
+- [CORS proxy](${origin}/corsproxy): Free browser CORS relay — get an API key in the console, docs, limits and interactive playground
 - [HTML viewer](${origin}/html-viewer): View raw HTML files in the browser
 - [Code sharing](${origin}/code-share): Share code snippets with syntax highlighting
 - [CodePen alternative](${origin}/codepen-alternative): Lightweight single-file alternative to CodePen

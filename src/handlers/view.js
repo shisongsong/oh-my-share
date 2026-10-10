@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { BASE_CSS } from '../ui/theme.js';
+import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
 import { resolveLang } from '../i18n.js';
 import { parseEncryptionMetadata } from '../encryption.js';
 import { renderEncryptedViewer } from '../ui/viewer.js';
@@ -73,7 +73,7 @@ async function recordVisit(env, id, request) {
 
 const GATE_CSS = `
 .gate-page {
-  min-height: 100vh;
+  min-height: calc(100vh - var(--nav-height, 64px) - 240px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,6 +149,19 @@ const GATE_CSS = `
 }
 `;
 
+// Standard site chrome for gate pages so every page carries the same nav
+// bar and footer links.
+function gateChrome(lang) {
+  const other = lang === 'zh' ? 'en' : 'zh';
+  const nav = renderNav(
+    lang,
+    '',
+    `<a class="lang-switch" href="?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
+     <a class="account-button" href="/">${lang === 'zh' ? '回到应用' : 'Back to app'}</a>`
+  );
+  return { nav, footer: renderFooter(lang) };
+}
+
 function renderPasswordPage(id, lang, error) {
   const messages = {
     zh: {
@@ -167,6 +180,7 @@ function renderPasswordPage(id, lang, error) {
     },
   };
   const t = messages[lang] || messages.en;
+  const { nav, footer } = gateChrome(lang);
   return `<!DOCTYPE html>
 <html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
@@ -178,6 +192,7 @@ function renderPasswordPage(id, lang, error) {
 ${GATE_CSS}</style>
 </head>
 <body>
+${nav}
 <div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
@@ -188,6 +203,7 @@ ${GATE_CSS}</style>
     </form>
   </div>
 </div>
+${footer}
 </body>
 </html>`;
 }
@@ -198,6 +214,7 @@ function renderExpiredPage(lang) {
     en: { title: 'Content Expired', desc: 'This shared content has expired and is no longer accessible.', home: 'Back to Home' },
   };
   const t = messages[lang] || messages.en;
+  const { nav, footer } = gateChrome(lang);
   return `<!DOCTYPE html>
 <html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
@@ -209,6 +226,7 @@ function renderExpiredPage(lang) {
 ${GATE_CSS}</style>
 </head>
 <body>
+${nav}
 <div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
@@ -216,6 +234,7 @@ ${GATE_CSS}</style>
     <a class="gate-link" href="/">${t.home}</a>
   </div>
 </div>
+${footer}
 </body>
 </html>`;
 }
@@ -238,6 +257,7 @@ function renderReportedPage(lang) {
     },
   };
   const t = messages[lang] || messages.en;
+  const { nav, footer } = gateChrome(lang);
   return `<!DOCTYPE html>
 <html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
 <head>
@@ -249,6 +269,7 @@ function renderReportedPage(lang) {
 ${GATE_CSS}</style>
 </head>
 <body>
+${nav}
 <div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
@@ -258,6 +279,7 @@ ${GATE_CSS}</style>
     <a class="gate-link" href="/abuse">${t.report}</a>
   </div>
 </div>
+${footer}
 </body>
 </html>`;
 }
@@ -384,7 +406,7 @@ export async function handleView(request, env) {
       title: record.title || '',
       description: record.description || '',
       origin: url.origin,
-    }), {
+    }, lang), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store, no-cache, must-revalidate',

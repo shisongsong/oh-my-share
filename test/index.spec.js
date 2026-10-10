@@ -1026,15 +1026,44 @@ describe("CORS proxy", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("serves the bilingual product page with playground", async () => {
+	function proxyUrl(target, key) {
+		return `http://example.com/corsproxy?url=${encodeURIComponent(target)}&key=${encodeURIComponent(key)}`;
+	}
+
+	async function registerUser(tag) {
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email: `${tag}-${Date.now()}@test.com`, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		return (register.headers.get("set-cookie") || "").split(";")[0];
+	}
+
+	async function insertKey(id) {
+		const key = `ck_${id.replace(/-/g, "").padEnd(40, "a").slice(0, 40)}`;
+		await env.DB.prepare(
+			"INSERT INTO api_keys (id, user_id, key, created_at) VALUES (?, ?, ?, ?)"
+		)
+			.bind(id, `user-${id}`, key, Math.floor(Date.now() / 1000))
+			.run();
+		return key;
+	}
+
+	it("serves the bilingual product page with key console and playground", async () => {
 		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
 		expect(page.status).toBe(200);
 		expect(page.headers.get("content-type")).toContain("text/html");
 		const html = await page.text();
-		expect(html).toContain("openanthropic.com/corsproxy?url=");
+		expect(html).toContain("openanthropic.com/corsproxy?key=");
+		expect(html).toContain('id="key-console"');
+		expect(html).toContain('id="ckAuthForm"');
+		expect(html).toContain('id="pgKey"');
 		expect(html).toContain('id="pgForm"');
-		expect(html).toContain("Access-Control-Allow-Origin: *");
-		expect(html).toContain("60");
+		expect(html).toContain("API key");
+		expect(html).toContain("100");
 		expect(html).toContain('href="/corsproxy"');
 
 		const zh = await fetchWorker(
@@ -1050,10 +1079,41 @@ describe("CORS proxy", () => {
 		expect(head.status).toBe(200);
 	});
 
-	it("is reachable from nav, footer, sitemap, robots and llms.txt", async () => {
+	it("keeps nav and footer links consistent across home, guide, gate and viewer pages", async () => {
 		const home = await fetchWorker(new Request("http://example.com/"));
-		expect(await home.text()).toContain('href="/corsproxy"');
+		const homeHtml = await home.text();
+		expect(homeHtml).toContain('href="/corsproxy"');
+		expect(homeHtml).toContain('href="/gallery" data-i18n="navGallery"');
 
+		// password gate page keeps the shared chrome
+		const gateId = "testgategate01";
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, expires_at, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind(gateId, "secret.html", null, Math.floor(Date.now() / 1000), "edt_x", Math.floor(Date.now() / 1000), null, "deadbeef")
+			.run();
+		const gate = await fetchWorker(new Request(`http://example.com/view/${gateId}`));
+		expect(gate.status).toBe(200);
+		const gateHtml = await gate.text();
+		expect(gateHtml).toContain('class="nav"');
+		expect(gateHtml).toContain('class="footer"');
+		expect(gateHtml).toContain('href="/corsproxy"');
+		expect(gateHtml).toContain('href="/gallery"');
+
+		// encrypted viewer wrapper keeps the shared chrome
+		const { renderEncryptedViewer } = await import("../src/ui/viewer.js");
+		const viewer = renderEncryptedViewer(
+			"abc123",
+			{ version: 1, iv: "AAAA", salt: "BBBB", iterations: 100000, keyMode: "random" },
+			{ title: "t", origin: "http://example.com" },
+			"zh"
+		);
+		expect(viewer).toContain('class="nav"');
+		expect(viewer).toContain('class="footer"');
+		expect(viewer).toContain('href="/corsproxy"');
+		expect(viewer).toContain('html lang="zh-CN"');
+
+		// sitemap / robots / llms.txt keep pointing at the proxy
 		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
 		expect(await sitemap.text()).toContain("https://openanthropic.com/corsproxy");
 
@@ -1061,7 +1121,50 @@ describe("CORS proxy", () => {
 		expect(await robots.text()).toContain("Disallow: /corsproxy?url=");
 
 		const llms = await fetchWorker(new Request("http://example.com/llms.txt"));
-		expect(await llms.text()).toContain("/corsproxy?url=");
+		expect(await llms.text()).toContain("/corsproxy?key=");
+	});
+
+	it("requires a valid API key for every proxy call", async () => {
+		const noKey = await fetchWorker(
+			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com")
+		);
+		expect(noKey.status).toBe(401);
+		expect(noKey.headers.get("www-authenticate")).toContain("Bearer");
+		expect((await noKey.json()).code).toBe("errApiKeyRequired");
+
+		const badKey = await fetchWorker(
+			new Request(proxyUrl("https://example.com", "ck_not_a_real_key_0000000000000000000"))
+		);
+		expect(badKey.status).toBe(401);
+		expect((await badKey.json()).code).toBe("errApiKeyInvalid");
+
+		// Authorization: Bearer also works
+		const key = await insertKey("k-bearer01");
+		const bearer = await fetchWorker(
+			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com", {
+				headers: { Authorization: `Bearer ${key}` },
+			})
+		);
+		expect(bearer.status).toBe(200);
+	});
+
+	it("rejects malformed, non-http, private and self targets", async () => {
+		const key = await insertKey("k-validate01");
+		const cases = [
+			["not-a-URL", 400],
+			["ftp://example.com/file", 400],
+			["http://127.0.0.1:8080/", 403],
+			["http://localhost/", 403],
+			["http://10.1.2.3/", 403],
+			["http://192.168.1.1/", 403],
+			["http://169.254.169.254/latest/meta-data/", 403],
+			["http://[::1]/", 403],
+			["https://openanthropic.com/", 403],
+		];
+		for (const [target, status] of cases) {
+			const response = await fetchWorker(new Request(proxyUrl(target, key)));
+			expect(response.status, target).toBe(status);
+		}
 	});
 
 	it("answers preflight OPTIONS with permissive CORS headers", async () => {
@@ -1081,26 +1184,6 @@ describe("CORS proxy", () => {
 		expect(response.headers.get("access-control-allow-headers")).toBe("authorization,content-type");
 	});
 
-	it("rejects malformed, non-http, private and self targets", async () => {
-		const cases = [
-			["not-a-URL", 400],
-			["ftp://example.com/file", 400],
-			["http://127.0.0.1:8080/", 403],
-			["http://localhost/", 403],
-			["http://10.1.2.3/", 403],
-			["http://192.168.1.1/", 403],
-			["http://169.254.169.254/latest/meta-data/", 403],
-			["http://[::1]/", 403],
-			["https://openanthropic.com/", 403],
-		];
-		for (const [target, status] of cases) {
-			const response = await fetchWorker(
-				new Request(`http://example.com/corsproxy?url=${encodeURIComponent(target)}`)
-			);
-			expect(response.status, target).toBe(status);
-		}
-	});
-
 	it("proxies upstream, streams the body and rewrites CORS headers", async () => {
 		const fetchMock = vi.fn(async () =>
 			new Response('{"ok":true}', {
@@ -1117,9 +1200,13 @@ describe("CORS proxy", () => {
 		);
 		vi.stubGlobal("fetch", fetchMock);
 
+		const key = await insertKey("k-proxy001");
 		const response = await fetchWorker(
-			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fapi.example.com%2Fdata", {
-				headers: { "CF-Connecting-IP": "8.8.8.8", Authorization: "Bearer token-123" },
+			new Request(proxyUrl("https://api.example.com/data", key), {
+				headers: {
+					"CF-Connecting-IP": "8.8.8.8",
+					Authorization: "Bearer target-token-999",
+				},
 			})
 		);
 
@@ -1137,39 +1224,116 @@ describe("CORS proxy", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [target, init] = fetchMock.mock.calls[0];
 		expect(target).toBe("https://api.example.com/data");
-		expect(init.headers.get("Authorization")).toBe("Bearer token-123");
+		// Authorization for the target API is forwarded untouched
+		expect(init.headers.get("Authorization")).toBe("Bearer target-token-999");
+
+		// ...but a Bearer proxy key (no ?key=) is consumed, never forwarded
+		const bearerCall = await fetchWorker(
+			new Request("http://example.com/corsproxy?url=https%3A%2F%2Fapi.example.com%2Fother", {
+				headers: { Authorization: `Bearer ${key}` },
+			})
+		);
+		expect(bearerCall.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock.mock.calls[1][1].headers.get("Authorization")).toBeNull();
 	});
 
-	it("rate limits per IP after the hourly quota", async () => {
+	it("rate limits per key and keeps keys isolated", async () => {
 		const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
 		vi.stubGlobal("fetch", fetchMock);
 
-		const request = (ip) =>
-			fetchWorker(
-				new Request("http://example.com/corsproxy?url=https%3A%2F%2Fexample.com%2Fdata", {
-					headers: { "CF-Connecting-IP": ip },
-				})
-			);
+		const keyA = await insertKey("k-quota001");
+		const keyB = await insertKey("k-quota002");
 
 		let last;
 		for (let i = 0; i < CORS_RATE_PER_HOUR; i++) {
-			last = await request("9.9.9.9");
+			last = await fetchWorker(new Request(proxyUrl("https://example.com/data", keyA)));
 			expect(last.status, `request ${i + 1}`).toBe(200);
 		}
 		expect(fetchMock).toHaveBeenCalledTimes(CORS_RATE_PER_HOUR);
 
-		const blocked = await request("9.9.9.9");
+		const blocked = await fetchWorker(new Request(proxyUrl("https://example.com/data", keyA)));
 		expect(blocked.status).toBe(429);
 		expect(blocked.headers.get("retry-after")).toBeTruthy();
-		const payload = JSON.parse(await blocked.text());
-		expect(payload.error).toContain("Rate limit exceeded");
+		expect((await blocked.json()).code).toBe("errRateLimited");
 
-		// a different IP is unaffected
-		const other = await request("7.7.7.7");
+		// a second key still has its own quota
+		const other = await fetchWorker(new Request(proxyUrl("https://example.com/data", keyB)));
 		expect(other.status).toBe(200);
+	});
 
-		// proxied requests without a url parameter are page loads, not quota hits
-		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
-		expect(page.status).toBe(200);
+	it("issues, rotates and revokes keys through the console API", async () => {
+		const unauth = await fetchWorker(new Request("http://example.com/api/cors-key"));
+		expect(unauth.status).toBe(401);
+
+		const cookie = await registerUser("ckey");
+
+		const first = await fetchWorker(
+			new Request("http://example.com/api/cors-key", { headers: { Cookie: cookie } })
+		);
+		expect(first.status).toBe(200);
+		const firstData = await first.json();
+		expect(firstData.key).toMatch(/^ck_[0-9a-f]{40}$/);
+		expect(firstData.limitHour).toBe(CORS_RATE_PER_HOUR);
+		expect(firstData.usedHour).toBe(0);
+
+		// repeat fetch returns the same key (idempotent)
+		const again = await fetchWorker(
+			new Request("http://example.com/api/cors-key", { headers: { Cookie: cookie } })
+		);
+		expect((await again.json()).key).toBe(firstData.key);
+
+		// proxying with the key bumps the usage counter
+		const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		const proxied = await fetchWorker(
+			new Request(proxyUrl("https://example.com/x", firstData.key), {
+				headers: { "CF-Connecting-IP": "5.5.5.5" },
+			})
+		);
+		expect(proxied.status).toBe(200);
+		const used = await fetchWorker(
+			new Request("http://example.com/api/cors-key", { headers: { Cookie: cookie } })
+		);
+		expect((await used.json()).usedHour).toBeGreaterThanOrEqual(1);
+
+		// rotate: new key works, old key dies
+		const rotated = await fetchWorker(
+			new Request("http://example.com/api/cors-key", {
+				method: "POST",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(rotated.status).toBe(200);
+		const rotatedData = await rotated.json();
+		expect(rotatedData.key).not.toBe(firstData.key);
+
+		const oldKeyCall = await fetchWorker(
+			new Request(proxyUrl("https://example.com/x", firstData.key))
+		);
+		expect(oldKeyCall.status).toBe(401);
+		const newKeyCall = await fetchWorker(
+			new Request(proxyUrl("https://example.com/x", rotatedData.key))
+		);
+		expect(newKeyCall.status).toBe(200);
+
+		// revoke: next GET mints a fresh key
+		const revoked = await fetchWorker(
+			new Request("http://example.com/api/cors-key", {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(revoked.status).toBe(200);
+		const deadKeyCall = await fetchWorker(
+			new Request(proxyUrl("https://example.com/x", rotatedData.key))
+		);
+		expect(deadKeyCall.status).toBe(401);
+
+		const fresh = await fetchWorker(
+			new Request("http://example.com/api/cors-key", { headers: { Cookie: cookie } })
+		);
+		const freshData = await fresh.json();
+		expect(freshData.key).not.toBe(rotatedData.key);
 	});
 });
