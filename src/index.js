@@ -34,6 +34,7 @@ import {
   handleCreateComment,
   handleDeleteComment,
   handlePostPage,
+  handleDiscussionPage,
 } from './handlers/posts.js';
 import { purgeExpiredFiles } from './handlers/purge.js';
 import { handleStaticAssets } from './handlers/static.js';
@@ -210,7 +211,7 @@ export default {
       } else if (request.method === 'GET' && url.pathname.startsWith('/gallery/')) {
         response = await handleGalleryItem(request, env, url.pathname.slice('/gallery/'.length));
       } else if (request.method === 'GET' && url.pathname === '/community') {
-        response = Response.redirect(`${url.origin}/gallery`, 301);
+        response = await handleDiscussionPage(request, env);
       } else if (request.method === 'GET' && url.pathname.startsWith('/post/')) {
         const postId = url.pathname.slice(6);
         response = /^[A-Za-z0-9-]{1,64}$/.test(postId)

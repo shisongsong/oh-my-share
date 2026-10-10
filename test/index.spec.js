@@ -1097,7 +1097,7 @@ describe("CORS proxy", () => {
 		const home = await fetchWorker(new Request("http://example.com/"));
 		const homeHtml = await home.text();
 		expect(homeHtml).toContain('href="/corsproxy"');
-		expect(homeHtml).toContain('href="/gallery" data-i18n="navGallery"');
+		expect(homeHtml).toContain('href="/community" data-i18n="navGallery"');
 		// instant client-side language switch: hero + footer are tagged
 		expect(homeHtml).toContain('data-i18n="heroTitle"');
 		expect(homeHtml).toContain('data-i18n="heroSubtitle"');
@@ -1400,7 +1400,7 @@ describe("Community", () => {
 		const navStart = html.indexOf("<nav");
 		const navEnd = html.indexOf("</nav>");
 		const navHtml = html.slice(navStart, navEnd);
-		expect(navHtml).toContain('href="/gallery"');
+		expect(navHtml).toContain('href="/community"');
 		expect(navHtml).toContain('href="/mcp-guide"');
 		expect(navHtml).toContain('href="/corsproxy"');
 		expect(navHtml).not.toContain('href="/html-viewer"');
@@ -1438,10 +1438,15 @@ describe("Community", () => {
 		expect(html).toContain("Feed work title");
 	});
 
-	it("redirects /community to the community feed", async () => {
+	it("serves a dedicated discussion board at /community, separate from the works gallery", async () => {
 		const res = await fetchWorker(new Request("http://example.com/community"));
-		expect(res.status).toBe(301);
-		expect(res.headers.get("location")).toContain("/gallery");
+		expect(res.status).toBe(200);
+		const html = await res.text();
+		expect(html).toContain("Discussions");
+		expect(html).toContain('class="seg-tabs"');
+		expect(html).toContain('href="/gallery"');
+		expect(html).toContain('"@type":"CollectionPage"');
+		expect(html).toContain('rel="canonical"');
 	});
 
 	it("toggles likes through the API", async () => {
@@ -1582,11 +1587,20 @@ describe("Community", () => {
 		expect(created.status).toBe(201);
 		const { id: postId } = await created.json();
 
+		const board = await fetchWorker(
+			new Request("http://example.com/community", { headers: { Cookie: cookie } })
+		);
+		expect(board.status).toBe(200);
+		const boardHtml = await board.text();
+		expect(boardHtml).toContain(`/post/${postId}`);
+		expect(boardHtml).toContain("How do I publish?");
+		expect(boardHtml).toContain('id="postForm"');
+
+		// the works gallery stays works-only
 		const feed = await fetchWorker(new Request("http://example.com/gallery"));
 		const feedHtml = await feed.text();
-		expect(feedHtml).toContain(`/post/${postId}`);
-		expect(feedHtml).toContain("How do I publish?");
-		expect(feedHtml).toContain("Discussion");
+		expect(feedHtml).not.toContain(`/post/${postId}`);
+		expect(feedHtml).not.toContain('id="postForm"');
 
 		const page = await fetchWorker(
 			new Request(`http://example.com/post/${postId}`, { headers: { Cookie: cookie } })
@@ -1726,8 +1740,8 @@ describe("Community", () => {
 		);
 		expect(removed.status).toBe(200);
 
-		const feed = await fetchWorker(new Request("http://example.com/gallery"));
-		expect(await feed.text()).not.toContain(`/post/${postId}`);
+		const board = await fetchWorker(new Request("http://example.com/community"));
+		expect(await board.text()).not.toContain(`/post/${postId}`);
 
 		const page = await fetchWorker(new Request(`http://example.com/post/${postId}`));
 		expect(page.status).toBe(404);

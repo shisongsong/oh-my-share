@@ -219,133 +219,195 @@ export async function handleDeleteComment(request, env, id) {
 }
 
 // ---------------------------------------------------------------------------
-// Mixed community feed (works + posts)
+// Discussion list (posts only)
 // ---------------------------------------------------------------------------
 
-export async function queryCommunityFeed(env, opts = {}) {
+export async function queryPosts(env, opts = {}) {
   let q = (opts.q || '').trim().slice(0, 64);
   while (q.length > 0 && new TextEncoder().encode(`%${q}%`).length > 50) {
     q = q.slice(0, -1);
   }
   const sort = opts.sort === 'hot' ? 'hot' : 'new';
   const page = Math.max(1, parseInt(opts.page, 10) || 1);
-  const perPage = Math.min(50, Math.max(1, parseInt(opts.perPage, 10) || 24));
-  const now = Math.floor(Date.now() / 1000);
+  const perPage = Math.min(50, Math.max(1, parseInt(opts.perPage, 10) || 20));
 
   const escLike = (v) => v.replace(/[\\%_]/g, (m) => `\\${m}`);
-  const pattern = q ? `%${escLike(q)}%` : null;
-
-  const workConds = [
-    'f.published_at > 0',
-    'f.encrypted = 0',
-    "(f.password_hash IS NULL OR f.password_hash = '')",
-    '(f.expires_at IS NULL OR f.expires_at = 0 OR f.expires_at > ?)',
-    'f.reported_at IS NULL',
-  ];
-  const workParams = [now];
-  if (pattern) {
-    workConds.push(
-      `(f.title LIKE ? ESCAPE '\\' OR f.description LIKE ? ESCAPE '\\' OR f.tags LIKE ? ESCAPE '\\' OR f.id LIKE ? ESCAPE '\\')`
-    );
-    workParams.push(pattern, pattern, pattern, pattern);
+  const conds = ['1 = 1'];
+  const params = [];
+  if (q) {
+    const pattern = `%${escLike(q)}%`;
+    conds.push(`(p.title LIKE ? ESCAPE '\\' OR p.content LIKE ? ESCAPE '\\')`);
+    params.push(pattern, pattern);
   }
+  const where = conds.join(' AND ');
 
-  const postConds = ['1 = 1'];
-  const postParams = [];
-  if (pattern) {
-    postConds.push(`(p.title LIKE ? ESCAPE '\\' OR p.content LIKE ? ESCAPE '\\')`);
-    postParams.push(pattern, pattern);
-  }
-
-  const workWhere = workConds.join(' AND ');
-  const postWhere = postConds.join(' AND ');
   const totalRow = await getDatabase(env)
-    .prepare(
-      `SELECT COUNT(*) AS total FROM (
-         SELECT f.id FROM files f WHERE ${workWhere}
-         UNION ALL
-         SELECT p.id FROM posts p WHERE ${postWhere}
-       )`
-    )
-    .bind(...workParams, ...postParams)
+    .prepare(`SELECT COUNT(*) AS total FROM posts p WHERE ${where}`)
+    .bind(...params)
     .first();
   const total = totalRow?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, totalPages);
-
-  const sql = `
-    SELECT 'work' AS kind, f.id, f.title, COALESCE(f.description, '') AS body,
-           f.filename, COALESCE(f.tags, '') AS tags, f.published_at AS at,
-           f.owner_id, u.nickname,
-           (SELECT COUNT(*) FROM visits v WHERE v.file_id = f.id) AS views,
-           (SELECT COUNT(*) FROM likes l WHERE l.file_id = f.id) AS likes,
-           (SELECT COUNT(*) FROM comments c WHERE c.target_type = 'work' AND c.target_id = f.id) AS comments
-    FROM files f LEFT JOIN users u ON u.id = f.owner_id
-    WHERE ${workConds.join(' AND ')}
-    UNION ALL
-    SELECT 'post' AS kind, p.id, p.title, p.content AS body,
-           NULL AS filename, NULL AS tags, p.created_at AS at,
-           p.user_id, u.nickname,
-           0 AS views, 0 AS likes, p.comment_count AS comments
-    FROM posts p LEFT JOIN users u ON u.id = p.user_id
-    WHERE ${postConds.join(' AND ')}
-    ORDER BY ${sort === 'hot' ? '(likes + comments) DESC, at DESC' : 'at DESC, title ASC'}
-    LIMIT ? OFFSET ?`;
+  const order =
+    sort === 'hot'
+      ? 'p.comment_count DESC, p.created_at DESC'
+      : 'p.created_at DESC, p.id DESC';
 
   const result = await getDatabase(env)
-    .prepare(sql)
-    .bind(...workParams, ...postParams, perPage, (safePage - 1) * perPage)
+    .prepare(
+      `SELECT p.id, p.title, p.content, p.created_at, p.comment_count, p.user_id, u.nickname
+       FROM posts p LEFT JOIN users u ON u.id = p.user_id
+       WHERE ${where}
+       ORDER BY ${order}
+       LIMIT ? OFFSET ?`
+    )
+    .bind(...params, perPage, (safePage - 1) * perPage)
     .all();
   return { items: result.results || [], total, page: safePage, pages: totalPages, q, sort };
 }
 
 // ---------------------------------------------------------------------------
-// Rendering
+// Rendering — discussion list
 // ---------------------------------------------------------------------------
 
-export function renderFeedCards(items, t) {
-  const workCount = items.filter((i) => i.kind === 'work').length;
-  const cards = items.map((item) => {
-    const authorHtml = item.owner_id
-      ? `<a class="g-card-author" href="/u/${encodeURIComponent(item.owner_id)}"><img class="g-avatar" src="/avatar/${encodeURIComponent(item.owner_id)}.svg" alt="" width="18" height="18"><span>${escapeHtml(item.nickname || t.userPrefix.replace('{n}', String(item.owner_id).slice(0, 8)))}</span></a>`
-      : `<span class="g-card-author g-card-anon">${escapeHtml(t.galleryAuthor.replace('{n}', t.communityAnon))}</span>`;
-    const date = item.at ? new Date(item.at * 1000).toISOString().slice(0, 10) : '';
+export const DISC_CSS = `
+.d-main { max-width: 760px; margin: 0 auto; padding: 40px 20px 72px; }
+.d-hero { text-align: center; margin-bottom: 26px; }
+.d-hero h1 {
+  font-size: clamp(28px, 5vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.d-hero p { color: var(--color-text-secondary); font-size: 14.5px; margin: 0 0 20px; }
+.seg-tabs {
+  display: inline-flex; gap: 4px; padding: 4px; margin: 0 auto 18px;
+  background: var(--color-surface); border: 1px solid var(--color-hairline);
+  border-radius: 999px;
+}
+.seg-tabs a {
+  padding: 6px 16px; font-size: 13px; font-weight: 600; border-radius: 999px;
+  color: var(--color-text-secondary); text-decoration: none;
+}
+.seg-tabs a:hover { background: var(--color-fill); }
+.seg-tabs a.active { background: var(--color-fill); color: var(--color-text); }
+.d-search { display: flex; gap: 8px; max-width: 480px; margin: 0 auto 22px; }
+.d-search input[type="search"] {
+  flex: 1; padding: 10px 16px; font-size: 14px;
+  border: 1px solid var(--color-hairline-strong); border-radius: 999px;
+  background: var(--color-surface); color: var(--color-text); outline: none;
+}
+.d-search input[type="search"]:focus { border-color: var(--color-accent-strong); box-shadow: var(--shadow-glow); }
+.d-search button {
+  padding: 10px 20px; font-size: 13.5px; font-weight: 600; color: #fff;
+  background: var(--gradient-primary); border: none; border-radius: 999px; cursor: pointer;
+}
+.d-composer {
+  display: flex; gap: 14px; padding: 18px;
+  background: var(--color-surface); border: 1px solid var(--color-hairline);
+  border-radius: 16px; margin-bottom: 24px;
+}
+.d-composer > .g-avatar { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; flex: none; }
+.d-composer-body { flex: 1; display: grid; gap: 8px; min-width: 0; }
+.d-composer input, .d-composer textarea {
+  font: inherit; border: none; background: transparent; color: var(--color-text);
+  outline: none; padding: 4px 0; resize: none; width: 100%;
+}
+.d-composer input { font-size: 16px; font-weight: 600; }
+.d-composer input::placeholder, .d-composer textarea::placeholder { color: var(--color-text-tertiary); font-weight: 400; }
+.d-composer textarea { min-height: 64px; font-size: 14.5px; line-height: 1.6; }
+.d-composer-foot { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.d-composer-hint { font-size: 12px; color: var(--color-text-tertiary); margin-right: auto; }
+.d-cta {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 22px; margin-bottom: 24px; font-size: 14.5px; color: var(--color-text-secondary);
+  background: var(--color-surface); border: 1px dashed var(--color-hairline-strong); border-radius: 16px;
+}
+.d-cta a { color: var(--color-text); font-weight: 600; }
+.d-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.d-bar .g-tab {
+  padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
+  border-radius: 999px; text-decoration: none; border: 1px solid transparent;
+}
+.d-bar .g-tab:hover { background: var(--color-fill); }
+.d-bar .g-tab.active { color: var(--color-text); background: var(--color-surface); border-color: var(--color-hairline-strong); }
+.d-count { margin-left: auto; font-size: 12.5px; color: var(--color-text-tertiary); }
+.d-list { display: grid; gap: 12px; }
+.d-item {
+  position: relative;
+  display: flex; gap: 14px; padding: 18px 20px;
+  background: var(--color-surface); border: 1px solid var(--color-hairline);
+  border-radius: 16px; color: inherit;
+  transition: box-shadow var(--duration-fast) ease, transform var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+.d-item:hover {
+  box-shadow: var(--shadow-card-hover); transform: translateY(-2px);
+  border-color: var(--color-hairline-strong);
+}
+.d-item > .g-avatar { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; flex: none; }
+.d-body { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.d-title {
+  font-size: 16px; font-weight: 700; color: var(--color-text); line-height: 1.35;
+  text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.d-title::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
+.d-excerpt {
+  font-size: 13.5px; line-height: 1.55; color: var(--color-text-secondary); margin: 0;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 3px; position: relative; z-index: 1; }
+.d-meta a { color: var(--color-text-secondary); font-weight: 600; text-decoration: none; position: relative; z-index: 1; }
+.d-meta a:hover { color: var(--color-text); text-decoration: underline; }
+.d-meta .meta-avatar { width: 16px; height: 16px; border-radius: 50%; vertical-align: -3px; margin-right: 4px; border: 1px solid var(--color-hairline); background: #fff; }
+.d-empty {
+  text-align: center; padding: 64px 16px; color: var(--color-text-secondary);
+  background: var(--color-surface); border: 1px dashed var(--color-hairline-strong); border-radius: 16px;
+}
+.d-empty p { margin: 0 0 6px; font-size: 15px; }
+.d-pager {
+  display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 28px;
+}
+.d-pager a, .d-pager span {
+  padding: 8px 18px; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--color-hairline-strong); border-radius: 999px;
+  text-decoration: none; color: var(--color-text); background: var(--color-surface);
+}
+.d-pager a:hover { background: var(--color-fill); }
+.d-pager .d-pageinfo { border: none; background: transparent; color: var(--color-text-tertiary); }
+@media (max-width: 640px) {
+  .d-composer { padding: 14px; }
+  .d-item { padding: 14px 16px; }
+}
+`;
 
-    if (item.kind === 'post') {
-      return `      <div class="g-card g-card-post">
-        <div class="g-card-kind">${escapeHtml(t.feedPostBadge)}</div>
-        <a class="g-card-title" href="/post/${encodeURIComponent(item.id)}">${escapeHtml(item.title || excerpt(item.body, 40))}</a>
-        <p class="g-card-desc">${escapeHtml(excerpt(item.body))}</p>
-        <div class="g-card-meta">
-          ${authorHtml}
-          <span>${escapeHtml(t.commentsLabel.replace('{n}', String(item.comments || 0)))}</span>
+export function renderPostRows(items, t) {
+  return items
+    .map((p) => {
+      const name = p.nickname || t.userPrefix.replace('{n}', String(p.user_id || '').slice(0, 8));
+      const date = new Date(p.created_at * 1000).toISOString().slice(0, 10);
+      const flat = String(p.content || '').replace(/\s+/g, ' ').trim();
+      const excerptText = flat.length > 180 ? `${flat.slice(0, 180)}…` : flat;
+      return `    <div class="d-item">
+      <img class="g-avatar" src="/avatar/${encodeURIComponent(p.user_id)}.svg" alt="" width="40" height="40">
+      <div class="d-body">
+        <a class="d-title" href="/post/${encodeURIComponent(p.id)}">${escapeHtml(p.title || excerptText.slice(0, 40))}</a>
+        <p class="d-excerpt">${escapeHtml(excerptText)}</p>
+        <div class="d-meta">
+          <span><img class="meta-avatar" src="/avatar/${encodeURIComponent(p.user_id)}.svg" alt="" width="16" height="16"><a href="/u/${encodeURIComponent(p.user_id)}">${escapeHtml(name)}</a></span>
           <span>${date}</span>
+          <span>${escapeHtml(t.commentsLabel.replace('{n}', String(p.comment_count || 0)))}</span>
         </div>
-      </div>`;
-    }
-
-    const tags = (item.tags || '')
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .slice(0, 4)
-      .map((tag) => `<span class="g-card-tag">${escapeHtml(tag)}</span>`)
-      .join('');
-    const likes = item.likes || 0;
-    return `      <div class="g-card">
-        <a class="g-card-title" href="/gallery/${encodeURIComponent(item.id)}">${escapeHtml(item.title || item.filename || item.id)}</a>
-        ${item.body ? `<p class="g-card-desc">${escapeHtml(item.body)}</p>` : ''}
-        ${tags ? `<div class="g-card-tags">${tags}</div>` : ''}
-        <div class="g-card-meta">
-          ${authorHtml}
-          <span>${escapeHtml(t.galleryViews.replace('{n}', String(item.views || 0)))}</span>
-          ${item.comments ? `<span>${escapeHtml(t.commentsLabel.replace('{n}', String(item.comments)))}</span>` : ''}
-          <button type="button" class="g-like" data-file="${escapeHtml(item.id)}" title="${escapeHtml(t.likesTitle)}" aria-label="${escapeHtml(t.likesTitle)}"><span class="g-like-heart">♥</span><span class="g-like-count">${likes}</span></button>
-          <span>${date}</span>
-        </div>
-      </div>`;
-  });
-  return { html: cards.join('\n'), workCount };
+      </div>
+    </div>`;
+    })
+    .join('\n');
 }
 
 export async function fetchComments(env, targetType, targetId) {
@@ -443,27 +505,6 @@ export const COMMENT_CSS = `
 .c-body { font-size: 14px; line-height: 1.65; color: var(--color-text); word-break: break-word; }
 .c-replies { margin-left: 28px; }
 .c-reply-item { border-top: none; padding: 8px 0 0; }
-.g-card-post .g-card-kind {
-  display: inline-block; font-size: 11px; letter-spacing: 0.06em;
-  color: var(--color-text-secondary); border: 1px solid var(--color-hairline-strong);
-  border-radius: 999px; padding: 1px 8px; margin-bottom: 8px;
-}
-.g-composer {
-  border: 1px solid var(--color-hairline); border-radius: 14px; background: var(--color-surface);
-  padding: 14px 16px; margin: 0 0 22px; display: grid; gap: 8px;
-}
-.g-composer input, .g-composer textarea {
-  font: inherit; padding: 9px 12px; border: 1px solid var(--color-hairline-strong);
-  border-radius: 10px; background: var(--color-surface, #fff); color: var(--color-text);
-}
-.g-composer textarea { min-height: 70px; resize: vertical; }
-.g-composer-row { display: flex; justify-content: flex-end; }
-.g-composer-cta {
-  border: 1px dashed var(--color-hairline-strong); border-radius: 14px;
-  padding: 16px; text-align: center; margin-bottom: 22px;
-  color: var(--color-text-secondary); font-size: 14px;
-}
-.g-composer-cta a { color: var(--color-text); font-weight: 600; }
 `;
 
 export const COMMUNITY_SCRIPT = `
@@ -579,13 +620,143 @@ export const COMMUNITY_SCRIPT = `
 
 export function renderComposer(t, viewer) {
   if (!viewer) {
-    return `<div class="g-composer-cta">${escapeHtml(t.postLoginCta)} — <a href="/">${escapeHtml(t.postLoginBtn)}</a></div>`;
+    return `<div class="d-cta">${escapeHtml(t.postLoginCta)} — <a href="/">${escapeHtml(t.postLoginBtn)}</a></div>`;
   }
-  return `<form class="g-composer" id="postForm">
-    <input id="postTitle" maxlength="100" placeholder="${escapeHtml(t.postTitlePh)}">
-    <textarea id="postContent" maxlength="4000" placeholder="${escapeHtml(t.postPh)}" required></textarea>
-    <div class="g-composer-row"><button class="btn" type="submit">${escapeHtml(t.postBtn)}</button></div>
+  return `<form class="d-composer" id="postForm">
+    <img class="g-avatar" src="/avatar/${encodeURIComponent(viewer.id)}.svg" alt="" width="40" height="40">
+    <div class="d-composer-body">
+      <input id="postTitle" maxlength="100" placeholder="${escapeHtml(t.postTitlePh)}">
+      <textarea id="postContent" maxlength="4000" placeholder="${escapeHtml(t.postPh)}" required></textarea>
+      <div class="d-composer-foot">
+        <span class="d-composer-hint">${escapeHtml(t.postHint)}</span>
+        <button class="btn" type="submit">${escapeHtml(t.postBtn)}</button>
+      </div>
+    </div>
   </form>`;
+}
+
+// ---------------------------------------------------------------------------
+// Discussion page /community
+// ---------------------------------------------------------------------------
+
+export async function handleDiscussionPage(request, env) {
+  const lang = resolveLang(request);
+  const t = I18N[lang] || I18N.en;
+  const url = new URL(request.url);
+  const viewer = await getCurrentUser(request, env);
+
+  const { items, total, page: safePage, pages: totalPages, q, sort } = await queryPosts(env, {
+    q: url.searchParams.get('q'),
+    sort: url.searchParams.get('sort'),
+    page: url.searchParams.get('page'),
+    perPage: 20,
+  });
+
+  let listHtml;
+  if (items.length > 0) {
+    listHtml = `<div class="d-list">\n${renderPostRows(items, t)}\n  </div>`;
+  } else if (q) {
+    listHtml = `<div class="d-empty"><p>${escapeHtml(t.galleryNoResults)}</p></div>`;
+  } else {
+    listHtml = `<div class="d-empty"><p>${escapeHtml(t.discEmpty)}</p></div>`;
+  }
+
+  const pager = [];
+  const paramsFor = (nextPage) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    p.set('sort', sort);
+    if (nextPage > 1) p.set('page', String(nextPage));
+    return `/community?${p.toString()}`;
+  };
+  if (safePage > 1) {
+    pager.push(`<a href="${paramsFor(safePage - 1)}">‹ ${escapeHtml(t.galleryPrev)}</a>`);
+  }
+  pager.push(
+    `<span class="d-pageinfo">${escapeHtml(t.galleryPageInfo.replace('{n}', String(safePage)).replace('{m}', String(totalPages)))}</span>`
+  );
+  if (safePage < totalPages) {
+    pager.push(`<a href="${paramsFor(safePage + 1)}">${escapeHtml(t.galleryNext)} ›</a>`);
+  }
+  const pagerHtml = totalPages > 1 ? `<nav class="d-pager">${pager.join('')}</nav>` : '';
+
+  const tabHref = (targetSort) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    p.set('sort', targetSort);
+    return `/community?${p.toString()}`;
+  };
+
+  const nav = renderNav(
+    lang,
+    '/community',
+    `<a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+  );
+
+  const html = `<!DOCTYPE html>
+<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<title>${escapeHtml(t.discTitle)} | Oh My Share</title>
+<meta name="description" content="${escapeHtml(t.discMetaDesc)}">
+${q ? '<meta name="robots" content="noindex,follow">' : ''}
+<link rel="canonical" href="${url.origin}/community">
+${q ? '' : hreflangLinks(url.origin, '/community')}
+${q ? '' : `<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"CollectionPage","name":${JSON.stringify(t.discTitle)},"description":${JSON.stringify(t.discMetaDesc)},"url":"${url.origin}/community","isPartOf":{"@type":"WebSite","name":"Oh My Share","url":"${url.origin}"}}
+</script>`}
+<meta property="og:site_name" content="Oh My Share">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escapeHtml(t.discTitle)}">
+<meta property="og:description" content="${escapeHtml(t.discMetaDesc)}">
+<meta property="og:url" content="${url.origin}/community">
+<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
+<style>${BASE_CSS}
+${COMMENT_CSS}
+${DISC_CSS}
+</style>
+</head>
+<body>
+${nav}
+<main class="d-main">
+  <header class="d-hero">
+    <h1>${escapeHtml(t.discTitle)}</h1>
+    <p>${escapeHtml(t.discSubtitle)}</p>
+  </header>
+  <div style="text-align:center">
+    <nav class="seg-tabs">
+      <a class="active" href="/community">${escapeHtml(t.tabDiscussions)}</a>
+      <a href="/gallery">${escapeHtml(t.tabWorks)}</a>
+    </nav>
+  </div>
+  <form class="d-search" action="/community" method="get">
+    <input type="hidden" name="sort" value="${sort}">
+    <input type="search" name="q" value="${escapeHtml(q)}" placeholder="${escapeHtml(t.discSearchPlaceholder)}" maxlength="40">
+    <button type="submit">${escapeHtml(t.gallerySearchBtn)}</button>
+  </form>
+  ${renderComposer(t, viewer)}
+  <div class="d-bar">
+    <a class="g-tab${sort === 'new' ? ' active' : ''}" href="${tabHref('new')}">${escapeHtml(t.gallerySortNew)}</a>
+    <a class="g-tab${sort === 'hot' ? ' active' : ''}" href="${tabHref('hot')}">${escapeHtml(t.gallerySortHot)}</a>
+    <span class="d-count">${escapeHtml(t.discCount.replace('{n}', String(total)))}</span>
+  </div>
+  ${listHtml}
+  ${pagerHtml}
+</main>
+${renderFooter(lang)}
+<script>${COMMUNITY_SCRIPT}</script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+      Vary: 'Accept-Language, Cookie',
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------

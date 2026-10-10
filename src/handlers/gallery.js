@@ -4,13 +4,11 @@ import { getDatabase, getBucket, json } from '../security.js';
 import { getCurrentUser } from '../auth.js';
 import { renderPage } from '../ui/page.js';
 import {
-  queryCommunityFeed,
-  renderFeedCards,
-  renderComposer,
   fetchComments,
   renderCommentsSection,
   COMMENT_CSS,
   COMMUNITY_SCRIPT,
+  DISC_CSS,
 } from './posts.js';
 
 export const GALLERY_CSS = `
@@ -386,19 +384,15 @@ export async function handleGalleryPage(request, env) {
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
   const url = new URL(request.url);
-  const viewer = await getCurrentUser(request, env);
 
-  const { items, total, page: safePage, pages: totalPages, q, sort } = await queryCommunityFeed(
-    env,
-    {
-      q: url.searchParams.get('q'),
-      sort: url.searchParams.get('sort'),
-      page: url.searchParams.get('page'),
-      perPage: 24,
-    }
-  );
+  const { items, total, page: safePage, pages: totalPages, q, sort } = await queryGallery(env, {
+    q: url.searchParams.get('q'),
+    sort: url.searchParams.get('sort'),
+    page: url.searchParams.get('page'),
+    perPage: 24,
+  });
 
-  const { html: cards, workCount } = renderFeedCards(items, t);
+  const cards = renderWorkCards(items, t);
 
   let itemsHtml;
   if (items.length > 0) {
@@ -477,6 +471,7 @@ ${q ? '' : `<script type="application/ld+json">
 <style>
 ${BASE_CSS}
 ${GALLERY_CSS}
+${DISC_CSS}
 </style>
 </head>
 <body>
@@ -485,13 +480,16 @@ ${nav}
   <header class="g-hero">
     <h1>${escapeHtml(t.galleryH1)}</h1>
     <p>${escapeHtml(t.gallerySubtitle)}</p>
+    <nav class="seg-tabs">
+      <a href="/community">${escapeHtml(t.tabDiscussions)}</a>
+      <a class="active" href="/gallery">${escapeHtml(t.tabWorks)}</a>
+    </nav>
     <form class="g-search" action="/gallery" method="get">
       <input type="hidden" name="sort" value="${sort}">
       <input type="search" name="q" value="${escapeHtml(q)}" placeholder="${escapeHtml(t.gallerySearchPlaceholder)}" maxlength="40">
       <button type="submit">${escapeHtml(t.gallerySearchBtn)}</button>
     </form>
   </header>
-  ${renderComposer(t, viewer)}
   <nav class="g-tabs">
     <a class="g-tab${sort === 'new' ? ' active' : ''}" href="${tabHref('new')}">${escapeHtml(t.gallerySortNew)}</a>
     <a class="g-tab${sort === 'hot' ? ' active' : ''}" href="${tabHref('hot')}">${escapeHtml(t.gallerySortHot)}</a>
@@ -501,7 +499,7 @@ ${nav}
   ${pagerHtml}
 </main>
 ${renderFooter(lang)}
-<script>${COMMUNITY_SCRIPT}</script>
+<script>${LIKE_SCRIPT}</script>
 </body>
 </html>`;
 

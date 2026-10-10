@@ -143,6 +143,7 @@ export async function handleSitemap(env) {
     { loc: `${BASE_URL}/chatgpt-html-share`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/auth.md`, priority: '0.5', changefreq: 'weekly' },
     { loc: `${BASE_URL}/demo`, priority: '0.7', changefreq: 'weekly' },
+    { loc: `${BASE_URL}/community`, priority: '0.8', changefreq: 'daily' },
     { loc: `${BASE_URL}/mcp-guide`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/corsproxy`, priority: '0.8', changefreq: 'weekly' },
     // Legal (linked from every page footer)

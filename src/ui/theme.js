@@ -699,7 +699,7 @@ export function renderNav(lang, activePath, actionsHtml) {
   // Slim nav: community + the two integration entry points. Everything else
   // lives in the footer and the home-page "More tools" section.
   const links = [
-    { href: '/gallery', key: 'navGallery' },
+    { href: '/community', key: 'navGallery' },
     { href: '/mcp-guide', key: 'navMcp' },
     { href: '/corsproxy', key: 'navCors' },
   ];
@@ -740,7 +740,8 @@ export function renderFooter(lang) {
     </div>
     <div class="footer-col">
       <h4 data-i18n="footerTools">${t.footerTools}</h4>
-      <a href="/gallery" data-i18n="navGallery">${t.navGallery}</a>
+      <a href="/community" data-i18n="navGallery">${t.navGallery}</a>
+      <a href="/gallery" data-i18n="tabWorks">${t.tabWorks}</a>
       <a href="/html-viewer" data-i18n="navHtmlViewer">${t.navHtmlViewer}</a>
       <a href="/code-share" data-i18n="navCodeShare">${t.navCodeShare}</a>
       <a href="/codepen-alternative" data-i18n="navAlternative">${t.navAlternative}</a>
