@@ -893,8 +893,129 @@ describe("Oh My Share worker", () => {
 			new Request(`http://example.com/view/${authoredId}`)
 		);
 		const authoredHtml = await authoredView.text();
-		expect(authoredHtml.match(/og:title/g)).toHaveLength(1);
+			expect(authoredHtml.match(/og:title/g)).toHaveLength(1);
 		expect(authoredHtml).not.toContain('og:site_name');
 	});
 
+	it("serves the product demo page that drives the real app", async () => {
+		const demo = await fetchWorker(new Request("http://example.com/demo"));
+		expect(demo.status).toBe(200);
+		const html = await demo.text();
+		expect(html).toContain('id="demoApp"');
+		expect(html).toContain('id="demoView"');
+		expect(html).toContain('id="demoCursor"');
+		expect(html).toContain('id="demoReplay"');
+		expect(html).toContain('data-caption="3"');
+		expect(html).toContain('data-err=');
+		// drives the real product hooks
+		expect(html).toContain('panel-code');
+		expect(html).toContain('codeInput');
+
+		const en = await fetchWorker(new Request("http://example.com/demo?lang=en"));
+		expect(en.status).toBe(200);
+		expect(await en.text()).toContain("Paste code in the real app");
+
+		const headDemo = await fetchWorker(
+			new Request("http://example.com/demo", { method: "HEAD" })
+		);
+		expect(headDemo.status).toBe(200);
+		expect(headDemo.headers.get("cache-control")).toContain("max-age");
+
+		const home = await fetchWorker(new Request("http://example.com/"));
+		expect(await home.text()).toContain('href="/demo"');
+
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		expect(await sitemap.text()).toContain("https://openanthropic.com/demo");
+
+		const limited2 = await fetchWorker(new Request("http://example.com/demo"));
+		expect(await limited2.text()).toContain('data-demo-limited="0"');
+	});
+
+	it("honors expiresIn for MCP uploads and purges expired files", async () => {
+		// Tests share one hourly quota bucket; reset it for this case.
+		await env.DB.prepare("DELETE FROM rate_limits").run();
+
+		// MCP upload used to ignore expiresIn — rows never expired, so expired
+		// content lived in D1 + R2 forever.
+		const publish = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "tools/call",
+					params: {
+						name: "upload",
+						arguments: { content: "<h1>mcp</h1>", filename: "mcp.html", expiresIn: "1h" },
+					},
+				}),
+			})
+		);
+		expect(publish.status).toBe(200);
+		const payload = JSON.parse(await publish.text());
+		const result = JSON.parse(payload.result.content[0].text);
+		expect(result.url).toContain("/view/");
+		expect(result.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+
+		const row = await env.DB.prepare("SELECT expires_at FROM files WHERE id = ?")
+			.bind(result.id)
+			.first();
+		expect(row.expires_at).toBe(result.expiresAt);
+
+		const { purgeExpiredFiles } = await import("../src/handlers/purge.js");
+		const removed = await purgeExpiredFiles(
+			{
+				DB: env.DB,
+				MY_BUCKET: { delete: async () => {} },
+			},
+			50
+		);
+		expect(removed).toBeGreaterThanOrEqual(0);
+
+		// A past-expiry row is actually deleted, not just hidden
+		const expiredId = "expiredtest01";
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind(expiredId, "gone.html", null, 1, "edt_x", 1, 1)
+			.run();
+		await purgeExpiredFiles({ DB: env.DB, MY_BUCKET: { delete: async () => {} } }, 50);
+		const gone = await env.DB.prepare("SELECT id FROM files WHERE id = ?").bind(expiredId).first();
+		expect(gone).toBeNull();
+	});
+
+	it("serves the MCP guide with per-client install configs", async () => {
+		const guide = await fetchWorker(new Request("http://example.com/mcp-guide"));
+		expect(guide.status).toBe(200);
+		const html = await guide.text();
+		expect(html).toContain('data-client-tab="claude-desktop"');
+		expect(html).toContain('data-client-tab="cursor"');
+		expect(html).toContain('data-client-tab="vscode"');
+		expect(html).toContain('https://openanthropic.com/mcp');
+		expect(html).toContain('claude mcp add --transport http');
+		expect(html).toContain('search_gallery');
+		expect(html).toContain('auth-badge oauth');
+		// per-client steps + ready-to-paste agent prompts
+		expect(html).toContain('id="prompt-claude-desktop"');
+		expect(html).toContain('id="prompt-cursor"');
+		expect(html).toContain('class="client-steps"');
+		expect(html).toContain('2.2.0');
+
+		const en = await fetchWorker(new Request("http://example.com/mcp-guide?lang=en"));
+		expect(en.status).toBe(200);
+		expect(await en.text()).toContain("Claude Desktop");
+
+		const headGuide = await fetchWorker(
+			new Request("http://example.com/mcp-guide", { method: "HEAD" })
+		);
+		expect(headGuide.status).toBe(200);
+
+		// nav + footer now point at the guide
+		const home = await fetchWorker(new Request("http://example.com/"));
+		expect(await home.text()).toContain('href="/mcp-guide"');
+
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		expect(await sitemap.text()).toContain("https://openanthropic.com/mcp-guide");
+	});
 });

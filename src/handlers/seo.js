@@ -107,6 +107,8 @@ export async function handleSitemap(env) {
     { loc: `${BASE_URL}/ai-html-publish`, priority: '0.9', changefreq: 'weekly' },
     { loc: `${BASE_URL}/chatgpt-html-share`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/auth.md`, priority: '0.5', changefreq: 'weekly' },
+    { loc: `${BASE_URL}/demo`, priority: '0.7', changefreq: 'weekly' },
+    { loc: `${BASE_URL}/mcp-guide`, priority: '0.8', changefreq: 'weekly' },
     // Legal (linked from every page footer)
     { loc: `${BASE_URL}/terms`, priority: '0.3', changefreq: 'yearly' },
     { loc: `${BASE_URL}/privacy`, priority: '0.3', changefreq: 'yearly' },

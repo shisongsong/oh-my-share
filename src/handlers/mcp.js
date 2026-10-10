@@ -1,4 +1,5 @@
-import { json } from '../security.js';
+import { json, checkRateLimit, getClientIp } from '../security.js';
+import { CONFIG } from '../config.js';
 import { validateToken } from './oauth-token.js';
 import { queryGallery } from './gallery.js';
 
@@ -138,16 +139,40 @@ async function getAuthContext(request, env) {
   return null;
 }
 
-async function handleToolCall(name, args, env, auth) {
+// MCP exposes human-friendly TTLs ("1h", "7d"); the REST API uses seconds.
+const EXPIRY_TTL = { '1h': 3600, '24h': 86400, '7d': 604800, '30d': 2592000, '90d': 7776000 };
+
+function parseExpiresIn(value) {
+  if (value === undefined || value === null || value === '') return 604800;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.floor(value));
+  const key = String(value).trim().toLowerCase();
+  if (key === '0' || key === 'permanent' || key === 'never') return 0;
+  if (EXPIRY_TTL[key]) return EXPIRY_TTL[key];
+  const seconds = parseInt(key, 10);
+  return Number.isFinite(seconds) ? Math.max(0, seconds) : 604800;
+}
+
+async function handleToolCall(name, args, env, auth, ip) {
   switch (name) {
     case 'upload': {
       const { content, language = 'html', filename, password, expiresIn = '7d' } = args;
       if (!content) return { error: 'content is required' };
 
+      // Same anonymous budget as REST uploads (MCP used to have no limit).
+      const limit = await checkRateLimit(env, ip || 'unknown', 'upload-h', CONFIG.RATE_UPLOAD_PER_HOUR, 3600);
+      if (!limit.allowed) {
+        return {
+          error: `Rate limit exceeded (${CONFIG.RATE_UPLOAD_PER_HOUR} uploads/hour). Retry in ${limit.retryAfter}s.`,
+        };
+      }
+
       const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
       const editToken = 'edt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
       const ownerId = auth ? auth.userId : null;
       const createdAt = Math.floor(Date.now() / 1000);
+
+      const ttl = parseExpiresIn(expiresIn);
+      const expiresAt = ttl > 0 ? createdAt + ttl : null;
 
       // Store content in R2
       await env.MY_BUCKET.put(id, content, {
@@ -156,9 +181,9 @@ async function handleToolCall(name, args, env, auth) {
 
       // Store metadata in database
       await env.DB.prepare(
-        `INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).bind(id, filename || null, ownerId, createdAt, editToken, createdAt).run();
+        `INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(id, filename || null, ownerId, createdAt, editToken, createdAt, expiresAt).run();
 
       return {
         id,
@@ -167,6 +192,7 @@ async function handleToolCall(name, args, env, auth) {
         editToken,
         language,
         filename,
+        expiresAt,
       };
     }
 
@@ -444,7 +470,7 @@ export async function handleMcp(request, env) {
       });
     }
 
-    const result = await handleToolCall(name, args || {}, env, auth);
+    const result = await handleToolCall(name, args || {}, env, auth, getClientIp(request));
 
     return json({
       jsonrpc: '2.0',

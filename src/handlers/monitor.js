@@ -1,11 +1,16 @@
 // Daily monitoring handler - runs via Cloudflare Cron Trigger
 // Collects analytics data and stores in D1
 
+import { purgeExpiredFiles } from './purge.js';
+
 export async function runDailyMonitor(env) {
   const today = new Date().toISOString().split('T')[0];
   console.log(`[Monitor] Running daily monitor for ${today}`);
 
   try {
+    // Expired shares: actually delete rows + R2 objects (not just block access)
+    await purgeExpiredFiles(env, 500);
+
     // Collect stats from D1 (upload counts, etc.)
     const stats = await collectStats(env, today);
 

@@ -19,6 +19,9 @@ import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
 import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
+import { handleDemo } from './handlers/demo.js';
+import { handleMcpGuide } from './handlers/mcp-guide.js';
+import { purgeExpiredFiles } from './handlers/purge.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
@@ -112,6 +115,14 @@ export default {
         response = handleLegalPage('privacy', request);
       } else if (url.pathname === '/feed.xml') {
         response = await handleFeed(request, env);
+      } else if (url.pathname === '/demo') {
+        response = await handleDemo(request, env);
+        // Opportunistic housekeeping: expired shares are purged from D1 + R2.
+        if (ctx && typeof ctx.waitUntil === 'function') {
+          ctx.waitUntil(purgeExpiredFiles(env, 50));
+        }
+      } else if (url.pathname === '/mcp-guide') {
+        response = handleMcpGuide(request);
       } else if (['/html-viewer', '/code-share', '/codepen-alternative', '/ai-html-publish', '/chatgpt-html-share'].includes(url.pathname)) {
         response = handleLandingPage(url.pathname, resolveLang(request));
       } else if (url.pathname === '/dab46c9c750b7c083d5723b8ed9653a5.txt') {

@@ -10,6 +10,7 @@ Oh My Share publishes single-file HTML pages for humans and agents. Anonymous up
 ## For agents: publish HTML in one call
 
 - [auth.md](${origin}/auth.md): Full agent guide — anonymous MCP upload, OAuth discovery, decision policy
+- [MCP guide](${origin}/mcp-guide): Human-facing setup guide — tools, parameters and per-client install configs
 - [MCP server](${origin}/mcp): Remote MCP endpoint (streamable HTTP). Tool \`upload\` works anonymously; list/delete require OAuth
 - [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP capability discovery
 - [Agent card](${origin}/.well-known/agent-card.json): A2A-style service metadata
@@ -43,6 +44,7 @@ curl -F "file=@page.html" ${origin}/api/upload
 ## Pages
 
 - [Home](${origin}/): Main app — paste HTML, get a link
+- [Product demo](${origin}/demo): Animated walkthrough of the sharing flow
 - [HTML viewer](${origin}/html-viewer): View raw HTML files in the browser
 - [Code sharing](${origin}/code-share): Share code snippets with syntax highlighting
 - [CodePen alternative](${origin}/codepen-alternative): Lightweight single-file alternative to CodePen

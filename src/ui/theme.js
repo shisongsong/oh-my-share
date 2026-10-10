@@ -678,6 +678,7 @@ export function renderNav(lang, activePath, actionsHtml) {
     { href: '/html-viewer', key: 'navHtmlViewer' },
     { href: '/code-share', key: 'navCodeShare' },
     { href: '/codepen-alternative', key: 'navAlternative' },
+    { href: '/mcp-guide', key: 'navMcp' },
   ];
 
   const linkHtml = links
@@ -720,10 +721,12 @@ export function renderFooter(lang) {
       <a href="/code-share" data-i18n="navCodeShare">${t.navCodeShare}</a>
       <a href="/codepen-alternative" data-i18n="navAlternative">${t.navAlternative}</a>
       <a href="/ai-html-publish" data-i18n="navAiPublish">${t.navAiPublish}</a>
+      <a href="/mcp-guide" data-i18n="navMcp">${t.navMcp}</a>
     </div>
     <div class="footer-col">
       <h4 data-i18n="footerResources">${t.footerResources}</h4>
       <a href="/auth.md">API Docs</a>
+      <a href="/demo">${lang === 'zh' ? '产品演示' : 'Product Demo'}</a>
       <a href="/extension.zip">Chrome Extension</a>
       <a href="https://github.com/shisongsong/oh-my-share" target="_blank" rel="noopener">GitHub</a>
       <a href="/abuse" data-i18n="footerAbuse">${t.footerAbuse}</a>
