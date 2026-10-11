@@ -1,20 +1,10 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { I18N } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
 
-export function notFoundPage(lang = 'en') {
-  const t = I18N[lang] || I18N.en;
-  const altLang = lang === 'zh' ? 'en' : 'zh';
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>404 - ${t.notFoundTitle} | Oh My Share</title>
-<meta name="robots" content="noindex">
-<style>${BASE_CSS}
+const NF_CSS = `
 .nf-hero {
   min-height: calc(100vh - var(--nav-height) - 260px);
   display: flex;
@@ -45,25 +35,30 @@ a.lang-switch {
   justify-content: center;
   text-decoration: none;
 }
-</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '',
-  `<a class="lang-switch" id="langBtn" href="?lang=${altLang}">${altLang === 'zh' ? '中文' : 'EN'}</a>
-      <a class="account-button" id="accountBtn" href="/?lang=${lang}">${t.accountBtn}</a>`
-)}
-<main class="nf-hero">
+`;
+
+export function notFoundPage(lang = 'en', viewer = null) {
+  const t = I18N[lang] || I18N.en;
+  const altLang = lang === 'zh' ? 'en' : 'zh';
+  return renderDocument({
+    lang,
+    title: `404 - ${t.notFoundTitle} | Oh My Share`,
+    robots: 'noindex',
+    styles: [NF_CSS],
+    nav: renderNav(
+      lang,
+      '',
+      `<a class="lang-switch" id="langBtn" href="?lang=${altLang}">${altLang === 'zh' ? '中文' : 'EN'}</a>
+      ${accountActionHtml(t, viewer)}`
+    ),
+    body: `<main class="nf-hero">
   <div>
     <div class="nf-code">404</div>
     <p class="nf-text">${t.notFoundDesc}</p>
     <a href="/?lang=${lang}" class="btn">${t.backHome}</a>
   </div>
-</main>
-${renderFooter(lang)}
-</body>
-</html>`;
+</main>`,
+  });
 }
 
 export function handleRobotsTxt() {

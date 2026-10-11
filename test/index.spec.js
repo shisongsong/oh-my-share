@@ -1438,6 +1438,35 @@ describe("Community", () => {
 		expect(html).toContain("Feed work title");
 	});
 
+	it("keeps sign-in state and language consistent across pages", async () => {
+		// ?lang= is persisted site-wide via an osh_lang cookie
+		const zh = await fetchWorker(new Request("http://example.com/community?lang=zh"));
+		const setCookie = zh.headers.get("set-cookie") || "";
+		expect(setCookie).toContain("osh_lang=zh");
+		expect(await zh.text()).toContain("社区讨论");
+
+		// the cookie keeps following pages in the same language
+		const gal = await fetchWorker(
+			new Request("http://example.com/gallery", { headers: { Cookie: "osh_lang=zh" } })
+		);
+		expect(await gal.text()).toContain("作品广场");
+
+		// signed out -> shared sign-in slot
+		const anon = await fetchWorker(new Request("http://example.com/community?lang=en"));
+		expect(await anon.text()).toContain("Sign in / Register");
+
+		// signed in -> the same account email everywhere, no fake sign-in prompt
+		const { cookie, userId } = await registerUser("consist");
+		for (const path of ["/community?lang=en", "/gallery?lang=en", `/u/${userId}?lang=en`]) {
+			const page = await fetchWorker(
+				new Request(`http://example.com${path}`, { headers: { Cookie: cookie } })
+			);
+			const html = await page.text();
+			expect(html).not.toContain("Sign in / Register");
+			expect(html).toContain("@test.com");
+		}
+	});
+
 	it("serves a dedicated discussion board at /community, separate from the works gallery", async () => {
 		const res = await fetchWorker(new Request("http://example.com/community"));
 		expect(res.status).toBe(200);

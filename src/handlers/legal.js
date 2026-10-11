@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
+import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
@@ -69,35 +70,7 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-export function handleLegalPage(kind, request) {
-  const lang = resolveLang(request);
-  const page = CONTENT[kind] && CONTENT[kind][lang]
-    ? CONTENT[kind][lang]
-    : (CONTENT[kind] && CONTENT[kind].en);
-  const otherLang = lang === 'zh' ? 'en' : 'zh';
-  const sectionsHtml = page.sections
-    .map(([heading, body]) => `<section class="legal-section"><h2>${esc(heading)}</h2><p>${esc(body)}</p></section>`)
-    .join('\n');
-
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${esc(page.title)} | Oh My Share</title>
-<meta name="description" content="${esc(page.intro.slice(0, 160))}">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${BASE_URL}/${kind}">
-${hreflangLinks(BASE_URL, `/${kind}`)}
-<meta property="og:type" content="article">
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:title" content="${esc(page.title)} | Oh My Share">
-<meta property="og:description" content="${esc(page.intro.slice(0, 160))}">
-<meta property="og:url" content="${BASE_URL}/${kind}">
-<meta property="og:image" content="${BASE_URL}/og-image.png">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<style>${BASE_CSS}
+const LEGAL_CSS = `
 .legal-main {
   max-width: 760px;
   margin: 0 auto;
@@ -131,24 +104,42 @@ ${hreflangLinks(BASE_URL, `/${kind}`)}
 }
 .legal-lang { margin-top: var(--space-6); font-size: 14px; }
 .legal-lang a { color: var(--color-link); text-decoration: none; }
-</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '',
-  `<a class="lang-switch" href="/${kind}?lang=${otherLang}">${otherLang === 'zh' ? '中文' : 'EN'}</a>
+`;
+
+export function handleLegalPage(kind, request) {
+  const lang = resolveLang(request);
+  const page = CONTENT[kind] && CONTENT[kind][lang]
+    ? CONTENT[kind][lang]
+    : (CONTENT[kind] && CONTENT[kind].en);
+  const otherLang = lang === 'zh' ? 'en' : 'zh';
+  const sectionsHtml = page.sections
+    .map(([heading, body]) => `<section class="legal-section"><h2>${esc(heading)}</h2><p>${esc(body)}</p></section>`)
+    .join('\n');
+
+  const html = renderDocument({
+    lang,
+    title: `${page.title} | Oh My Share`,
+    description: page.intro.slice(0, 160),
+    robots: 'index, follow',
+    canonical: `${BASE_URL}/${kind}`,
+    hreflangPath: `/${kind}`,
+    og: true,
+    ogType: 'article',
+    ogTitle: `${page.title} | Oh My Share`,
+    styles: [LEGAL_CSS],
+    nav: renderNav(
+      lang,
+      '',
+      `<a class="lang-switch" href="/${kind}?lang=${otherLang}">${otherLang === 'zh' ? '中文' : 'EN'}</a>
    <a class="account-button" href="/">${lang === 'zh' ? '首页' : 'Home'}</a>`
-)}
-<main class="legal-main">
+    ),
+    body: `<main class="legal-main">
   <h1>${esc(page.title)}</h1>
   <p class="legal-intro">${esc(page.intro)}</p>
   ${sectionsHtml}
   <p class="legal-lang"><a href="/${kind}?lang=${otherLang}">${otherLang === 'zh' ? '切换到中文版' : 'Switch to English'}</a></p>
-</main>
-${renderFooter(lang)}
-</body>
-</html>`;
+</main>`,
+  });
 
   return new Response(html, {
     headers: {

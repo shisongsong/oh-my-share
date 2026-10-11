@@ -1,19 +1,22 @@
 import { I18N, resolveLang } from '../i18n.js';
 import { CLIENT_SCRIPT } from '../ui/client-built.js';
 import { STYLES } from '../ui/styles.js';
-import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
+import { getCurrentUser } from '../auth.js';
 import { getDatabase, getBucket, json } from '../security.js';
 import { hashPassword, hashIp } from '../crypto.js';
 import { CONFIG } from '../config.js';
 
 const LANG_TOGGLE = `var u=new URL(location.href);u.searchParams.set('lang',u.searchParams.get('lang')==='zh'?'en':'zh');location.href=u.toString()`;
 
-function pageNav(lang) {
+function pageNav(lang, viewer) {
+  const t = I18N[lang] || I18N.en;
   return renderNav(
     lang,
     '',
     `<button class="lang-switch" id="langBtn" onclick="${LANG_TOGGLE}"><span id="langBtnText">${lang === 'zh' ? 'EN' : '中'}</span></button>
-      <button class="account-button" id="accountBtn" onclick="location.href='/'">${I18N[lang]?.accountBtn || I18N.en.accountBtn}</button>`
+      ${accountActionHtml(t, viewer)}`
   );
 }
 
@@ -48,8 +51,9 @@ export async function handleEditPage(request, env) {
 
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
+  const viewer = await getCurrentUser(request, env);
 
-  return new Response(renderEditPage(id, editToken, file, content, lang, t), {
+  return new Response(renderEditPage(id, editToken, file, content, lang, t, viewer), {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
@@ -136,6 +140,7 @@ export async function handleManagePage(request, env) {
 
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
+  const viewer = await getCurrentUser(request, env);
 
   // 获取统计数据
   const totalVisits = await database
@@ -151,7 +156,7 @@ export async function handleManagePage(request, env) {
   return new Response(renderManagePage(id, editToken, file, {
     totalVisits: totalVisits?.count || 0,
     uniqueVisitors: uniqueVisitors?.count || 0,
-  }, lang, t), {
+  }, lang, t, viewer), {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
@@ -164,7 +169,7 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-function renderEditPage(id, editToken, file, content, lang, t) {
+function renderEditPage(id, editToken, file, content, lang, t, viewer) {
   const encrypted = Number(file.encrypted) === 1;
   const translations = {
     zh: {
@@ -221,18 +226,13 @@ function renderEditPage(id, editToken, file, content, lang, t) {
     errForbidden: msg.errorMsg,
   });
 
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${msg.title}</title>
-<style>${STYLES}</style>
-</head>
-<body>
-${pageNav(lang)}
-<div class="container">
+  return renderDocument({
+    lang,
+    title: msg.title,
+    includeBaseCss: false,
+    styles: [STYLES],
+    nav: pageNav(lang, viewer),
+    body: `<div class="container">
   <div class="header">
     <h1>Oh My Share</h1>
     <p>${msg.editTitle}</p>
@@ -260,9 +260,8 @@ ${pageNav(lang)}
     <a class="action-btn" href="/view/${encodeURIComponent(id)}" target="_blank" rel="noopener noreferrer">${msg.previewBtn}</a>
     <p id="editMessage" class="modal-message"></p>
   </form>
-</div>
-<script>
-const ERR_MAP = ${errMap};
+</div>`,
+    scripts: [`const ERR_MAP = ${errMap};
 document.getElementById('editForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = document.getElementById('editMessage');
@@ -308,14 +307,11 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     document.getElementById('editForm').requestSubmit();
   }
-});
-</script>
-${renderFooter(lang)}
-</body>
-</html>`;
+});`],
+  });
 }
 
-function renderManagePage(id, editToken, file, stats, lang, t) {
+function renderManagePage(id, editToken, file, stats, lang, t, viewer) {
   const translations = {
     zh: {
       title: '管理分享 - Oh My Share',
@@ -366,18 +362,13 @@ function renderManagePage(id, editToken, file, stats, lang, t) {
   const expiresText = file.expires_at ? formatDate(file.expires_at) : msg.permanent;
   const passwordText = file.password_hash ? msg.hasPassword : msg.noPassword;
 
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${msg.title}</title>
-<style>${STYLES}</style>
-</head>
-<body>
-${pageNav(lang)}
-<div class="container">
+  return renderDocument({
+    lang,
+    title: msg.title,
+    includeBaseCss: false,
+    styles: [STYLES],
+    nav: pageNav(lang, viewer),
+    body: `<div class="container">
   <div class="header">
     <h1>Oh My Share</h1>
     <p>${msg.manageTitle}</p>
@@ -418,8 +409,6 @@ ${pageNav(lang)}
       <button class="action-btn" onclick="navigator.clipboard.writeText(window.location.origin + '/view/${id}')">${msg.copyLinkBtn}</button>
     </div>
   </div>
-</div>
-${renderFooter(lang)}
-</body>
-</html>`;
+</div>`,
+  });
 }

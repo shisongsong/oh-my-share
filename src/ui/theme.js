@@ -694,6 +694,23 @@ a {
 }
 `;
 
+// Shared account-slot rendering so every page shows the same sign-in state:
+// signed out -> "Sign in / Register" link home; signed in -> the account
+// email (clicking goes home, where the account panel lives).
+export function accountActionHtml(t, viewer) {
+  const esc = (v) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  if (viewer) {
+    const label = esc(viewer.email || viewer.id);
+    return `<button class="account-button" id="accountBtn" title="${label}" onclick="location.href='/'">${label}</button>`;
+  }
+  return `<a class="account-button" href="/">${esc(t.accountBtn)}</a>`;
+}
+
 export function renderNav(lang, activePath, actionsHtml) {
   const t = I18N[lang] || I18N.en;
   // Slim nav: community + the two integration entry points. Everything else

@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks, faqJsonLd } from '../ui/theme.js';
+import { renderNav, faqJsonLd } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { checkRateLimit, getClientIp, json } from '../security.js';
@@ -775,56 +776,7 @@ const COPY_SCRIPT = `
 })();
 `;
 
-function renderCorsPage(request) {
-  const lang = resolveLang(request);
-  const t = LABELS[lang] || LABELS.en;
-  const other = lang === 'zh' ? 'en' : 'zh';
-
-  const howHtml = t.howSteps
-    .map((s) => `<li>${esc(s)}</li>`)
-    .join('\n');
-
-  const keyStepsHtml = t.keySteps
-    .map((s) => `<li>${esc(s)}</li>`)
-    .join('\n');
-
-  const paramRows = t.rows
-    .map(
-      ([item, detail]) =>
-        `<tr><td><code>${esc(item)}</code></td><td>${esc(detail)}</td></tr>`
-    )
-    .join('\n');
-
-  const faqHtml = t.faq
-    .map(
-      ([q, a]) =>
-        `<details class="faq-item"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`
-    )
-    .join('\n');
-
-  const html = `<!DOCTYPE html>
-<html lang="${t.htmlLang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${esc(t.title)}</title>
-<meta name="description" content="${esc(t.desc)}">
-<link rel="canonical" href="${BASE_URL}/corsproxy">
-${hreflangLinks(BASE_URL, '/corsproxy')}
-${faqJsonLd(t.faq)}
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${esc(t.title)}">
-<meta property="og:description" content="${esc(t.desc)}">
-<meta property="og:url" content="${BASE_URL}/corsproxy">
-<meta property="og:image" content="${BASE_URL}/og-image.png">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(t.title)}">
-<meta name="twitter:description" content="${esc(t.desc)}">
-<meta name="twitter:image" content="${BASE_URL}/og-image.png">
-<style>${BASE_CSS}
+const CORS_CSS = `
 .cors-main {
   max-width: 880px;
   margin: 0 auto;
@@ -1029,16 +981,53 @@ ${faqJsonLd(t.faq)}
   margin-top: clamp(30px, 5vw, 48px);
 }
 .cors-cta .btn { min-width: 160px; }
-</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '/corsproxy',
-  `<a class="lang-switch" href="/corsproxy?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
+`;
+
+function renderCorsPage(request) {
+  const lang = resolveLang(request);
+  const t = LABELS[lang] || LABELS.en;
+  const other = lang === 'zh' ? 'en' : 'zh';
+
+  const howHtml = t.howSteps
+    .map((s) => `<li>${esc(s)}</li>`)
+    .join('\n');
+
+  const keyStepsHtml = t.keySteps
+    .map((s) => `<li>${esc(s)}</li>`)
+    .join('\n');
+
+  const paramRows = t.rows
+    .map(
+      ([item, detail]) =>
+        `<tr><td><code>${esc(item)}</code></td><td>${esc(detail)}</td></tr>`
+    )
+    .join('\n');
+
+  const faqHtml = t.faq
+    .map(
+      ([q, a]) =>
+        `<details class="faq-item"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`
+    )
+    .join('\n');
+
+  const html = renderDocument({
+    lang,
+    htmlLang: t.htmlLang,
+    title: t.title,
+    description: t.desc,
+    canonical: `${BASE_URL}/corsproxy`,
+    hreflangPath: '/corsproxy',
+    jsonLd: faqJsonLd(t.faq),
+    og: true,
+    twitter: true,
+    styles: [CORS_CSS],
+    nav: renderNav(
+      lang,
+      '/corsproxy',
+      `<a class="lang-switch" href="/corsproxy?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
    <a class="account-button" href="/">${esc(t.backTop)}</a>`
-)}
-<main class="cors-main">
+    ),
+    body: `<main class="cors-main">
   <header class="cors-hero">
     <span class="cors-eyebrow">${esc(t.eyebrow)}</span>
     <h1>${esc(t.h1a)}<em>${esc(t.h1b)}</em></h1>
@@ -1149,12 +1138,9 @@ ${faqHtml}
     <a class="btn" href="/mcp-guide" style="background:transparent;border:1px solid var(--color-hairline-strong);color:var(--color-text)">${esc(t.ctaMcp)}</a>
     <a class="btn" href="/" style="background:transparent;border:1px solid var(--color-hairline-strong);color:var(--color-text)">${esc(t.backTop)}</a>
   </div>
-</main>
-${renderFooter(lang)}
-<script>${pageScript(t)}</script>
-<script>${COPY_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [pageScript(t), COPY_SCRIPT],
+  });
 
   return new Response(html, {
     headers: {

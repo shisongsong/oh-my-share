@@ -1,5 +1,7 @@
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang, I18N } from '../i18n.js';
+import { getCurrentUser } from '../auth.js';
 import {
   checkRateLimit,
   getClientIp,
@@ -10,6 +12,41 @@ import { hashIp } from '../crypto.js';
 
 function validId(id) {
   return Boolean(id) && /^[a-z0-9-]+$/i.test(id);
+}
+
+function abuseScript(t) {
+  return `document.getElementById('abuseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('.abuse-submit');
+  const msg = document.getElementById('abuseMsg');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: document.getElementById('abuseId').value.trim(),
+        reason: (e.target.querySelector('input[name=reason]:checked') || {}).value || 'other',
+        details: document.getElementById('abuseDetails').value,
+        email: document.getElementById('abuseEmail').value,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      msg.hidden = false;
+      msg.textContent = ${JSON.stringify(t.success)};
+      e.target.querySelector('.abuse-submit').style.display = 'none';
+    } else {
+      msg.hidden = false;
+      msg.textContent = data.error || 'Error (' + res.status + ')';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    msg.hidden = false;
+    msg.textContent = String(err);
+    btn.disabled = false;
+  }
+});`;
 }
 
 function escapeHtml(value) {
@@ -92,28 +129,22 @@ export async function handleAbusePage(request, env) {
   const t = MESSAGES[lang] || MESSAGES.en;
   const url = new URL(request.url);
   const prefillId = (url.searchParams.get('id') || '').trim().slice(0, 64);
+  const viewer = await getCurrentUser(request, env);
 
   const nav = renderNav(
     lang,
     '',
     `<a class="lang-switch" href="/abuse?lang=${lang === 'zh' ? 'en' : 'zh'}${prefillId ? `&id=${encodeURIComponent(prefillId)}` : ''}">${lang === 'zh' ? 'EN' : '中'}</a>
-      <a class="account-button" href="/">${escapeHtml(I18N[lang].accountBtn)}</a>`
+      ${accountActionHtml(I18N[lang], viewer)}`
   );
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(t.title)}</title>
-<meta name="robots" content="noindex, nofollow">
-<style>${BASE_CSS}
-${ABUSE_CSS}</style>
-</head>
-<body>
-${nav}
-<main class="abuse-main">
+  const html = renderDocument({
+    lang,
+    title: t.title,
+    robots: 'noindex, nofollow',
+    styles: [ABUSE_CSS],
+    nav,
+    body: `<main class="abuse-main">
   <h1>${escapeHtml(t.h1)}</h1>
   <p class="abuse-lead">${escapeHtml(t.lead)}</p>
   <form id="abuseForm">
@@ -142,44 +173,9 @@ ${nav}
     <p id="abuseMsg" class="abuse-note" hidden></p>
   </form>
   <p class="abuse-note">${escapeHtml(t.appeal)}</p>
-</main>
-${renderFooter(lang)}
-<script>
-document.getElementById('abuseForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = e.target.querySelector('.abuse-submit');
-  const msg = document.getElementById('abuseMsg');
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: document.getElementById('abuseId').value.trim(),
-        reason: (e.target.querySelector('input[name=reason]:checked') || {}).value || 'other',
-        details: document.getElementById('abuseDetails').value,
-        email: document.getElementById('abuseEmail').value,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      msg.hidden = false;
-      msg.textContent = ${JSON.stringify(t.success)};
-      e.target.querySelector('.abuse-submit').style.display = 'none';
-    } else {
-      msg.hidden = false;
-      msg.textContent = data.error || 'Error (' + res.status + ')';
-      btn.disabled = false;
-    }
-  } catch (err) {
-    msg.hidden = false;
-    msg.textContent = String(err);
-    btn.disabled = false;
-  }
-});
-</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [abuseScript(t)],
+  });
 
   return new Response(html, {
     headers: {

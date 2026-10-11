@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks, faqJsonLd } from '../ui/theme.js';
+import { renderNav, faqJsonLd } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
@@ -343,74 +344,7 @@ const CLIENT_SCRIPT = `
 })();
 `;
 
-export function handleMcpGuide(request) {
-  const lang = resolveLang(request);
-  const t = LABELS[lang] || LABELS.en;
-  const other = lang === 'zh' ? 'en' : 'zh';
-
-  const toolRows = TOOLS.map((tool) => `<tr>
-      <td><code>${esc(tool.name)}</code></td>
-      <td>${esc(tool.desc[lang] || tool.desc.en)}</td>
-      <td class="mono-sm">${esc(tool.params[lang] || tool.params.en)}</td>
-      <td><span class="auth-badge ${tool.auth}">${esc(tool.auth === 'anon' ? t.authAnon : t.authOauth)}</span></td>
-    </tr>`).join('\n');
-
-  const clientTabs = CLIENTS.map((c, i) => `<button type="button" class="client-tab${i === 0 ? ' active' : ''}" data-client-tab="${c.id}">${esc(typeof c.name === 'string' ? c.name : c.name[lang])}</button>`).join('\n');
-
-  const clientPanels = CLIENTS.map((c, i) => {
-    const name = typeof c.name === 'string' ? c.name : c.name[lang];
-    const steps = c.steps[lang] || c.steps.en;
-    return `<div class="client-panel${i === 0 ? ' active' : ''}" data-client-panel="${c.id}">
-        <div class="client-head">
-          <h3>${esc(name)}</h3>
-          ${c.path ? `<span class="client-path mono-sm">${esc(c.path)}</span>` : ''}
-        </div>
-        <p class="client-hint">${esc(c.hint[lang] || c.hint.en)}</p>
-        <ol class="client-steps">
-${steps.map((s) => `          <li>${esc(s)}</li>`).join('\n')}
-        </ol>
-        <div class="code-block">
-          <span class="code-label mono-sm">${esc(t.configLabel)}</span>
-          <button type="button" class="copy-btn" data-copy="code-${c.id}" data-copy-label="${esc(t.copy)}" data-copied="${esc(t.copied)}" data-copy-fail="${esc(t.copyFail)}">${esc(t.copy)}</button>
-          <pre id="code-${c.id}"><code>${esc(c.code)}</code></pre>
-        </div>
-        <div class="prompt-block">
-          <span class="code-label mono-sm">${esc(t.promptTitle)}</span>
-          <button type="button" class="copy-btn" data-copy="prompt-${c.id}" data-copy-label="${esc(t.copy)}" data-copied="${esc(t.copied)}" data-copy-fail="${esc(t.copyFail)}">${esc(t.copy)}</button>
-          <pre id="prompt-${c.id}"><code>${esc(c.prompt)}</code></pre>
-          <p class="prompt-note">${esc(t.promptNote)}</p>
-        </div>
-      </div>`;
-  }).join('\n');
-
-  const verifyHtml = t.verifySteps.map((s) => `<li>${esc(s)}</li>`).join('\n');
-
-  const faqHtml = t.faq.map(([q, a]) => `<details class="faq-item"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n');
-
-  const html = `<!DOCTYPE html>
-<html lang="${t.htmlLang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${esc(t.title)}</title>
-<meta name="description" content="${esc(t.desc)}">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${BASE_URL}/mcp-guide">
-${hreflangLinks(BASE_URL, '/mcp-guide')}
-${faqJsonLd(t.faq)}
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${esc(t.title)}">
-<meta property="og:description" content="${esc(t.desc)}">
-<meta property="og:url" content="${BASE_URL}/mcp-guide">
-<meta property="og:image" content="${BASE_URL}/og-image.png">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(t.title)}">
-<meta name="twitter:description" content="${esc(t.desc)}">
-<meta name="twitter:image" content="${BASE_URL}/og-image.png">
-<style>${BASE_CSS}
+const GUIDE_CSS = `
 .guide-main {
   max-width: 880px;
   margin: 0 auto;
@@ -603,16 +537,71 @@ ${faqJsonLd(t.faq)}
 @media (prefers-reduced-motion: reduce) {
   .client-panel.active { animation: none; }
 }
-</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '/mcp-guide',
-  `<a class="lang-switch" href="/mcp-guide?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
+`;
+
+export function handleMcpGuide(request) {
+  const lang = resolveLang(request);
+  const t = LABELS[lang] || LABELS.en;
+  const other = lang === 'zh' ? 'en' : 'zh';
+
+  const toolRows = TOOLS.map((tool) => `<tr>
+      <td><code>${esc(tool.name)}</code></td>
+      <td>${esc(tool.desc[lang] || tool.desc.en)}</td>
+      <td class="mono-sm">${esc(tool.params[lang] || tool.params.en)}</td>
+      <td><span class="auth-badge ${tool.auth}">${esc(tool.auth === 'anon' ? t.authAnon : t.authOauth)}</span></td>
+    </tr>`).join('\n');
+
+  const clientTabs = CLIENTS.map((c, i) => `<button type="button" class="client-tab${i === 0 ? ' active' : ''}" data-client-tab="${c.id}">${esc(typeof c.name === 'string' ? c.name : c.name[lang])}</button>`).join('\n');
+
+  const clientPanels = CLIENTS.map((c, i) => {
+    const name = typeof c.name === 'string' ? c.name : c.name[lang];
+    const steps = c.steps[lang] || c.steps.en;
+    return `<div class="client-panel${i === 0 ? ' active' : ''}" data-client-panel="${c.id}">
+        <div class="client-head">
+          <h3>${esc(name)}</h3>
+          ${c.path ? `<span class="client-path mono-sm">${esc(c.path)}</span>` : ''}
+        </div>
+        <p class="client-hint">${esc(c.hint[lang] || c.hint.en)}</p>
+        <ol class="client-steps">
+${steps.map((s) => `          <li>${esc(s)}</li>`).join('\n')}
+        </ol>
+        <div class="code-block">
+          <span class="code-label mono-sm">${esc(t.configLabel)}</span>
+          <button type="button" class="copy-btn" data-copy="code-${c.id}" data-copy-label="${esc(t.copy)}" data-copied="${esc(t.copied)}" data-copy-fail="${esc(t.copyFail)}">${esc(t.copy)}</button>
+          <pre id="code-${c.id}"><code>${esc(c.code)}</code></pre>
+        </div>
+        <div class="prompt-block">
+          <span class="code-label mono-sm">${esc(t.promptTitle)}</span>
+          <button type="button" class="copy-btn" data-copy="prompt-${c.id}" data-copy-label="${esc(t.copy)}" data-copied="${esc(t.copied)}" data-copy-fail="${esc(t.copyFail)}">${esc(t.copy)}</button>
+          <pre id="prompt-${c.id}"><code>${esc(c.prompt)}</code></pre>
+          <p class="prompt-note">${esc(t.promptNote)}</p>
+        </div>
+      </div>`;
+  }).join('\n');
+
+  const verifyHtml = t.verifySteps.map((s) => `<li>${esc(s)}</li>`).join('\n');
+
+  const faqHtml = t.faq.map(([q, a]) => `<details class="faq-item"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n');
+
+  const html = renderDocument({
+    lang,
+    htmlLang: t.htmlLang,
+    title: t.title,
+    description: t.desc,
+    robots: 'index, follow',
+    canonical: `${BASE_URL}/mcp-guide`,
+    hreflangPath: '/mcp-guide',
+    jsonLd: faqJsonLd(t.faq),
+    og: true,
+    twitter: true,
+    styles: [GUIDE_CSS],
+    nav: renderNav(
+      lang,
+      '/mcp-guide',
+      `<a class="lang-switch" href="/mcp-guide?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
    <a class="account-button" href="/">${esc(t.backTop)}</a>`
-)}
-<main class="guide-main">
+    ),
+    body: `<main class="guide-main">
   <header class="guide-hero">
     <span class="guide-eyebrow">${esc(t.eyebrow)}</span>
     <h1>${esc(t.h1a)}<em>${esc(t.h1b)}</em></h1>
@@ -669,11 +658,9 @@ ${faqHtml}
     <a class="btn" href="/auth.md" style="background:transparent;border:1px solid var(--color-hairline-strong);color:var(--color-text)">${lang === 'zh' ? '智能体完整文档' : 'Full agent docs'}</a>
     <a class="btn" href="/" style="background:transparent;border:1px solid var(--color-hairline-strong);color:var(--color-text)">${esc(t.backTop)}</a>
   </div>
-</main>
-${renderFooter(lang)}
-<script>${CLIENT_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [CLIENT_SCRIPT],
+  });
 
   return new Response(html, {
     headers: {

@@ -2,7 +2,8 @@ import { getDatabase, json, checkRateLimit } from '../security.js';
 import { getCurrentUser, isSameOriginRequest } from '../auth.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { escapeHtml, GALLERY_CSS, renderWorkCards } from './gallery.js';
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 
 const LIMITS = { title: 100, content: 4000, comment: 1000 };
 
@@ -690,37 +691,31 @@ export async function handleDiscussionPage(request, env) {
   const nav = renderNav(
     lang,
     '/community',
-    `<a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+    `<a class="lang-switch" href="?lang=${lang === 'zh' ? 'en' : 'zh'}">${lang === 'zh' ? '中文' : 'EN'}</a>
+      ${accountActionHtml(t, viewer)}`
   );
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(t.discTitle)} | Oh My Share</title>
-<meta name="description" content="${escapeHtml(t.discMetaDesc)}">
-${q ? '<meta name="robots" content="noindex,follow">' : ''}
-<link rel="canonical" href="${url.origin}/community">
-${q ? '' : hreflangLinks(url.origin, '/community')}
-${q ? '' : `<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"CollectionPage","name":${JSON.stringify(t.discTitle)},"description":${JSON.stringify(t.discMetaDesc)},"url":"${url.origin}/community","isPartOf":{"@type":"WebSite","name":"Oh My Share","url":"${url.origin}"}}
-</script>`}
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${escapeHtml(t.discTitle)}">
-<meta property="og:description" content="${escapeHtml(t.discMetaDesc)}">
-<meta property="og:url" content="${url.origin}/community">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<style>${BASE_CSS}
-${COMMENT_CSS}
-${DISC_CSS}
-</style>
-</head>
-<body>
-${nav}
-<main class="d-main">
+  const html = renderDocument({
+    lang,
+    title: `${t.discTitle} | Oh My Share`,
+    description: t.discMetaDesc,
+    robots: q ? 'noindex,follow' : undefined,
+    canonical: `${url.origin}/community`,
+    hreflangPath: q ? undefined : '/community',
+    jsonLd: q
+      ? undefined
+      : {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: t.discTitle,
+          description: t.discMetaDesc,
+          url: `${url.origin}/community`,
+          isPartOf: { '@type': 'WebSite', name: 'Oh My Share', url: url.origin },
+        },
+    og: true,
+    styles: [COMMENT_CSS, DISC_CSS],
+    nav,
+    body: `<main class="d-main">
   <header class="d-hero">
     <h1>${escapeHtml(t.discTitle)}</h1>
     <p>${escapeHtml(t.discSubtitle)}</p>
@@ -744,11 +739,9 @@ ${nav}
   </div>
   ${listHtml}
   ${pagerHtml}
-</main>
-${renderFooter(lang)}
-<script>${COMMUNITY_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [COMMUNITY_SCRIPT],
+  });
 
   return new Response(html, {
     headers: {
@@ -762,6 +755,19 @@ ${renderFooter(lang)}
 // ---------------------------------------------------------------------------
 // Post detail page /post/:id
 // ---------------------------------------------------------------------------
+
+const POST_CSS = `
+.p-post { max-width: 760px; margin: 0 auto; padding: 44px 20px 20px; }
+.p-post-crumb { font-size: 13px; color: var(--color-text-tertiary); margin-bottom: 12px; }
+.p-post-crumb a { color: inherit; }
+.p-post h1 { font-size: clamp(22px, 4vw, 30px); margin: 0 0 14px; line-height: 1.3; word-break: break-word; }
+.p-post-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--color-text-tertiary); margin-bottom: 20px; }
+.p-post-meta .g-avatar { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; }
+.p-post-meta a { color: var(--color-text); font-weight: 600; text-decoration: none; }
+.p-post-body { font-size: 15.5px; line-height: 1.75; word-break: break-word; margin-bottom: 10px; }
+.p-attach h2 { font-size: 15px; margin: 0 0 10px; }
+.p-post-wrap { max-width: 760px; margin: 0 auto; padding: 0 20px 40px; }
+`;
 
 export async function handlePostPage(request, env, id) {
   const lang = resolveLang(request);
@@ -782,29 +788,21 @@ export async function handlePostPage(request, env, id) {
   if (!post) {
     const nav = renderNav(
       lang,
-      '/gallery',
-      `<a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+      '/community',
+      `<a class="lang-switch" href="?lang=${lang === 'zh' ? 'en' : 'zh'}">${lang === 'zh' ? '中文' : 'EN'}</a>
+        ${accountActionHtml(t, viewer)}`
     );
     return new Response(
-      `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(t.post404)} | Oh My Share</title>
-<meta name="robots" content="noindex">
-<style>${BASE_CSS}</style>
-</head>
-<body>
-${nav}
-<main style="max-width:760px;margin:0 auto;padding:56px 20px;text-align:center">
+      renderDocument({
+        lang,
+        title: `${t.post404} | Oh My Share`,
+        robots: 'noindex',
+        nav,
+        body: `<main style="max-width:760px;margin:0 auto;padding:56px 20px;text-align:center">
 <h1>${escapeHtml(t.post404)}</h1>
 <p><a href="/gallery">${escapeHtml(t.profileBack)}</a></p>
-</main>
-${renderFooter(lang)}
-</body>
-</html>`,
+</main>`,
+      }),
       { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
   }
@@ -840,46 +838,29 @@ ${renderWorkCards([work], t)}
   const comments = await fetchComments(env, 'post', post.id);
   const nav = renderNav(
     lang,
-    '/gallery',
-    `<a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+    '/community',
+    `<a class="lang-switch" href="?lang=${lang === 'zh' ? 'en' : 'zh'}">${lang === 'zh' ? '中文' : 'EN'}</a>
+      ${accountActionHtml(t, viewer)}`
   );
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(post.title || excerpt(post.content, 40))} | Oh My Share</title>
-<meta name="description" content="${escapeHtml(excerpt(post.content))}">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${url.origin}/post/${encodeURIComponent(post.id)}">
-${hreflangLinks(url.origin, `/post/${post.id}`)}
-<script type="application/ld+json">
+  const postJsonLd = `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"DiscussionForumPosting","headline":${JSON.stringify(post.title || excerpt(post.content, 60))},"text":${JSON.stringify(post.content.slice(0, 500))},"url":"${url.origin}/post/${post.id}","author":{"@type":"Person","name":${JSON.stringify(name)},"url":"${url.origin}/u/${post.user_id}"},"datePublished":${JSON.stringify(new Date(post.created_at * 1000).toISOString())}}
-</script>
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="article">
-<meta property="og:title" content="${escapeHtml(post.title || excerpt(post.content, 40))}">
-<meta property="og:url" content="${url.origin}/post/${encodeURIComponent(post.id)}">
-<style>${BASE_CSS}
-${GALLERY_CSS}
-${COMMENT_CSS}
-.p-post { max-width: 760px; margin: 0 auto; padding: 44px 20px 20px; }
-.p-post-crumb { font-size: 13px; color: var(--color-text-tertiary); margin-bottom: 12px; }
-.p-post-crumb a { color: inherit; }
-.p-post h1 { font-size: clamp(22px, 4vw, 30px); margin: 0 0 14px; line-height: 1.3; word-break: break-word; }
-.p-post-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--color-text-tertiary); margin-bottom: 20px; }
-.p-post-meta .g-avatar { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; }
-.p-post-meta a { color: var(--color-text); font-weight: 600; text-decoration: none; }
-.p-post-body { font-size: 15.5px; line-height: 1.75; word-break: break-word; margin-bottom: 10px; }
-.p-attach h2 { font-size: 15px; margin: 0 0 10px; }
-.p-post-wrap { max-width: 760px; margin: 0 auto; padding: 0 20px 40px; }
-</style>
-</head>
-<body>
-${nav}
-<article class="p-post">
+</script>`;
+
+  const html = renderDocument({
+    lang,
+    title: `${post.title || excerpt(post.content, 40)} | Oh My Share`,
+    description: excerpt(post.content),
+    robots: 'index, follow',
+    canonical: `${url.origin}/post/${encodeURIComponent(post.id)}`,
+    hreflangPath: `/post/${post.id}`,
+    jsonLd: postJsonLd,
+    og: true,
+    ogType: 'article',
+    ogTitle: post.title || excerpt(post.content, 40),
+    styles: [GALLERY_CSS, COMMENT_CSS, POST_CSS],
+    nav,
+    body: `<article class="p-post">
   <div class="p-post-crumb"><a href="/gallery">${escapeHtml(t.galleryH1)}</a> /</div>
   ${post.title ? `<h1>${escapeHtml(post.title)}</h1>` : ''}
   <div class="p-post-meta">
@@ -893,11 +874,9 @@ ${nav}
 </article>
 <div class="p-post-wrap">
 ${renderCommentsSection(comments, t, { viewerId: viewer ? viewer.id : null, targetType: 'post', targetId: post.id })}
-</div>
-${renderFooter(lang)}
-<script>${COMMUNITY_SCRIPT}</script>
-</body>
-</html>`;
+</div>`,
+    scripts: [COMMUNITY_SCRIPT],
+  });
 
   return new Response(html, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },

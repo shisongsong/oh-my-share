@@ -1,5 +1,6 @@
 // Landing pages — share the same design system as the homepage
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { I18N } from '../i18n.js';
 
 const BASE_URL = 'https://openanthropic.com';
@@ -404,47 +405,30 @@ function renderLandingPage(slug, lang) {
   );
   const footer = renderFooter(lang);
 
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${page.title}</title>
-<meta name="description" content="${page.description}">
-<meta name="keywords" content="${page.keywords}">
-<meta name="robots" content="index, follow">
+  return renderDocument({
+    lang,
+    title: page.title,
+    description: page.description,
+    robots: 'index, follow',
+    canonical: `${BASE_URL}${active}${lang === 'zh' ? '?lang=zh' : ''}`,
+    headExtra: `<meta name="keywords" content="${page.keywords}">
 <meta name="google-site-verification" content="DBQv1hLP8zAfNxe33rUZVVM4ilMDoNrcpvwtJmoB03c">
-<link rel="canonical" href="${BASE_URL}${active}${lang === 'zh' ? '?lang=zh' : ''}">
 <link rel="alternate" hreflang="en" href="${BASE_URL}${active}">
 <link rel="alternate" hreflang="zh" href="${BASE_URL}${active}?lang=zh">
-<meta name="x-lang" content="${lang}">
-<meta property="og:title" content="${page.title}">
-<meta property="og:description" content="${page.description}">
-<meta property="og:type" content="website">
-<meta property="og:url" content="${BASE_URL}${active}">
-<meta property="og:image" content="${BASE_URL}/og-image.png">
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${page.title}">
-<meta name="twitter:description" content="${page.description}">
-<meta name="twitter:image" content="${BASE_URL}/og-image.png">
-<style>${BASE_CSS}
-${LANDING_CSS}</style>
-</head>
-<body>
-${nav}
-<section class="landing-hero">
+<meta name="x-lang" content="${lang}">`,
+    og: true,
+    twitter: true,
+    styles: [LANDING_CSS],
+    nav,
+    body: `<section class="landing-hero">
   <div class="landing-hero-inner">
     <h1>${page.h1}</h1>
     <p>${page.subtitle}</p>
   </div>
 </section>
-<main class="landing-content">${page.content}</main>
-${footer}
-</body>
-</html>`;
+<main class="landing-content">${page.content}</main>`,
+    footer,
+  });
 }
 
 export function handleLandingPage(pathname, lang = 'en') {

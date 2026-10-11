@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { getDatabase, getBucket, json } from '../security.js';
 import { getCurrentUser } from '../auth.js';
@@ -384,6 +385,7 @@ export async function handleGalleryPage(request, env) {
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
   const url = new URL(request.url);
+  const viewer = await getCurrentUser(request, env);
 
   const { items, total, page: safePage, pages: totalPages, q, sort } = await queryGallery(env, {
     q: url.searchParams.get('q'),
@@ -433,7 +435,7 @@ export async function handleGalleryPage(request, env) {
     lang,
     '/gallery',
     `<a class="lang-switch" id="langBtn" href="/gallery?${langParams.toString()}">${altLang === 'zh' ? '中文' : 'EN'}</a>
-      <a class="account-button" id="accountBtn" href="/">${escapeHtml(t.accountBtn)}</a>`
+      ${accountActionHtml(t, viewer)}`
   );
 
   const tabHref = (targetSort) => {
@@ -443,40 +445,28 @@ export async function handleGalleryPage(request, env) {
     return `/gallery?${p.toString()}`;
   };
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(t.galleryTitle)}</title>
-<meta name="description" content="${escapeHtml(t.galleryMetaDesc)}">
-${q ? '<meta name="robots" content="noindex,follow">' : ''}
-<link rel="canonical" href="${url.origin}/gallery">
-${q ? '' : hreflangLinks(url.origin, '/gallery')}
-${q ? '' : `<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"CollectionPage","name":${JSON.stringify(t.galleryTitle)},"description":${JSON.stringify(t.galleryMetaDesc)},"url":"${url.origin}/gallery","isPartOf":{"@type":"WebSite","name":"Oh My Share","url":"${url.origin}"}}
-</script>`}
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${escapeHtml(t.galleryTitle)}">
-<meta property="og:description" content="${escapeHtml(t.galleryMetaDesc)}">
-<meta property="og:url" content="${url.origin}/gallery">
-<meta property="og:image" content="${url.origin}/og-image.png">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${escapeHtml(t.galleryTitle)}">
-<meta name="twitter:description" content="${escapeHtml(t.galleryMetaDesc)}">
-<meta name="twitter:image" content="${url.origin}/og-image.png">
-<style>
-${BASE_CSS}
-${GALLERY_CSS}
-${DISC_CSS}
-</style>
-</head>
-<body>
-${nav}
-<main class="g-main">
+  const html = renderDocument({
+    lang,
+    title: t.galleryTitle,
+    description: t.galleryMetaDesc,
+    robots: q ? 'noindex,follow' : undefined,
+    canonical: `${url.origin}/gallery`,
+    hreflangPath: q ? undefined : '/gallery',
+    jsonLd: q
+      ? undefined
+      : {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: t.galleryTitle,
+          description: t.galleryMetaDesc,
+          url: `${url.origin}/gallery`,
+          isPartOf: { '@type': 'WebSite', name: 'Oh My Share', url: url.origin },
+        },
+    og: true,
+    twitter: true,
+    styles: [GALLERY_CSS, DISC_CSS],
+    nav,
+    body: `<main class="g-main">
   <header class="g-hero">
     <h1>${escapeHtml(t.galleryH1)}</h1>
     <p>${escapeHtml(t.gallerySubtitle)}</p>
@@ -497,11 +487,9 @@ ${nav}
   </nav>
   ${itemsHtml}
   ${pagerHtml}
-</main>
-${renderFooter(lang)}
-<script>${LIKE_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [LIKE_SCRIPT],
+  });
 
   const headers = {
     'Content-Type': 'text/html; charset=utf-8',
@@ -589,36 +577,13 @@ export async function handleGalleryItem(request, env, id) {
     lang,
     '/gallery',
     `<a class="lang-switch" href="/gallery/${encodeURIComponent(id)}?lang=${altLang}">${altLang === 'zh' ? '中文' : 'EN'}</a>
-      <a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+      ${accountActionHtml(t, viewer)}`
   );
 
   const canonical = `${url.origin}/gallery/${id}`;
   const escTitle = escapeHtml(title);
-  const escDesc = escapeHtml(desc);
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escTitle} | Oh My Share</title>
-${desc ? `<meta name="description" content="${escDesc}">` : ''}
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${canonical}">
-${hreflangLinks(url.origin, `/gallery/${encodeURIComponent(id)}`)}
-<meta property="og:title" content="${escTitle}">
-${desc ? `<meta property="og:description" content="${escDesc}">` : ''}
-<meta property="og:type" content="website">
-<meta property="og:url" content="${canonical}">
-<meta property="og:image" content="${url.origin}/og-image.png">
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${escTitle}">
-${desc ? `<meta name="twitter:description" content="${escDesc}">` : ''}
-<meta name="twitter:image" content="${url.origin}/og-image.png">
-<script type="application/ld+json">
+  const detailJsonLd = `<script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "CreativeWork",
@@ -628,17 +593,23 @@ ${desc ? `<meta name="twitter:description" content="${escDesc}">` : ''}
   "datePublished": ${JSON.stringify(date)},
   "isAccessibleForFree": true
 }
-</script>
-<style>
-${BASE_CSS}
-${GALLERY_CSS}
-${COMMENT_CSS}
-${DETAIL_CSS_EXTRA}
-</style>
-</head>
-<body>
-${nav}
-<main class="g-detail">
+</script>`;
+
+  const html = renderDocument({
+    lang,
+    title: `${title} | Oh My Share`,
+    description: desc || undefined,
+    robots: 'index, follow',
+    canonical,
+    hreflangPath: `/gallery/${encodeURIComponent(id)}`,
+    jsonLd: detailJsonLd,
+    og: true,
+    ogTitle: title,
+    twitter: true,
+    twitterTitle: title,
+    styles: [GALLERY_CSS, COMMENT_CSS, DETAIL_CSS_EXTRA],
+    nav,
+    body: `<main class="g-detail">
   <div class="g-detail-crumb"><a href="/gallery">${escapeHtml(t.galleryH1)}</a> /</div>
   <h1>${escTitle}</h1>
   <div class="g-detail-meta">
@@ -651,7 +622,7 @@ ${nav}
     ${remixLine}
   </div>
   ${tagsHtml ? `<div class="g-detail-tags">${tagsHtml}</div>` : ''}
-  ${desc ? `<p class="g-detail-desc">${escDesc}</p>` : ''}
+  ${desc ? `<p class="g-detail-desc">${escapeHtml(desc)}</p>` : ''}
   <iframe class="g-detail-frame" src="/view/${encodeURIComponent(id)}" sandbox="allow-scripts allow-forms allow-popups allow-modals" loading="lazy" title="${escTitle}"></iframe>
   <p class="g-detail-note">${escapeHtml(t.galleryPreviewNote)}</p>
   <div class="g-detail-actions">
@@ -660,11 +631,9 @@ ${nav}
     <a class="g-btn danger" href="/abuse?id=${encodeURIComponent(id)}">${escapeHtml(t.galleryReport)}</a>
   </div>
 ${renderCommentsSection(comments, t, { viewerId: viewer ? viewer.id : null, targetType: 'work', targetId: id })}
-</main>
-${renderFooter(lang)}
-<script>${COMMUNITY_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [COMMUNITY_SCRIPT],
+  });
 
   return new Response(html, {
     headers: {

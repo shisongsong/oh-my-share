@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
+import { renderNav, renderFooter, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { getDatabase, json } from '../security.js';
 import { getCurrentUser, isSameOriginRequest } from '../auth.js';
@@ -160,12 +161,60 @@ export function renderAvatarResponse(id) {
 // Profile page /u/:id
 // ---------------------------------------------------------------------------
 
+const PROFILE_CSS = `
+.p-head { max-width: 1000px; margin: 0 auto; padding: 44px 20px 8px; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.p-avatar { width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; flex: none; }
+.p-info h1 { margin: 0 0 6px; font-size: 26px; }
+.p-bio { margin: 0; color: var(--color-text-secondary); line-height: 1.6; max-width: 560px; }
+.p-joined { margin: 10px 0 0; font-size: 13px; color: var(--color-text-tertiary); }
+.p-works { max-width: 1000px; margin: 0 auto; padding: 18px 20px 64px; }
+.p-works h2 { font-size: 18px; margin: 18px 0 14px; }
+.p-edit { max-width: 460px; margin: 18px 0 4px; display: grid; gap: 10px; }
+.p-edit label { display: grid; gap: 4px; font-size: 13px; color: var(--color-text-secondary); }
+.p-edit input, .p-edit textarea {
+  font: inherit; padding: 9px 12px; border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-md, 10px); background: var(--color-surface, #fff); color: var(--color-text);
+}
+.p-edit textarea { min-height: 72px; resize: vertical; }
+.p-edit-row { display: flex; align-items: center; gap: 10px; }
+.p-msg { font-size: 13px; color: var(--color-text-secondary); }
+.p-posts { display: grid; gap: 0; margin-bottom: 26px; }
+.p-post-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 11px 4px; border-bottom: 1px solid var(--color-hairline);
+  text-decoration: none; color: inherit;
+}
+.p-post-row:hover .p-post-title { color: var(--color-accent-strong); }
+.p-post-title { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-post-meta { font-size: 12px; color: var(--color-text-tertiary); flex: none; }
+`;
+
+const PROFILE_LIKE_SCRIPT = `document.addEventListener('click', async function (e) {
+  var btn = e.target.closest('.g-like');
+  if (!btn) return;
+  e.preventDefault();
+  try {
+    var res = await fetch('/api/likes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: btn.dataset.file })
+    });
+    if (res.status === 401) { location.href = '/'; return; }
+    if (!res.ok) return;
+    var data = await res.json();
+    btn.classList.toggle('liked', !!data.liked);
+    var count = btn.querySelector('.g-like-count');
+    if (count) count.textContent = String(data.count);
+  } catch (err) {}
+});`;
+
 export async function handleProfilePage(request, env, userId) {
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
   const url = new URL(request.url);
   const database = getDatabase(env);
   const now = Math.floor(Date.now() / 1000);
+  const viewer = await getCurrentUser(request, env);
 
   const user = await database
     .prepare('SELECT id, email, nickname, bio, created_at FROM users WHERE id = ?')
@@ -173,31 +222,21 @@ export async function handleProfilePage(request, env, userId) {
     .first();
 
   if (!user) {
-    const { nav, footer } = profileChrome(lang, url.origin);
+    const { nav, footer } = profileChrome(lang, url.origin, viewer);
     return new Response(
-      `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${escapeHtml(t.profileNotFound)} | Oh My Share</title>
-<meta name="robots" content="noindex">
-<style>${BASE_CSS}
-.p-main { max-width: 1000px; margin: 0 auto; padding: 56px 20px; text-align: center; }
-</style>
-</head>
-<body>
-${nav}
-<main class="p-main"><h1>${escapeHtml(t.profileNotFound)}</h1><p><a href="/gallery">${escapeHtml(t.profileBack)}</a></p></main>
-${footer}
-</body>
-</html>`,
+      renderDocument({
+        lang,
+        title: `${t.profileNotFound} | Oh My Share`,
+        robots: 'noindex',
+        styles: ['.p-main { max-width: 1000px; margin: 0 auto; padding: 56px 20px; text-align: center; }'],
+        nav,
+        body: `<main class="p-main"><h1>${escapeHtml(t.profileNotFound)}</h1><p><a href="/gallery">${escapeHtml(t.profileBack)}</a></p></main>`,
+        footer,
+      }),
       { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
   }
 
-  const viewer = await getCurrentUser(request, env);
   const isSelf = Boolean(viewer && viewer.id === user.id);
   const displayName =
     user.nickname ||
@@ -253,7 +292,7 @@ ${footer}
     : '';
 
   const joined = new Date(user.created_at * 1000).toISOString().slice(0, 10);
-  const { nav, footer } = profileChrome(lang, url.origin);
+  const { nav, footer } = profileChrome(lang, url.origin, viewer);
   const esc = escapeHtml;
 
   const editForm = isSelf
@@ -291,57 +330,25 @@ ${footer}
     </script>`
     : '';
 
-  const html = `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${esc(displayName)} | Oh My Share</title>
-<meta name="description" content="${esc((user.bio || '').slice(0, 160) || `${displayName} on Oh My Share`)}">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${url.origin}/u/${esc(user.id)}">
-${hreflangLinks(url.origin, `/u/${user.id}`)}
-<script type="application/ld+json">
+  const profileJsonLd = `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"ProfilePage","mainEntity":{"@type":"Person","name":${JSON.stringify(displayName)},"url":"${url.origin}/u/${user.id}"}}
-</script>
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="profile">
-<meta property="og:title" content="${esc(displayName)} | Oh My Share">
-<meta property="og:url" content="${url.origin}/u/${esc(user.id)}">
-<meta property="og:image" content="${url.origin}/avatar/${esc(user.id)}.svg">
-<style>${BASE_CSS}
-${GALLERY_CSS}
-.p-head { max-width: 1000px; margin: 0 auto; padding: 44px 20px 8px; display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-.p-avatar { width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--color-hairline); background: #fff; flex: none; }
-.p-info h1 { margin: 0 0 6px; font-size: 26px; }
-.p-bio { margin: 0; color: var(--color-text-secondary); line-height: 1.6; max-width: 560px; }
-.p-joined { margin: 10px 0 0; font-size: 13px; color: var(--color-text-tertiary); }
-.p-works { max-width: 1000px; margin: 0 auto; padding: 18px 20px 64px; }
-.p-works h2 { font-size: 18px; margin: 18px 0 14px; }
-.p-edit { max-width: 460px; margin: 18px 0 4px; display: grid; gap: 10px; }
-.p-edit label { display: grid; gap: 4px; font-size: 13px; color: var(--color-text-secondary); }
-.p-edit input, .p-edit textarea {
-  font: inherit; padding: 9px 12px; border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-md, 10px); background: var(--color-surface, #fff); color: var(--color-text);
-}
-.p-edit textarea { min-height: 72px; resize: vertical; }
-.p-edit-row { display: flex; align-items: center; gap: 10px; }
-.p-msg { font-size: 13px; color: var(--color-text-secondary); }
-.p-posts { display: grid; gap: 0; margin-bottom: 26px; }
-.p-post-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
-  padding: 11px 4px; border-bottom: 1px solid var(--color-hairline);
-  text-decoration: none; color: inherit;
-}
-.p-post-row:hover .p-post-title { color: var(--color-accent-strong); }
-.p-post-title { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.p-post-meta { font-size: 12px; color: var(--color-text-tertiary); flex: none; }
-</style>
-</head>
-<body>
-${nav}
-<main>
+</script>`;
+
+  const html = renderDocument({
+    lang,
+    title: `${displayName} | Oh My Share`,
+    description: (user.bio || '').slice(0, 160) || `${displayName} on Oh My Share`,
+    robots: 'index, follow',
+    canonical: `${url.origin}/u/${esc(user.id)}`,
+    hreflangPath: `/u/${user.id}`,
+    jsonLd: profileJsonLd,
+    og: true,
+    ogType: 'profile',
+    ogTitle: `${displayName} | Oh My Share`,
+    ogImage: `${url.origin}/avatar/${esc(user.id)}.svg`,
+    styles: [GALLERY_CSS, PROFILE_CSS],
+    nav,
+    body: `<main>
   <div class="p-head">
     <img class="p-avatar" src="/avatar/${esc(user.id)}.svg" alt="" width="76" height="76">
     <div class="p-info">
@@ -356,44 +363,24 @@ ${nav}
     <h2>${esc(t.profileWorks)} · ${items.length}</h2>
     ${worksHtml}
   </section>
-</main>
-${footer}
-<script>
-document.addEventListener('click', async function (e) {
-  var btn = e.target.closest('.g-like');
-  if (!btn) return;
-  e.preventDefault();
-  try {
-    var res = await fetch('/api/likes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_id: btn.dataset.file })
-    });
-    if (res.status === 401) { location.href = '/'; return; }
-    if (!res.ok) return;
-    var data = await res.json();
-    btn.classList.toggle('liked', !!data.liked);
-    var count = btn.querySelector('.g-like-count');
-    if (count) count.textContent = String(data.count);
-  } catch (err) {}
-});
-</script>
-</body>
-</html>`;
+</main>`,
+    footer,
+    scripts: [PROFILE_LIKE_SCRIPT],
+  });
 
   return new Response(html, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
 
-function profileChrome(lang, origin) {
+function profileChrome(lang, origin, viewer) {
   const t = I18N[lang] || I18N.en;
   const other = lang === 'zh' ? 'en' : 'zh';
   const nav = renderNav(
     lang,
     '',
     `<a class="lang-switch" href="?lang=${other}">${other === 'zh' ? '中文' : 'EN'}</a>
-     <a class="account-button" href="/">${escapeHtml(t.accountBtn)}</a>`
+     ${accountActionHtml(t, viewer)}`
   );
   return { nav, footer: renderFooter(lang) };
 }

@@ -1,4 +1,5 @@
-import { BASE_CSS, renderNav, renderFooter, hreflangLinks } from '../ui/theme.js';
+import { renderNav } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { checkRateLimit, getClientIp } from '../security.js';
 
@@ -356,44 +357,7 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-export async function handleDemo(request, env) {
-  const lang = resolveLang(request);
-  const t = LABELS[lang] || LABELS.en;
-
-  // Bound demo-driven uploads per network before the real app ever sees them.
-  let limited = false;
-  if (env && env.DB) {
-    try {
-      const limit = await checkRateLimit(env, getClientIp(request), 'demo-play', 5, 3600);
-      limited = !limit.allowed;
-    } catch {
-      limited = false;
-    }
-  }
-
-  const html = `<!DOCTYPE html>
-<html lang="${t.htmlLang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${esc(t.title)}</title>
-<meta name="description" content="${esc(t.desc)}">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="${BASE_URL}/demo">
-${hreflangLinks(BASE_URL, '/demo')}
-<meta property="og:site_name" content="Oh My Share">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${esc(t.title)}">
-<meta property="og:description" content="${esc(t.desc)}">
-<meta property="og:url" content="${BASE_URL}/demo">
-<meta property="og:image" content="${BASE_URL}/og-image.png">
-<meta property="og:locale" content="${lang === 'zh' ? 'zh_CN' : 'en_US'}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(t.title)}">
-<meta name="twitter:description" content="${esc(t.desc)}">
-<meta name="twitter:image" content="${BASE_URL}/og-image.png">
-<style>${BASE_CSS}
+const DEMO_CSS = `
 .demo-main {
   max-width: 1060px;
   margin: 0 auto;
@@ -618,15 +582,40 @@ ${hreflangLinks(BASE_URL, '/demo')}
 @media (prefers-reduced-motion: reduce) {
   .demo-device, .demo-frames iframe, .demo-navbar { transition: none !important; }
 }
-</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '/demo',
-  `<a class="account-button" href="/">${lang === 'zh' ? '回到上传' : 'Back to app'}</a>`
-)}
-<main class="demo-main">
+`;
+
+export async function handleDemo(request, env) {
+  const lang = resolveLang(request);
+  const t = LABELS[lang] || LABELS.en;
+
+  // Bound demo-driven uploads per network before the real app ever sees them.
+  let limited = false;
+  if (env && env.DB) {
+    try {
+      const limit = await checkRateLimit(env, getClientIp(request), 'demo-play', 5, 3600);
+      limited = !limit.allowed;
+    } catch {
+      limited = false;
+    }
+  }
+
+  const html = renderDocument({
+    lang,
+    htmlLang: t.htmlLang,
+    title: t.title,
+    description: t.desc,
+    robots: 'index, follow',
+    canonical: `${BASE_URL}/demo`,
+    hreflangPath: '/demo',
+    og: true,
+    twitter: true,
+    styles: [DEMO_CSS],
+    nav: renderNav(
+      lang,
+      '/demo',
+      `<a class="account-button" href="/">${lang === 'zh' ? '回到上传' : 'Back to app'}</a>`
+    ),
+    body: `<main class="demo-main">
   <header class="demo-hero">
     <span class="demo-eyebrow">${esc(t.eyebrow)}</span>
     <h1>${esc(t.h1a)}<em>${esc(t.h1b)}</em></h1>
@@ -688,11 +677,9 @@ ${renderNav(
     <span data-caption="2" data-title="${esc(t.step3)}" data-desc="${esc(t.step3d)}"></span>
     <span data-caption="3" data-title="${esc(t.step4)}" data-desc="${esc(t.step4d)}"></span>
   </div>
-</main>
-${renderFooter(lang)}
-<script>${STAGE_SCRIPT}</script>
-</body>
-</html>`;
+</main>`,
+    scripts: [STAGE_SCRIPT],
+  });
 
   return new Response(html, {
     headers: {

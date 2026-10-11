@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
-import { BASE_CSS, renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { parseEncryptionMetadata } from '../encryption.js';
 import { renderEncryptedViewer } from '../ui/viewer.js';
@@ -181,19 +182,12 @@ function renderPasswordPage(id, lang, error) {
   };
   const t = messages[lang] || messages.en;
   const { nav, footer } = gateChrome(lang);
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${t.title}</title>
-<style>${BASE_CSS}
-${GATE_CSS}</style>
-</head>
-<body>
-${nav}
-<div class="gate-page">
+  return renderDocument({
+    lang,
+    title: t.title,
+    styles: [GATE_CSS],
+    nav,
+    body: `<div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
     ${error ? `<p class="gate-error">${t.error}</p>` : ''}
@@ -202,10 +196,9 @@ ${nav}
       <button type="submit">${t.submit}</button>
     </form>
   </div>
-</div>
-${footer}
-</body>
-</html>`;
+</div>`,
+    footer,
+  });
 }
 
 function renderExpiredPage(lang) {
@@ -215,28 +208,20 @@ function renderExpiredPage(lang) {
   };
   const t = messages[lang] || messages.en;
   const { nav, footer } = gateChrome(lang);
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${t.title}</title>
-<style>${BASE_CSS}
-${GATE_CSS}</style>
-</head>
-<body>
-${nav}
-<div class="gate-page">
+  return renderDocument({
+    lang,
+    title: t.title,
+    styles: [GATE_CSS],
+    nav,
+    body: `<div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
     <p class="gate-desc">${t.desc}</p>
     <a class="gate-link" href="/">${t.home}</a>
   </div>
-</div>
-${footer}
-</body>
-</html>`;
+</div>`,
+    footer,
+  });
 }
 
 function renderReportedPage(lang) {
@@ -258,19 +243,12 @@ function renderReportedPage(lang) {
   };
   const t = messages[lang] || messages.en;
   const { nav, footer } = gateChrome(lang);
-  return `<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${t.title}</title>
-<style>${BASE_CSS}
-${GATE_CSS}</style>
-</head>
-<body>
-${nav}
-<div class="gate-page">
+  return renderDocument({
+    lang,
+    title: t.title,
+    styles: [GATE_CSS],
+    nav,
+    body: `<div class="gate-page">
   <div class="gate-box">
     <h2>${t.title}</h2>
     <p class="gate-desc">${t.desc}</p>
@@ -278,10 +256,9 @@ ${nav}
     <a class="gate-link" href="/">${t.home}</a>
     <a class="gate-link" href="/abuse">${t.report}</a>
   </div>
-</div>
-${footer}
-</body>
-</html>`;
+</div>`,
+    footer,
+  });
 }
 
 const BADGE_HTML = '<a href="/?utm_source=badge" target="_blank" rel="noopener" style="position:fixed;bottom:14px;right:14px;z-index:2147483647;background:#111827;color:#fff;font:600 12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:999px;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);opacity:.92;">Made with Oh My Share</a>';

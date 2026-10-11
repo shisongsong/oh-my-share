@@ -1,7 +1,9 @@
 import { getDatabase, json } from '../security.js';
 import { I18N, resolveLang } from '../i18n.js';
 import { STYLES } from '../ui/styles.js';
-import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderDocument } from '../ui/render-document.js';
+import { getCurrentUser } from '../auth.js';
 
 function validId(id) {
   return Boolean(id) && /^[a-z0-9-]+$/i.test(id);
@@ -70,6 +72,7 @@ export async function handleReport(request, env) {
   const url = new URL(request.url);
   const lang = resolveLang(request);
   const t = I18N[lang] || I18N.en;
+  const viewer = await getCurrentUser(request, env);
 
   const database = getDatabase(env);
   if (!database) return new Response('Database not available', { status: 500 });
@@ -125,23 +128,18 @@ export async function handleReport(request, env) {
   };
   const msg = translations[lang] || translations.en;
 
-  return new Response(`<!DOCTYPE html>
-<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<title>${msg.title}</title>
-<style>${STYLES}</style>
-</head>
-<body>
-${renderNav(
-  lang,
-  '',
-  `<button class="lang-switch" id="langBtn" onclick="var u=new URL(location.href);u.searchParams.set('lang',u.searchParams.get('lang')==='zh'?'en':'zh');location.href=u.toString()"><span id="langBtnText">${lang === 'zh' ? 'EN' : '中'}</span></button>
-      <button class="account-button" id="accountBtn" onclick="location.href='/'">${t.accountBtn}</button>`
-)}
-<div class="container">
+  return new Response(renderDocument({
+    lang,
+    title: msg.title,
+    includeBaseCss: false,
+    styles: [STYLES],
+    nav: renderNav(
+      lang,
+      '',
+      `<button class="lang-switch" id="langBtn" onclick="var u=new URL(location.href);u.searchParams.set('lang',u.searchParams.get('lang')==='zh'?'en':'zh');location.href=u.toString()"><span id="langBtnText">${lang === 'zh' ? 'EN' : '中'}</span></button>
+      ${accountActionHtml(t, viewer)}`
+    ),
+    body: `<div class="container">
   <div class="header">
     <h1>Oh My Share</h1>
     <p>${msg.reportTitle}</p>
@@ -178,10 +176,9 @@ ${renderNav(
       </div>
     </div>
   </div>
-</div>
-${renderFooter(lang)}
-</body>
-</html>`, {
+</div>`,
+    footer: true,
+  }), {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }

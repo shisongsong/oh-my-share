@@ -37,6 +37,7 @@ import {
   handleDiscussionPage,
 } from './handlers/posts.js';
 import { purgeExpiredFiles } from './handlers/purge.js';
+import { getCurrentUser } from './auth.js';
 import { handleStaticAssets } from './handlers/static.js';
 import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
@@ -294,7 +295,7 @@ export default {
       } else if (request.method === 'GET' && url.pathname === '/') {
         response = await handleHome(request, env);
       } else {
-        response = new Response(notFoundPage(resolveLang(request)), {
+        response = new Response(notFoundPage(resolveLang(request), await getCurrentUser(request, env)), {
           status: 404,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
@@ -305,6 +306,19 @@ export default {
     } catch (error) {
       console.error('Unhandled error:', error);
       response = json({ error: 'Internal error', code: 'errInternal' }, 500);
+    }
+
+    // Persist explicit language choices (?lang=) so every page stays in sync
+    const langParam = url.searchParams.get('lang');
+    if (langParam === 'zh' || langParam === 'en') {
+      try {
+        response.headers.append(
+          'Set-Cookie',
+          `osh_lang=${langParam}; Path=/; Max-Age=31536000; SameSite=Lax`
+        );
+      } catch {
+        // immutable response headers (e.g. Response.redirect) — skip
+      }
     }
 
     const finalResponse = applySecurityHeaders(response);
