@@ -1364,6 +1364,88 @@ describe("CORS proxy", () => {
 		const freshData = await fresh.json();
 		expect(freshData.key).not.toBe(rotatedData.key);
 	});
+
+	it("accepts an API key as an MCP bearer token for non-interactive clients", async () => {
+		const cookie = await registerUser("mcpkey");
+		const issued = await fetchWorker(
+			new Request("http://example.com/api/cors-key", { headers: { Cookie: cookie } })
+		);
+		expect(issued.status).toBe(200);
+		const { key } = await issued.json();
+		expect(key).toMatch(/^ck_[0-9a-f]{40}$/);
+
+		const call = (token) =>
+			fetchWorker(
+				new Request("http://example.com/mcp", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						jsonrpc: "2.0",
+						id: 1,
+						method: "tools/call",
+						params: { name: "list_assets", arguments: {} },
+					}),
+				})
+			);
+
+		// authenticated tool works with the static key (no browser OAuth flow)
+		const ok = await call(key);
+		expect(ok.status).toBe(200);
+		const okBody = await ok.json();
+		expect(okBody.error).toBeUndefined();
+
+		// no credentials -> 401
+		const anon = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 2,
+					method: "tools/call",
+					params: { name: "list_assets", arguments: {} },
+				}),
+			})
+		);
+		expect(anon.status).toBe(401);
+
+		// unknown / revoked key -> treated as unauthenticated
+		const bogus = await call(`ck_${"0".repeat(40)}`);
+		expect(bogus.status).toBe(401);
+
+		const revoke = await fetchWorker(
+			new Request("http://example.com/api/cors-key", {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(revoke.status).toBe(200);
+		const revoked = await call(key);
+		expect(revoked.status).toBe(401);
+
+		// the initialize handshake advertises the static-key option
+		const init = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 3,
+					method: "initialize",
+					params: {
+						protocolVersion: "2025-06-18",
+						capabilities: {},
+						clientInfo: { name: "probe", version: "1" },
+					},
+				}),
+			})
+		);
+		const initBody = await init.json();
+		expect(initBody.result.authentication.apiKey.header).toBe("Authorization");
+	});
 });
 
 describe("Community", () => {

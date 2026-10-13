@@ -1,5 +1,6 @@
 import { json } from '../security.js';
 import { verifyPasswordWithDummy } from '../auth.js';
+import { findActiveKey } from '../api-keys.js';
 import { bytesToBase64Url, sha256 } from '../crypto.js';
 import { BASE_CSS } from '../ui/theme.js';
 import { I18N, resolveLang } from '../i18n.js';
@@ -506,13 +507,25 @@ export async function handleOAuthCallback(request, env) {
   });
 }
 
+// Accepts both session tokens (interactive sign-in) and API keys (`ck_...`,
+// issued via /api/cors-key). Static keys let non-interactive clients — registry
+// health checks, CI, scripts — authenticate without a browser OAuth flow.
 export async function validateToken(request, env) {
   const auth = request.headers.get('authorization');
   if (!auth || !auth.startsWith('Bearer ')) {
     return null;
   }
 
-  const token = auth.slice(7);
+  const token = auth.slice(7).trim();
+  if (!token) {
+    return null;
+  }
+
+  if (token.startsWith('ck_')) {
+    const key = await findActiveKey(env, token);
+    return key ? key.user_id : null;
+  }
+
   const user = await env.DB.prepare(
     `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
   ).bind(token).first();

@@ -164,6 +164,35 @@ Content-Type: application/json
 }
 \`\`\`
 
+### 9. Static API Key (no browser flow)
+
+For non-interactive clients — CI jobs, schedulers, registry health checks — skip
+OAuth entirely and send a long-lived API key as the bearer token instead.
+
+1. Create an account and sign in on ${origin}
+2. Open ${origin}/corsproxy and copy the \`ck_...\` API key (or \`GET ${origin}/api/cors-key\` while signed in)
+3. Send it as a normal bearer token:
+
+\`\`\`
+POST ${origin}/mcp
+Authorization: Bearer ck_xxxxxxxx
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "list_assets",
+    "arguments": {}
+  },
+  "id": 3
+}
+\`\`\`
+
+API keys can be rotated or revoked at any time (\`POST\`/\`DELETE ${origin}/api/cors-key\`),
+and they are the only credential this server accepts from automated systems, so
+keep them out of client-side code.
+
 ## Agent Identity (Advanced/Legacy)
 
 This is an advanced/legacy compatibility mechanism. It is not required for normal MCP usage.

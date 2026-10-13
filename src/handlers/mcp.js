@@ -418,6 +418,13 @@ export async function handleMcp(request, env) {
         },
         authentication: {
           type: 'oauth2',
+          apiKey: {
+            // Static bearer tokens (issued from the CORS proxy page) also work,
+            // for non-interactive clients that cannot run a browser OAuth flow.
+            header: 'Authorization',
+            prefix: 'Bearer',
+            instructions: 'Create an account, then get a key from /corsproxy (Authorization: Bearer ck_...)',
+          },
           oauth2: {
             authorizationEndpoint: `${origin}/oauth/authorize`,
             tokenEndpoint: `${origin}/oauth/token`,
