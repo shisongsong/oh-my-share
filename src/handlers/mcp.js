@@ -309,6 +309,17 @@ export async function handleMcp(request, env) {
   const origin = new URL(request.url).origin;
 
   if (request.method === 'GET') {
+    // Spec: a GET that asks for text/event-stream must either open an SSE
+    // stream or get 405 — we never push server-initiated messages, so we tell
+    // clients we have no stream instead of answering with unrelated JSON.
+    const accept = request.headers.get('accept') || '';
+    if (accept.includes('text/event-stream')) {
+      return new Response('This server does not offer an SSE stream; use POST for JSON-RPC.', {
+        status: 405,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+
     return new Response(JSON.stringify({
       name: 'oh-my-share',
       version: '2.2.0',
@@ -440,7 +451,8 @@ export async function handleMcp(request, env) {
   }
 
   if (method === 'notifications/initialized') {
-    return new Response(null, { status: 200 });
+    // Spec: accepted notifications answer 202 with no body.
+    return new Response(null, { status: 202 });
   }
 
   if (method === 'tools/list') {
@@ -492,9 +504,53 @@ export async function handleMcp(request, env) {
     return json({ jsonrpc: '2.0', result: {}, id });
   }
 
+  // We advertise the prompts/resources capabilities, so clients legitimately
+  // probe their list methods right after initialize. Serve empty collections
+  // instead of failing — an unimplemented advertised method breaks the client.
+  if (method === 'prompts/list') {
+    return json({ jsonrpc: '2.0', result: { prompts: [] }, id });
+  }
+
+  if (method === 'resources/list') {
+    return json({ jsonrpc: '2.0', result: { resources: [] }, id });
+  }
+
+  if (method === 'resources/templates/list') {
+    return json({ jsonrpc: '2.0', result: { resourceTemplates: [] }, id });
+  }
+
+  // No resources to subscribe to, but clients may still call these.
+  if (method === 'resources/subscribe' || method === 'resources/unsubscribe') {
+    return json({ jsonrpc: '2.0', result: {}, id });
+  }
+
+  if (method === 'prompts/get') {
+    return json({
+      jsonrpc: '2.0',
+      error: { code: -32602, message: `Unknown prompt: ${params?.name ?? ''}`.trim() },
+      id,
+    });
+  }
+
+  if (method === 'resources/read') {
+    return json({
+      jsonrpc: '2.0',
+      error: { code: -32602, message: `Unknown resource: ${params?.uri ?? ''}`.trim() },
+      id,
+    });
+  }
+
+  // Unhandled notifications: accept and ignore (202, no body).
+  if (id === undefined || id === null) {
+    return new Response(null, { status: 202 });
+  }
+
+  // JSON-RPC errors must travel with HTTP 200. A 4xx makes clients report a
+  // transport failure, and 404 specifically means "session terminated" in the
+  // Streamable HTTP spec — both break otherwise-valid sessions.
   return json({
     jsonrpc: '2.0',
     error: { code: -32601, message: `Method not found: ${method}` },
     id,
-  }, 404);
+  });
 }

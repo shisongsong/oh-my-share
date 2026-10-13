@@ -1365,6 +1365,87 @@ describe("CORS proxy", () => {
 		expect(freshData.key).not.toBe(rotatedData.key);
 	});
 
+	it("answers the MCP capability probes clients send after initialize", async () => {
+		const call = (method, params) =>
+			fetchWorker(
+				new Request("http://example.com/mcp", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Accept: "application/json, text/event-stream",
+					},
+					body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+				})
+			);
+
+		// advertised capabilities must answer their list methods
+		for (const [method, key] of [
+			["prompts/list", "prompts"],
+			["resources/list", "resources"],
+			["resources/templates/list", "resourceTemplates"],
+		]) {
+			const res = await call(method);
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.error).toBeUndefined();
+			expect(body.result[key]).toEqual([]);
+		}
+
+		// subscribe calls are accepted even though we push no updates
+		for (const method of ["resources/subscribe", "resources/unsubscribe"]) {
+			const res = await call(method, { uri: "x://y" });
+			expect(res.status).toBe(200);
+			expect((await res.json()).result).toEqual({});
+		}
+
+		// unknown prompts/resources are invalid params, not "method not found"
+		const prompt = await call("prompts/get", { name: "nope" });
+		expect((await prompt.json()).error.code).toBe(-32602);
+		const resource = await call("resources/read", { uri: "nope://x" });
+		expect((await resource.json()).error.code).toBe(-32602);
+
+		// unknown methods must still answer with HTTP 200 + JSON-RPC error,
+		// otherwise clients report a transport failure (404 = "session gone")
+		const unknown = await call("does/not/exist");
+		expect(unknown.status).toBe(200);
+		const unknownBody = await unknown.json();
+		expect(unknownBody.error.code).toBe(-32601);
+		expect(unknownBody.id).toBe(1);
+
+		// notifications are accepted with 202 and no body
+		const notification = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+			})
+		);
+		expect(notification.status).toBe(202);
+
+		const unknownNotification = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/something-else" }),
+			})
+		);
+		expect(unknownNotification.status).toBe(202);
+
+		// a client asking for an SSE stream on GET gets 405 instead of unrelated JSON
+		const sse = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "GET",
+				headers: { Accept: "text/event-stream" },
+			})
+		);
+		expect(sse.status).toBe(405);
+
+		// plain GET still answers with server info for discovery probes
+		const info = await fetchWorker(new Request("http://example.com/mcp"));
+		expect(info.status).toBe(200);
+		expect((await info.json()).name).toBe("oh-my-share");
+	});
+
 	it("accepts an API key as an MCP bearer token for non-interactive clients", async () => {
 		const cookie = await registerUser("mcpkey");
 		const issued = await fetchWorker(
