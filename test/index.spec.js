@@ -1066,6 +1066,42 @@ describe("CORS proxy", () => {
 		return key;
 	}
 
+	it("shows the contact email in every footer and serves the WeChat QR page", async () => {
+		// the QR image lives in R2
+		await env.MY_BUCKET.put("wechat-qrcode.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
+
+		const qr = await fetchWorker(new Request("http://example.com/wechat-qrcode.jpg"));
+		expect(qr.status).toBe(200);
+		expect(qr.headers.get("content-type")).toBe("image/jpeg");
+
+		const missing = await fetchWorker(new Request("http://example.com/wechat-qrcode-missing.jpg"));
+		expect(missing.status).toBe(404);
+
+		// contact page: email, QR image and copy button, in both languages
+		const page = await fetchWorker(new Request("http://example.com/contact"));
+		expect(page.status).toBe(200);
+		const html = await page.text();
+		expect(html).toContain("1400875096@qq.com");
+		expect(html).toContain("mailto:1400875096@qq.com");
+		expect(html).toContain("/wechat-qrcode.jpg");
+		expect(html).toContain('id="contactCopy"');
+		expect(html).toContain("<title>Contact - Oh My Share</title>");
+
+		const zh = await fetchWorker(
+			new Request("http://example.com/contact", { headers: { "Accept-Language": "zh-CN,zh;q=0.9" } })
+		);
+		expect(await zh.text()).toContain("联系方式");
+
+		// every page that renders the shared footer exposes the contact column
+		for (const path of ["/", "/gallery", "/mcp-guide?lang=en"]) {
+			const other = await fetchWorker(new Request(`http://example.com${path}`));
+			const otherHtml = await other.text();
+			expect(otherHtml).toContain('href="mailto:1400875096@qq.com"');
+			expect(otherHtml).toContain('data-i18n="footerContact"');
+			expect(otherHtml).toContain('href="/contact"');
+		}
+	});
+
 	it("serves the bilingual product page with key console and playground", async () => {
 		const page = await fetchWorker(new Request("http://example.com/corsproxy"));
 		expect(page.status).toBe(200);

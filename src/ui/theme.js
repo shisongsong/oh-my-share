@@ -1,5 +1,8 @@
 import { I18N } from '../i18n.js';
 
+// Owner contact address — shown in the footer, on /contact and in legal pages.
+export const CONTACT_EMAIL = '1400875096@qq.com';
+
 // hreflang alternates for a bilingual path: en = bare URL, zh = ?lang=zh,
 // x-default = en. Add to <head> of every indexable marketing page.
 export function hreflangLinks(origin, path) {
@@ -766,17 +769,23 @@ export function renderFooter(lang) {
       <a href="/mcp-guide" data-i18n="navMcp">${t.navMcp}</a>
       <a href="/corsproxy" data-i18n="navCors">${t.navCors}</a>
     </div>
-    <div class="footer-col">
+<div class="footer-col">
       <h4 data-i18n="footerResources">${t.footerResources}</h4>
       <a href="/auth.md">API Docs</a>
       <a href="/demo" data-i18n="footerDemo">${t.footerDemo}</a>
       <a href="/extension.zip">Chrome Extension</a>
       <a href="https://github.com/shisongsong/oh-my-share" target="_blank" rel="noopener">GitHub</a>
       <a href="/abuse" data-i18n="footerAbuse">${t.footerAbuse}</a>
-      <a href="/terms" data-i18n="footerTerms">Terms</a>
-      <a href="/privacy" data-i18n="footerPrivacy">Privacy</a>
+      <a href="/terms" data-i18n="footerTerms">${t.footerTerms}</a>
+      <a href="/privacy" data-i18n="footerPrivacy">${t.footerPrivacy}</a>
       <a href="/feed.xml">RSS</a>
     </div>
+    <div class="footer-col">
+      <h4 data-i18n="footerContact">${t.footerContact}</h4>
+      <a href="mailto:${CONTACT_EMAIL}" data-i18n="contactEmailLabel">${t.contactEmailLabel}: ${CONTACT_EMAIL}</a>
+      <a href="/contact" data-i18n="contactWechatLabel">${t.contactWechatLabel}</a>
+    </div>
+  </div>
   </div>
   <div class="footer-bottom">
     <p>&copy; ${new Date().getFullYear()} Oh My Share. ${t.footerPowered}</p>

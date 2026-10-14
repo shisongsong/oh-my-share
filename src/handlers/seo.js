@@ -144,6 +144,7 @@ export async function handleSitemap(env) {
     // Legal (linked from every page footer)
     { loc: `${BASE_URL}/terms`, priority: '0.3', changefreq: 'yearly' },
     { loc: `${BASE_URL}/privacy`, priority: '0.3', changefreq: 'yearly' },
+    { loc: `${BASE_URL}/contact`, priority: '0.4', changefreq: 'monthly' },
   ];
 
   // Add recent published content (up to 100 pages)

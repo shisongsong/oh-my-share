@@ -16,6 +16,7 @@ import {
   handleRemixPage,
 } from './handlers/gallery.js';
 import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
+import { handleContactPage, handleWechatQr } from './handlers/contact.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
 import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
@@ -139,6 +140,10 @@ export default {
         }
       } else if (url.pathname === '/mcp-guide') {
         response = handleMcpGuide(request);
+      } else if (url.pathname === '/contact') {
+        response = await handleContactPage(request, env);
+      } else if (url.pathname === '/wechat-qrcode.jpg') {
+        response = await handleWechatQr(request, env);
       } else if (url.pathname === '/corsproxy') {
         response = await handleCorsProxy(request, env);
       } else if (['/html-viewer', '/code-share', '/codepen-alternative', '/ai-html-publish', '/chatgpt-html-share'].includes(url.pathname)) {
