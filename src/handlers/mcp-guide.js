@@ -1,4 +1,4 @@
-import { renderNav, faqJsonLd } from '../ui/theme.js';
+import { renderNav, faqJsonLd, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 
@@ -592,6 +592,7 @@ ${steps.map((s) => `          <li>${esc(s)}</li>`).join('\n')}
     canonical: `${BASE_URL}/mcp-guide`,
     hreflangPath: '/mcp-guide',
     jsonLd: faqJsonLd(t.faq),
+    breadcrumbs: breadcrumbs(lang, [{ name: t.title, path: '/mcp-guide' }]),
     og: true,
     twitter: true,
     styles: [GUIDE_CSS],

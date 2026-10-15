@@ -1,4 +1,4 @@
-import { renderNav, faqJsonLd } from '../ui/theme.js';
+import { renderNav, faqJsonLd, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { CONFIG } from '../config.js';
@@ -1018,6 +1018,7 @@ function renderCorsPage(request) {
     canonical: `${BASE_URL}/corsproxy`,
     hreflangPath: '/corsproxy',
     jsonLd: faqJsonLd(t.faq),
+    breadcrumbs: breadcrumbs(lang, [{ name: t.title, path: '/corsproxy' }]),
     og: true,
     twitter: true,
     styles: [CORS_CSS],

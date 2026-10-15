@@ -1,4 +1,4 @@
-import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, renderFooter, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 
@@ -123,6 +123,7 @@ export function handleLegalPage(kind, request) {
     robots: 'index, follow',
     canonical: `${BASE_URL}/${kind}`,
     hreflangPath: `/${kind}`,
+    breadcrumbs: breadcrumbs(lang, [{ name: page.title, path: `/${kind}` }]),
     og: true,
     ogType: 'article',
     ogTitle: `${page.title} | Oh My Share`,

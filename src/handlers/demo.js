@@ -1,4 +1,4 @@
-import { renderNav } from '../ui/theme.js';
+import { renderNav, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { checkRateLimit, getClientIp } from '../security.js';
@@ -607,6 +607,7 @@ export async function handleDemo(request, env) {
     robots: 'index, follow',
     canonical: `${BASE_URL}/demo`,
     hreflangPath: '/demo',
+    breadcrumbs: breadcrumbs(lang, [{ name: t.title, path: '/demo' }]),
     og: true,
     twitter: true,
     styles: [DEMO_CSS],

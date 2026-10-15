@@ -1,4 +1,4 @@
-import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderNav, accountActionHtml, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { getDatabase, getBucket, json } from '../security.js';
@@ -603,6 +603,7 @@ export async function handleGalleryItem(request, env, id) {
     canonical,
     hreflangPath: `/gallery/${encodeURIComponent(id)}`,
     jsonLd: detailJsonLd,
+    breadcrumbs: breadcrumbs(lang, [{ name: t.galleryH1, path: '/gallery' }]),
     og: true,
     ogTitle: title,
     twitter: true,

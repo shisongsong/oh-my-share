@@ -44,7 +44,7 @@ import { handleStats, handleReport } from './handlers/stats.js';
 import { handleEditPage, handleManagePage, handleEditSave } from './handlers/manage.js';
 import { handleApiCatalog } from './handlers/api-catalog.js';
 import { handleAuthMd } from './handlers/auth-md.js';
-import { handleLlmsTxt } from './handlers/llms-txt.js';
+import { handleLlmsTxt, handleLlmsFullTxt } from './handlers/llms-txt.js';
 import { handleOAuthProtectedResource } from './handlers/oauth-metadata.js';
 import { handleOAuthAuthorizationServer } from './handlers/oauth-auth-server.js';
 import { handleAgentCard } from './handlers/agent-card.js';
@@ -126,6 +126,8 @@ export default {
         response = handleAuthMd(request);
       } else if (url.pathname === '/llms.txt') {
         response = handleLlmsTxt(request);
+      } else if (url.pathname === '/llms-full.txt') {
+        response = handleLlmsFullTxt(request);
       } else if (url.pathname === '/terms') {
         response = handleLegalPage('terms', request);
       } else if (url.pathname === '/privacy') {

@@ -1,5 +1,5 @@
 // Landing pages — share the same design system as the homepage
-import { renderNav, renderFooter } from '../ui/theme.js';
+import { renderNav, renderFooter, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { I18N } from '../i18n.js';
 
@@ -418,6 +418,7 @@ function renderLandingPage(slug, lang) {
 <meta name="x-lang" content="${lang}">`,
     og: true,
     twitter: true,
+    breadcrumbs: breadcrumbs(lang, [{ name: page.h1.replace(/<[^>]+>/g, ''), path: active }]),
     styles: [LANDING_CSS],
     nav,
     body: `<section class="landing-hero">

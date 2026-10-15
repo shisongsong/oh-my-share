@@ -2,7 +2,7 @@ import { getDatabase, json, checkRateLimit } from '../security.js';
 import { getCurrentUser, isSameOriginRequest } from '../auth.js';
 import { resolveLang, I18N } from '../i18n.js';
 import { escapeHtml, GALLERY_CSS, renderWorkCards } from './gallery.js';
-import { renderNav, accountActionHtml } from '../ui/theme.js';
+import { renderNav, accountActionHtml, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 
 const LIMITS = { title: 100, content: 4000, comment: 1000 };
@@ -855,6 +855,10 @@ ${renderWorkCards([work], t)}
     canonical: `${url.origin}/post/${encodeURIComponent(post.id)}`,
     hreflangPath: `/post/${post.id}`,
     jsonLd: postJsonLd,
+    breadcrumbs: breadcrumbs(lang, [
+      { name: t.discTitle, path: '/community' },
+      { name: post.title || excerpt(post.content, 40), path: `/post/${encodeURIComponent(post.id)}` },
+    ]),
     og: true,
     ogType: 'article',
     ogTitle: post.title || excerpt(post.content, 40),

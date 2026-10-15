@@ -25,6 +25,7 @@ function scriptTag(content) {
 //   origin        origin used for hreflang (defaults to canonical's origin)
 //   hreflangPath  path for hreflang alternates; omitted -> no hreflang links
 //   jsonLd        object (serialized) or raw '<script type="application/ld+json">' string
+//   breadcrumbs   [{ name, path }] rendered as a BreadcrumbList (home item included)
 //   og            emit the Open Graph block (requires canonical for og:url)
 //   ogType        og:type (default 'website')
 //   ogLocale      include og:locale (default true when og is on)
@@ -47,6 +48,7 @@ export function renderDocument({
   origin,
   hreflangPath,
   jsonLd,
+  breadcrumbs,
   og = false,
   ogType = 'website',
   ogLocale = true,
@@ -64,7 +66,13 @@ export function renderDocument({
   bodyAttrs = '',
 }) {
   const langValue = htmlLang || (lang === 'zh' ? 'zh-CN' : 'en');
-  const ogUrl = canonical || origin || '';
+  // Every language version self-canonicalizes: pointing the zh page at the bare
+  // (en) URL would stop it from ever ranking on its own in zh searches. The
+  // hreflang links below keep the two versions tied together.
+  const canonicalUrl = canonical && lang === 'zh' && !/[?&]lang=/.test(canonical)
+    ? `${canonical}${canonical.includes('?') ? '&' : '?'}lang=zh`
+    : canonical;
+  const ogUrl = canonicalUrl || origin || '';
   const ogImageUrl = ogImage || (ogUrl ? `${new URL(ogUrl).origin}/og-image.png` : '');
   const styleList = [
     ...(includeBaseCss ? [BASE_CSS] : []),
@@ -78,9 +86,21 @@ export function renderDocument({
     `<title>${esc(title)}</title>`,
     description ? `<meta name="description" content="${esc(description)}">` : '',
     robots ? `<meta name="robots" content="${esc(robots)}">` : '',
-    canonical ? `<link rel="canonical" href="${esc(canonical)}">` : '',
-    hreflangPath ? hreflangLinks(origin || (canonical ? new URL(canonical).origin : ''), hreflangPath) : '',
+    canonicalUrl ? `<link rel="canonical" href="${esc(canonicalUrl)}">` : '',
+    hreflangPath ? hreflangLinks(origin || (canonicalUrl ? new URL(canonicalUrl).origin : ''), hreflangPath) : '',
     jsonLd ? (typeof jsonLd === 'string' ? jsonLd : scriptTag(jsonLd)) : '',
+    breadcrumbs && breadcrumbs.length
+      ? scriptTag({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbs.map((crumb, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: crumb.name,
+            item: `${canonicalUrl ? new URL(canonicalUrl).origin : origin}${crumb.path}`,
+          })),
+        })
+      : '',
     og
       ? `<meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="${esc(ogType)}">

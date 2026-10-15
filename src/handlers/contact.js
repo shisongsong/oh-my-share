@@ -1,5 +1,5 @@
 import { I18N, resolveLang } from '../i18n.js';
-import { renderNav, renderFooter, accountActionHtml, hreflangLinks, CONTACT_EMAIL } from '../ui/theme.js';
+import { renderNav, renderFooter, accountActionHtml, hreflangLinks, CONTACT_EMAIL, breadcrumbs } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { getCurrentUser } from '../auth.js';
 
@@ -103,6 +103,26 @@ export async function handleContactPage(request, env) {
     hreflangPath: '/contact',
     og: true,
     twitter: true,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'ContactPage',
+      url: `${BASE_URL}/contact`,
+      mainEntity: {
+        '@type': 'Organization',
+        name: 'Oh My Share',
+        url: BASE_URL,
+        email: CONTACT_EMAIL,
+        contactPoint: [
+          {
+            '@type': 'ContactPoint',
+            contactType: 'customer support',
+            email: CONTACT_EMAIL,
+            availableLanguage: ['zh-CN', 'en'],
+          },
+        ],
+      },
+    },
+    breadcrumbs: breadcrumbs(lang, [{ name: t.contactTitle, path: '/contact' }]),
     styles: [CONTACT_CSS],
     nav: renderNav(
       lang,

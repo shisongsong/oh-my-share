@@ -3,6 +3,14 @@ import { I18N } from '../i18n.js';
 // Owner contact address — shown in the footer, on /contact and in legal pages.
 export const CONTACT_EMAIL = '1400875096@qq.com';
 
+// Breadcrumb trail for BreadcrumbList JSON-LD. Home is always the first item so
+// the structured data mirrors the visible nav hierarchy.
+export function breadcrumbs(lang, items) {
+  const t = I18N[lang] || I18N.en;
+  const home = lang === 'zh' ? '首页' : 'Home';
+  return [{ name: home, path: '/' }, ...items];
+}
+
 // hreflang alternates for a bilingual path: en = bare URL, zh = ?lang=zh,
 // x-default = en. Add to <head> of every indexable marketing page.
 export function hreflangLinks(origin, path) {

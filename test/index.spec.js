@@ -1066,6 +1066,70 @@ describe("CORS proxy", () => {
 		return key;
 	}
 
+	it("self-canonicalizes every language version and ties them with hreflang", async () => {
+		// pages that build canonicals from the canonical site origin
+		for (const path of ["/demo", "/mcp-guide", "/terms", "/contact"]) {
+			const base = `https://openanthropic.com${path}`;
+			const enHtml = await (await fetchWorker(new Request(`http://example.com${path}?lang=en`))).text();
+			expect(enHtml).toContain(`<link rel="canonical" href="${base}">`);
+			expect(enHtml).toContain(`hreflang="zh" href="${base}?lang=zh"`);
+			expect(enHtml).toContain(`hreflang="x-default" href="${base}"`);
+
+			// chinese version must canonicalize to itself, otherwise zh can never rank
+			const zhHtml = await (await fetchWorker(new Request(`http://example.com${path}?lang=zh`))).text();
+			expect(zhHtml).toContain(`<link rel="canonical" href="${base}?lang=zh">`);
+		}
+
+		// gallery builds its canonical from the request origin
+		const galleryEn = await (await fetchWorker(new Request("http://example.com/gallery?lang=en"))).text();
+		expect(galleryEn).toContain('<link rel="canonical" href="http://example.com/gallery">');
+		const galleryZh = await (await fetchWorker(new Request("http://example.com/gallery?lang=zh"))).text();
+		expect(galleryZh).toContain('<link rel="canonical" href="http://example.com/gallery?lang=zh">');
+	});
+
+	it("emits BreadcrumbList and Organization structured data", async () => {
+		const home = await fetchWorker(new Request("http://example.com/"));
+		const homeHtml = await home.text();
+		expect(homeHtml).toContain('"@type": "WebSite"');
+		expect(homeHtml).toContain('"@type": "Organization"');
+		expect(homeHtml).toContain('"@type": "SearchAction"');
+		expect(homeHtml).toContain('1400875096@qq.com');
+
+		for (const path of ["/demo", "/mcp-guide", "/terms", "/contact"]) {
+			const html = await (await fetchWorker(new Request(`http://example.com${path}`))).text();
+			expect(html).toContain('"@type":"BreadcrumbList"');
+			expect(html).toContain('"position":1');
+		}
+
+		const contact = await fetchWorker(new Request("http://example.com/contact"));
+		expect(await contact.text()).toContain('"@type":"ContactPage"');
+	});
+
+	it("serves hreflang alternates in the sitemap and agent docs in llms-full.txt", async () => {
+		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
+		const xml = await sitemap.text();
+		expect(xml).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
+		expect(xml).toContain('<xhtml:link rel="alternate" hreflang="zh" href="https://openanthropic.com/gallery?lang=zh" />');
+		expect(xml).toContain('<xhtml:link rel="alternate" hreflang="x-default"');
+		// agent docs stay monolingual
+		const authMdBlock = xml.split('<loc>https://openanthropic.com/auth.md</loc>')[1]?.split('</url>')[0] || "";
+		expect(authMdBlock).not.toContain("xhtml:link");
+
+		const robots = await fetchWorker(new Request("http://example.com/robots.txt"));
+		const robotsTxt = await robots.text();
+		expect(robotsTxt).toContain("User-agent: Claude-SearchBot");
+		expect(robotsTxt).toContain("User-agent: Bingbot");
+		expect(robotsTxt).toContain("User-agent: Meta-ExternalAgent");
+
+		const full = await fetchWorker(new Request("http://example.com/llms-full.txt"));
+		expect(full.status).toBe(200);
+		expect(full.headers.get("content-type")).toContain("text/markdown");
+		const text = await full.text();
+		expect(text).toContain("Oh My Share");
+		expect(text).toContain("1400875096@qq.com");
+		expect(text).toContain("list_assets");
+	});
+
 	it("shows the contact email in every footer and serves the WeChat QR page", async () => {
 		// the QR image lives in R2
 		await env.MY_BUCKET.put("wechat-qrcode.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));

@@ -1,7 +1,7 @@
 import { I18N } from '../i18n.js';
 import { CLIENT_SCRIPT } from './client-built.js';
 import { STYLES } from './styles.js';
-import { renderNav, renderFooter } from './theme.js';
+import { renderNav, renderFooter, CONTACT_EMAIL } from './theme.js';
 
 function esc(value) {
   return String(value ?? '')
@@ -71,12 +71,51 @@ ${seoMeta}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "Oh My Share",
-  "url": "${baseUrl}",
-  "description": "Free HTML and code sharing tool with end-to-end encryption",
-  "applicationCategory": "DeveloperApplication",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "${baseUrl}/#organization",
+      "name": "Oh My Share",
+      "url": "${baseUrl}/",
+      "logo": { "@type": "ImageObject", "url": "${baseUrl}/icon.svg" },
+      "sameAs": ["https://github.com/shisongsong/oh-my-share"],
+      "contactPoint": [{
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "email": "${CONTACT_EMAIL}",
+        "availableLanguage": ["zh-CN", "en"]
+      }]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "${baseUrl}/#website",
+      "url": "${baseUrl}/",
+      "name": "Oh My Share",
+      "description": "Free HTML and code sharing tool with end-to-end encryption",
+      "inLanguage": ["en", "zh-CN"],
+      "publisher": { "@id": "${baseUrl}/#organization" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "${baseUrl}/gallery?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "${baseUrl}/#app",
+      "name": "Oh My Share",
+      "url": "${baseUrl}/",
+      "description": "Free HTML and code sharing tool with end-to-end encryption",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript",
+      "publisher": { "@id": "${baseUrl}/#organization" },
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  ]
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>

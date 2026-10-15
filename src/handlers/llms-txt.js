@@ -54,7 +54,85 @@ curl -F "file=@page.html" ${origin}/api/upload
 - [HTML viewer](${origin}/html-viewer): View raw HTML files in the browser
 - [Code sharing](${origin}/code-share): Share code snippets with syntax highlighting
 - [CodePen alternative](${origin}/codepen-alternative): Lightweight single-file alternative to CodePen
+- [MCP guide](${origin}/mcp-guide): Setup guide for Claude, Cursor and other MCP clients
+- [Community](${origin}/community): Discussion board — questions, tips and the story behind published works
+- [Gallery](${origin}/gallery): Public showcase of HTML works, searchable and sortable by new/popular
+- [Contact](${origin}/contact): Owner email (1400875096@qq.com) and WeChat QR code
 - [Extension](${origin}/extension.zip): Chrome extension for one-click sharing
+- [Full text version](${origin}/llms-full.txt): This index as plain prose, for agents that skip link lists
+`;
+
+  return new Response(content, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  });
+}
+
+// llms-full.txt — the prose companion to llms.txt. llms.txt is a link index;
+// this file is what an agent should actually read when it wants to understand
+// the service without following links.
+export function handleLlmsFullTxt(request) {
+  const origin = new URL(request.url).origin;
+
+  const content = `# Oh My Share — full text
+
+Oh My Share (${origin}) is a free, no-signup service for sharing single-file HTML pages and code snippets. You POST HTML, you get back a URL that renders in any browser. It runs on Cloudflare Workers with R2 object storage and a D1 database. Content can optionally be encrypted in the browser before upload, in which case the server never sees the key.
+
+## What it does
+
+Upload an HTML file or paste a code snippet and get a permanent share link. The link renders the page directly, so there is no wrapping UI and no account required. Optional features include end-to-end encryption, access passwords, expiry dates, editable links, a public gallery of community-published works, and a community discussion board.
+
+## Publishing HTML in one call
+
+Agents can publish without any credentials. Over MCP:
+
+\`\`\`
+POST ${origin}/mcp
+Accept: application/json, text/event-stream
+Content-Type: application/json
+
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload","arguments":{"content":"<html>...</html>","filename":"page.html"}},"id":1}
+\`\`\`
+
+Or over REST with multipart form data:
+
+\`\`\`
+curl -F "file=@page.html" ${origin}/api/upload
+\`\`\`
+
+Both return JSON containing the new share link.
+
+## Reading shared content
+
+GET ${origin}/view/<id> renders the shared page. The raw source is available from the public content endpoint. Shared pages are ordinary web pages and are meant to be indexed.
+
+## The MCP server
+
+${origin}/mcp is a Streamable HTTP MCP endpoint exposing six tools:
+
+- \`upload\` (anonymous) — publish HTML or code and receive a share link
+- \`view\` (anonymous) — read shared content by id
+- \`get_info\` (anonymous) — server version and limits
+- \`search_gallery\` (anonymous) — search the public gallery
+- \`list_assets\` (authentication required) — list your own uploads
+- \`delete\` (authentication required) — delete one of your uploads
+
+Authentication is OAuth 2.1 with PKCE, discovered through ${origin}/.well-known/oauth-protected-resource. Interactive clients should complete the browser authorization code flow. Non-interactive clients — CI jobs, schedulers, health checks — can skip the browser flow and send a long-lived API key as \`Authorization: Bearer ck_...\` instead; keys are issued from ${origin}/corsproxy. The complete agent guide, including both flows, is at ${origin}/auth.md.
+
+## Community features
+
+Published works appear in a public gallery at ${origin}/gallery, searchable by keyword and sortable by newest or most popular. Creators have profile pages at ${origin}/u/<userId>. A discussion board lives at ${origin}/community where posts can be attached to a work, and both posts and published works accept threaded comments. Likes are recorded through POST ${origin}/api/likes.
+
+## CORS proxy
+
+${origin}/corsproxy relays any public http(s) URL to the browser with permissive CORS headers, which turns a client-side fetch into a plain link. It requires a free account and an API key, allows 100 requests per hour per key, and stores nothing.
+
+## Contact
+
+Questions, feedback or business enquiries: 1400875096@qq.com. A WeChat QR code is available at ${origin}/contact. Abuse reports can be filed at ${origin}/abuse.
 `;
 
   return new Response(content, {

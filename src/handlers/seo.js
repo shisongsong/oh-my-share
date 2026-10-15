@@ -78,9 +78,7 @@ User-agent: Googlebot
 Allow: /
 
 # Answer engines & AI crawlers — public pages only (same rules as above)
-User-agent: GPTBot
-Allow: /
-
+# Search/answer crawlers: these decide whether we get cited in AI answers.
 User-agent: OAI-SearchBot
 Allow: /
 
@@ -90,10 +88,13 @@ Allow: /
 User-agent: ClaudeBot
 Allow: /
 
-User-agent: anthropic-ai
+User-agent: Claude-SearchBot
 Allow: /
 
 User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-Web
 Allow: /
 
 User-agent: PerplexityBot
@@ -105,11 +106,48 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-User-agent: CCBot
+User-agent: Applebot
 Allow: /
 
 User-agent: Applebot-Extended
 Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: meta-externalfetcher
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: DuckAssistBot
+Allow: /
+
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Training crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+# Agent-readable docs
+User-agent: *
+Allow: /llms.txt
+Allow: /auth.md
+Allow: /llms-full.txt
 
 Sitemap: ${BASE_URL}/sitemap.xml
 
@@ -123,6 +161,19 @@ Sitemap: ${BASE_URL}/sitemap.xml
       'Cache-Control': 'public, max-age=86400',
     },
   });
+}
+
+// Bilingual alternates for a URL: en = bare, zh = ?lang=zh, x-default = en.
+// Emitted as <xhtml:link> so search engines tie the two versions together
+// instead of guessing from the content alone. auth.md is agent-facing only, so
+// it stays monolingual.
+function alternateLinks(loc) {
+  if (loc.endsWith('/auth.md')) return '';
+  const zh = `${loc}${loc.includes('?') ? '&' : '?'}lang=zh`;
+  return `
+    <xhtml:link rel="alternate" hreflang="en" href="${loc}" />
+    <xhtml:link rel="alternate" hreflang="zh" href="${zh}" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${loc}" />`;
 }
 
 export async function handleSitemap(env) {
@@ -198,11 +249,11 @@ export async function handleSitemap(env) {
     <loc>${url.loc}</loc>
     <lastmod>${url.lastmod || new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>${url.changefreq}</changefreq>
-    <priority>${url.priority}</priority>
+    <priority>${url.priority}</priority>${alternateLinks(url.loc)}
   </url>`).join('\n');
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${urlEntries}
 </urlset>`;
 
