@@ -18,11 +18,28 @@ export async function handleStats(request, env) {
   if (!database) return json({ error: 'Database not available' }, 500);
 
   const file = await database
-    .prepare('SELECT id, title, created_at, expires_at FROM files WHERE id = ?')
+    .prepare('SELECT id, title, created_at, expires_at, owner_id, edit_token FROM files WHERE id = ?')
     .bind(id)
     .first();
 
   if (!file) return json({ error: 'Not found' }, 404);
+
+  // Per-link stats include visitor countries and reveal that a link exists at
+  // all, so they are protected like the manage page: either the edit token or
+  // the owning account. A share id is not a secret.
+  let authorized = false;
+  const token = url.searchParams.get('token');
+  if (token && token === file.edit_token) {
+    authorized = true;
+  } else {
+    const viewer = await getCurrentUser(request, env);
+    authorized = Boolean(viewer && file.owner_id && viewer.id === file.owner_id);
+  }
+  if (!authorized) {
+    return json({ error: 'Authentication required', code: 'errAuthRequired' }, 401, {
+      'Cache-Control': 'no-store',
+    });
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const daysSinceCreation = Math.max(1, Math.floor((now - file.created_at) / 86400));

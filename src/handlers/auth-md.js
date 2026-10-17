@@ -52,17 +52,18 @@ Content-Type: application/json
 
 | Tool | Auth | Arguments | Notes |
 |------|------|-----------|-------|
-| \`upload\` | anonymous | \`content\`*, \`filename\`, \`language\`, \`password\`, \`expiresIn\` | Returns a share URL |
+| \`upload\` | anonymous | \`content\`*, \`filename\`, \`language\`, \`password\`, \`expiresIn\` | Returns a share URL. \`expiresIn\` defaults to \`7d\` here (accepts 1h / 24h / 7d / 30d / 90d / permanent) — the web form and REST API are permanent by default |
 | \`view\` | anonymous | \`id\`* | Read shared content by id |
 | \`get_info\` | anonymous | — | Server version and limits |
 | \`search_gallery\` | anonymous | \`query\`, \`sort\`, \`page\`, \`limit\` (\u2264 20) | Search public works |
 | \`list_assets\` | **required** | — | List the caller's uploads |
 | \`delete\` | **required** | \`id\`* | Delete one of the caller's uploads |
 
-\`*\` = required. Rate limits are per IP: 10 uploads/hour and 50/day, shared by the MCP
-\`upload\` tool and the REST upload endpoint. A limited upload is not a protocol error —
-it returns a normal result whose text contains \`"error": "Rate limit exceeded ... "\`
-with a \`Retry in <n>s\` hint.
+\`*\` = required. Rate limits are per IP: 10 uploads/hour on every path, plus a
+50/day cap on uploads made through the web form or \`/api/upload\`. A limited upload
+is not a protocol error — it returns a normal result whose text contains
+\`"error": "Rate limit exceeded ... "\` with a \`Retry in <n>s\` hint. Views are limited
+to 500/hour per IP.
 
 Always discover the live schemas with \`tools/list\` before building arguments.
 

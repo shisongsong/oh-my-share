@@ -1066,6 +1066,41 @@ describe("CORS proxy", () => {
 		return key;
 	}
 
+	it("protects per-link stats behind the edit token or the owning account", async () => {
+		const now = Math.floor(Date.now() / 1000);
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind("statssecret1", "statssecret1.html", null, now, "edt_stats_secret", now, "hash")
+			.run();
+
+		// no credential -> 401, even though the row exists
+		const anon = await fetchWorker(new Request("http://example.com/api/stats/statssecret1"));
+		expect(anon.status).toBe(401);
+		expect((await anon.json()).code).toBe("errAuthRequired");
+
+		// wrong token -> 401
+		const wrong = await fetchWorker(
+			new Request("http://example.com/api/stats/statssecret1?token=nope")
+		);
+		expect(wrong.status).toBe(401);
+
+		// edit token works
+		const withToken = await fetchWorker(
+			new Request("http://example.com/api/stats/statssecret1?token=edt_stats_secret")
+		);
+		expect(withToken.status).toBe(200);
+		const body = await withToken.json();
+		expect(body.file.id).toBe("statssecret1");
+		expect(body.stats.totalVisits).toBe(0);
+
+		// unknown ids still 404 without leaking anything else
+		const missing = await fetchWorker(
+			new Request("http://example.com/api/stats/doesnotexist1?token=x")
+		);
+		expect(missing.status).toBe(404);
+	});
+
 	it("serves bilingual how-to guides with FAQ schema and sitemap entries", async () => {
 		const index = await fetchWorker(new Request("http://example.com/guides"));
 		expect(index.status).toBe(200);
