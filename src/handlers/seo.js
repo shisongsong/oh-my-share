@@ -1,6 +1,7 @@
 import { renderNav, accountActionHtml } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { I18N } from '../i18n.js';
+import { listGuides } from './guides.js';
 
 const BASE_URL = 'https://openanthropic.com';
 
@@ -196,6 +197,13 @@ export async function handleSitemap(env) {
     { loc: `${BASE_URL}/terms`, priority: '0.3', changefreq: 'yearly' },
     { loc: `${BASE_URL}/privacy`, priority: '0.3', changefreq: 'yearly' },
     { loc: `${BASE_URL}/contact`, priority: '0.4', changefreq: 'monthly' },
+    // Long-form guides (how-to / scenario queries)
+    { loc: `${BASE_URL}/guides`, priority: '0.7', changefreq: 'monthly' },
+    ...listGuides().map((guide) => ({
+      loc: `${BASE_URL}/guides/${guide.slug}`,
+      priority: '0.7',
+      changefreq: 'monthly',
+    })),
   ];
 
   // Add recent published content (up to 100 pages)

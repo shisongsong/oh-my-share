@@ -775,6 +775,7 @@ export function renderFooter(lang) {
       <a href="/codepen-alternative" data-i18n="navAlternative">${t.navAlternative}</a>
       <a href="/ai-html-publish" data-i18n="navAiPublish">${t.navAiPublish}</a>
       <a href="/mcp-guide" data-i18n="navMcp">${t.navMcp}</a>
+      <a href="/guides" data-i18n="navGuides">${t.navGuides}</a>
       <a href="/corsproxy" data-i18n="navCors">${t.navCors}</a>
     </div>
 <div class="footer-col">

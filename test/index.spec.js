@@ -1066,6 +1066,50 @@ describe("CORS proxy", () => {
 		return key;
 	}
 
+	it("serves bilingual how-to guides with FAQ schema and sitemap entries", async () => {
+		const index = await fetchWorker(new Request("http://example.com/guides"));
+		expect(index.status).toBe(200);
+		const indexHtml = await index.text();
+		expect(indexHtml).toContain("Guides");
+		expect(indexHtml).toContain('href="/guides/how-to-share-html-file-online"');
+		expect(indexHtml).toContain('<link rel="canonical" href="https://openanthropic.com/guides">');
+
+		// a guide page: article + FAQPage + breadcrumbs, and real body content
+		const guide = await fetchWorker(
+			new Request("http://example.com/guides/how-to-share-html-file-online")
+		);
+		expect(guide.status).toBe(200);
+		const html = await guide.text();
+		expect(html).toContain('"@type":"TechArticle"');
+		expect(html).toContain('"@type":"FAQPage"');
+		expect(html).toContain('"@type":"BreadcrumbList"');
+		expect(html).toContain('<h2>'); // rendered sections
+		expect(html).toContain('<pre><code>'); // code blocks survive
+		expect(html).toContain("<title>How to Share an HTML File Online (Free, No Signup) - Oh My Share</title>");
+
+		// chinese version self-canonicalizes and has its own title
+		const zh = await fetchWorker(
+			new Request("http://example.com/guides/how-to-share-html-file-online?lang=zh")
+		);
+		const zhHtml = await zh.text();
+		expect(zhHtml).toContain('rel="canonical" href="https://openanthropic.com/guides/how-to-share-html-file-online?lang=zh"');
+		expect(zhHtml).toContain("在线分享 HTML 文件");
+
+		// unknown guide 404s
+		const missing = await fetchWorker(new Request("http://example.com/guides/nope"));
+		expect(missing.status).toBe(404);
+
+		// sitemap lists the index and every guide
+		const xml = await (await fetchWorker(new Request("http://example.com/sitemap.xml"))).text();
+		expect(xml).toContain("<loc>https://openanthropic.com/guides</loc>");
+		expect(xml).toContain("<loc>https://openanthropic.com/guides/share-ai-generated-html</loc>");
+		expect(xml).toContain('hreflang="zh" href="https://openanthropic.com/guides?lang=zh"');
+
+		// linked from the footer everywhere
+		const home = await (await fetchWorker(new Request("http://example.com/"))).text();
+		expect(home).toContain('href="/guides"');
+	});
+
 	it("self-canonicalizes every language version and ties them with hreflang", async () => {
 		// pages that build canonicals from the canonical site origin
 		for (const path of ["/demo", "/mcp-guide", "/terms", "/contact"]) {

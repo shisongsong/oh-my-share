@@ -17,6 +17,7 @@ import {
 } from './handlers/gallery.js';
 import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
 import { handleContactPage, handleWechatQr } from './handlers/contact.js';
+import { handleGuidesIndex, handleGuidePage } from './handlers/guides.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
 import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
@@ -144,6 +145,14 @@ export default {
         response = handleMcpGuide(request);
       } else if (url.pathname === '/contact') {
         response = await handleContactPage(request, env);
+      } else if (url.pathname === '/guides') {
+        response = await handleGuidesIndex(request, env);
+      } else if (url.pathname.startsWith('/guides/')) {
+        response = await handleGuidePage(
+          request,
+          env,
+          decodeURIComponent(url.pathname.slice('/guides/'.length))
+        );
       } else if (url.pathname === '/wechat-qrcode.jpg') {
         response = await handleWechatQr(request, env);
       } else if (url.pathname === '/corsproxy') {

@@ -49,6 +49,7 @@ curl -F "file=@page.html" ${origin}/api/upload
 ## Pages
 
 - [Home](${origin}/): Main app — paste HTML, get a link
+- [Guides](${origin}/guides): How-to articles — sharing HTML files online, publishing AI-generated pages, sharing reports and portfolios
 - [Product demo](${origin}/demo): Animated walkthrough of the sharing flow
 - [CORS proxy](${origin}/corsproxy): Free browser CORS relay — get an API key in the console, docs, limits and interactive playground
 - [HTML viewer](${origin}/html-viewer): View raw HTML files in the browser
