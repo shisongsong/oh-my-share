@@ -29,6 +29,12 @@
 		{
 			"pattern": "openanthropic.com",
 			"custom_domain": true
+		},
+		// www is fronted by a zone route (not a custom domain) so the existing
+		// DNS record doesn't have to be touched. The worker 301s it to the apex.
+		{
+			"pattern": "www.openanthropic.com/*",
+			"zone_name": "openanthropic.com"
 		}
 	],
 	// 👇 每日 09:00 CST (01:00 UTC) 运行监控

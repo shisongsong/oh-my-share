@@ -81,6 +81,21 @@ export default {
     const url = new URL(request.url);
     let response;
 
+    // Canonicalise production URLs: www and plain HTTP both redirect to
+    // https://openanthropic.com so search engines only ever see one origin.
+    // Local dev (wrangler dev on http://localhost) is left alone.
+    const isProdHost =
+      url.hostname === 'openanthropic.com' || url.hostname === 'www.openanthropic.com';
+    if (isProdHost && (url.hostname === 'www.openanthropic.com' || url.protocol === 'http:')) {
+      const target = new URL(request.url);
+      target.protocol = 'https:';
+      if (url.hostname === 'www.openanthropic.com') {
+        target.hostname = 'openanthropic.com';
+      }
+      const status = request.method === 'GET' || request.method === 'HEAD' ? 301 : 308;
+      return Response.redirect(target.toString(), status);
+    }
+
     // HEAD must behave like GET (same status + headers, no body). Routers
     // gate HTML/API routes on GET, which used to make every HEAD 404.
     const isHead = request.method === 'HEAD';
