@@ -1,10 +1,12 @@
+import { TOOLS } from './mcp.js';
+
 export function handleMcpServerCard(request) {
   const origin = new URL(request.url).origin;
 
   const card = {
     serverInfo: {
       name: 'oh-my-share',
-      description: 'HTML and code sharing with end-to-end encryption',
+      description: 'Publish HTML/code from your agent and get a shareable link.',
       version: '2.2.0',
     },
     endpoint: `${origin}/mcp`,
@@ -27,91 +29,7 @@ export function handleMcpServerCard(request) {
       resources: { subscribe: false, listChanged: false },
       prompts: { listChanged: false },
     },
-    tools: [
-      {
-        name: 'upload',
-        description: 'Upload HTML files and code snippets for sharing',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            content: { type: 'string', description: 'HTML or code content' },
-            language: { type: 'string', description: 'Language type (html, css, js, etc.)' },
-            filename: { type: 'string', description: 'Filename for the content' },
-            password: { type: 'string', description: 'Optional password protection' },
-            expiresIn: { type: 'string', description: 'Expiration time (1h, 24h, 7d, 30d, 90d)' },
-          },
-          required: ['content'],
-        },
-        annotations: {
-          title: 'Upload Content',
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-        },
-      },
-      {
-        name: 'list_assets',
-        description: 'List uploaded assets (requires authentication)',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-        annotations: {
-          title: 'List Assets',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-        },
-      },
-      {
-        name: 'view',
-        description: 'View shared HTML content',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Asset ID to view' },
-          },
-          required: ['id'],
-        },
-        annotations: {
-          title: 'View Content',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-        },
-      },
-      {
-        name: 'delete',
-        description: 'Delete an uploaded asset (requires authentication)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Asset ID to delete' },
-          },
-          required: ['id'],
-        },
-        annotations: {
-          title: 'Delete Asset',
-          readOnlyHint: false,
-          destructiveHint: true,
-          idempotentHint: true,
-        },
-      },
-      {
-        name: 'get_info',
-        description: 'Get information about the Oh My Share service',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-        annotations: {
-          title: 'Service Info',
-          readOnlyHint: true,
-          destructiveHint: false,
-          idempotentHint: true,
-        },
-      },
-    ],
+    tools: TOOLS,
     resources: [
       {
         uri: `${origin}/.well-known/agent-card.json`,

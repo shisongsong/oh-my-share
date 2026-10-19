@@ -6,7 +6,7 @@ import { queryGallery } from './gallery.js';
 const MCP_VERSION = '2026-07-28';
 const SUPPORTED_VERSIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'];
 
-const TOOLS = [
+export const TOOLS = [
   {
     name: 'upload',
     description:
