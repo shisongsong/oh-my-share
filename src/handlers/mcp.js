@@ -9,15 +9,30 @@ const SUPPORTED_VERSIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-2
 const TOOLS = [
   {
     name: 'upload',
-    description: 'Upload HTML files and code snippets for sharing',
+    description:
+      'Upload HTML or code and get a public share URL plus an edit token. Each call creates a new asset (no overwrite); content is public unless password-protected and auto-expires after expiresIn (default 7d, 0 = permanent). Anonymous uploads are rate-limited to 10 per hour per IP. Use view to read an asset back, list_assets to see your own files, or delete to remove one.',
     inputSchema: {
       type: 'object',
       properties: {
-        content: { type: 'string', description: 'HTML or code content to upload' },
-        language: { type: 'string', description: 'Language type (html, css, js, json, markdown, etc.)', default: 'html' },
-        filename: { type: 'string', description: 'Filename for the content' },
-        password: { type: 'string', description: 'Optional password protection' },
-        expiresIn: { type: 'string', description: 'Expiration time (1h, 24h, 7d, 30d, 90d)', default: '7d' },
+        content: { type: 'string', description: 'HTML or code to publish (required).' },
+        language: {
+          type: 'string',
+          description: 'Content language hint, e.g. html, css, js, json, markdown. Default html.',
+          default: 'html',
+        },
+        filename: {
+          type: 'string',
+          description: 'Optional display filename used in the title and download name.',
+        },
+        password: {
+          type: 'string',
+          description: 'Optional password; the web view asks for it before showing content.',
+        },
+        expiresIn: {
+          type: 'string',
+          description: 'Retention: 1h, 24h, 7d, 30d, 90d, or 0 for permanent. Default 7d.',
+          default: '7d',
+        },
       },
       required: ['content'],
     },
@@ -30,7 +45,8 @@ const TOOLS = [
   },
   {
     name: 'list_assets',
-    description: 'List all uploaded assets for the current user',
+    description:
+      'List up to 50 assets owned by the authenticated user, newest first, with id, filename, timestamps and share URL. Requires an API key or signed-in session; read-only, and results are capped at 50 with no pagination. Use search_gallery for public works from other users, or view to open one of your assets.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -44,11 +60,12 @@ const TOOLS = [
   },
   {
     name: 'view',
-    description: 'View shared HTML content by ID',
+    description:
+      'Fetch a single asset by id and return its content, filename, creation time and share URL. Read-only and safe to retry; public assets need no auth, password-protected assets return an error with the share URL, and client-encrypted content is returned as stored. Use search_gallery to find an id, or list_assets for your own uploads.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'Asset ID to view' },
+        id: { type: 'string', description: '12-character asset id returned by upload or search_gallery.' },
       },
       required: ['id'],
     },
@@ -61,11 +78,12 @@ const TOOLS = [
   },
   {
     name: 'delete',
-    description: 'Delete an uploaded asset',
+    description:
+      'Permanently delete one of your own assets by id. Irreversible: the share URL stops working immediately and the content cannot be restored. Requires authentication and ownership; ids you do not own return an error. Use list_assets to find the id; there is no bulk delete.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'Asset ID to delete' },
+        id: { type: 'string', description: '12-character asset id you own (from list_assets).' },
       },
       required: ['id'],
     },
@@ -78,7 +96,8 @@ const TOOLS = [
   },
   {
     name: 'get_info',
-    description: 'Get information about the Oh My Share service',
+    description:
+      'Return Oh My Share service metadata: version, REST and MCP endpoints, feature list, and per-IP rate limits (10 uploads/hour, 500 views/hour). Read-only, no auth, cheap to call. Use it once at startup to discover capabilities; use list_assets or search_gallery for actual content.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -92,14 +111,29 @@ const TOOLS = [
   },
   {
     name: 'search_gallery',
-    description: 'Search the public gallery of published HTML works by keyword (title, description, tags, id)',
+    description:
+      'Search public gallery works by keyword across title, description, tags and id; omit query to browse the newest works. Returns a paginated result set (items, total, page, pages) where each item has id, title, views and URLs. sort is new (newest) or hot (most liked and viewed); limit is capped at 20. No auth required. Use view to open a result, or list_assets for your own uploads.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Search keyword' },
-        sort: { type: 'string', enum: ['new', 'hot'], default: 'new', description: 'Sort by newest or popular' },
-        page: { type: 'integer', minimum: 1, default: 1, description: 'Page number' },
-        limit: { type: 'integer', minimum: 1, maximum: 20, default: 10, description: 'Results per page (max 20)' },
+        query: {
+          type: 'string',
+          description: 'Keyword matched against title, description, tags and id; empty returns the newest works.',
+        },
+        sort: {
+          type: 'string',
+          enum: ['new', 'hot'],
+          default: 'new',
+          description: 'new = newest first; hot = most liked and viewed.',
+        },
+        page: { type: 'integer', minimum: 1, default: 1, description: '1-based page number. Default 1.' },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 20,
+          default: 10,
+          description: 'Results per page, 1 to 20. Default 10.',
+        },
       },
     },
     annotations: {
@@ -220,10 +254,20 @@ async function handleToolCall(name, args, env, auth, ip) {
       if (!id) return { error: 'id is required' };
 
       const row = await env.DB.prepare(
-        `SELECT id, filename, created_at FROM files WHERE id = ?`
+        `SELECT id, filename, created_at, password_hash FROM files WHERE id = ?`
       ).bind(id).first();
 
       if (!row) return { error: 'Content not found' };
+
+      // Password protection must be enforced here too: the web view asks for
+      // the password, and the API used to return the content regardless.
+      if (row.password_hash) {
+        return {
+          error: 'This asset is password-protected. Open the share URL in a browser to unlock it.',
+          id: row.id,
+          url: `https://openanthropic.com/view/${row.id}`,
+        };
+      }
 
       // Read content from R2
       const object = await env.MY_BUCKET.get(id);
@@ -280,7 +324,7 @@ async function handleToolCall(name, args, env, auth, ip) {
     case 'get_info': {
       return {
         name: 'Oh My Share',
-        description: 'HTML and code sharing with end-to-end encryption',
+        description: 'Publish HTML/code from your agent and get a shareable link.',
         version: '2.2.0',
         url: 'https://openanthropic.com',
         endpoints: {
@@ -383,7 +427,7 @@ export async function handleMcp(request, env) {
       jsonrpc: '2.0',
       result: {
         name: 'oh-my-share',
-        description: 'HTML and code sharing with end-to-end encryption',
+        description: 'Publish HTML/code from your agent and get a shareable link.',
         version: '2.2.0',
         protocolVersions: SUPPORTED_VERSIONS,
         capabilities: {
@@ -424,9 +468,11 @@ export async function handleMcp(request, env) {
         },
         serverInfo: {
           name: 'oh-my-share',
-          description: 'HTML and code sharing with end-to-end encryption',
+          description: 'Publish HTML/code from your agent and get a shareable link.',
           version: '2.2.0',
         },
+        instructions:
+          'Publish HTML or code and get a public link. Call upload with the content to receive id, url and editToken; use view to read an asset back, search_gallery to browse public works, list_assets for your own uploads, and delete (auth required) to remove one. Anonymous uploads are allowed but limited to 10 per hour.',
         authentication: {
           type: 'oauth2',
           apiKey: {
