@@ -70,6 +70,7 @@ Disallow: /assets/
 Disallow: /upload
 Disallow: /edit/
 Disallow: /manage/
+Disallow: /admin
 Disallow: /corsproxy?url=
 
 # Agent/LLM index: /llms.txt

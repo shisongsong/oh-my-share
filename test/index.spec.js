@@ -35,9 +35,9 @@ beforeAll(async () => {
 	);
 });
 
-async function fetchWorker(request) {
+async function fetchWorker(request, envOverride) {
 	const context = createExecutionContext();
-	const response = await worker.fetch(request, env, context);
+	const response = await worker.fetch(request, envOverride || env, context);
 	await waitOnExecutionContext(context);
 	return response;
 }
@@ -1065,6 +1065,105 @@ describe("CORS proxy", () => {
 			.run();
 		return key;
 	}
+
+	it("keeps the admin dashboard read-only and restricted to ADMIN_EMAILS", async () => {
+		const now = Math.floor(Date.now() / 1000);
+		// cloudflare:test hands out a proxy env, so override via a read-only proxy
+		// instead of mutating it.
+		const adminEnv = new Proxy(env, {
+			get(target, prop) {
+				if (prop === "ADMIN_EMAILS") return "boss@openanthropic.com";
+				return Reflect.get(target, prop);
+			},
+		});
+
+		async function register(email) {
+			const res = await fetchWorker(
+				new Request("http://example.com/api/auth/register", {
+					method: "POST",
+					headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+					body: JSON.stringify({ email, password: "Passw0rd123" }),
+				})
+			);
+			expect(res.status).toBe(201);
+			return (res.headers.get("set-cookie") || "").split(";")[0];
+		}
+
+		const adminCookie = await register("boss@openanthropic.com");
+		const userCookie = await register("real.person@gmail.com");
+		const boss = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+			.bind("boss@openanthropic.com")
+			.first();
+		const testUser = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+			.bind("real.person@gmail.com")
+			.first();
+
+		await env.DB.prepare(
+			"INSERT INTO users (id, email, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)"
+		)
+			.bind("testuserid01", "qa@test.com", "x", "y", now)
+			.run();
+
+		const insertFile = env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, published_at, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		);
+		await insertFile.bind("adminwork001", "adminwork001.html", boss.id, now, "edt_admin_secret", now, 0, 0).run();
+		await insertFile.bind("testwork0001", "testwork0001.html", "testuserid01", now, "edt_test_secret", now, 0, 0).run();
+		await insertFile.bind("e2ework00001", "e2ework00001.html", null, now, "edt_e2e_secret", now, 0, 0).run();
+		await insertFile.bind("realwork0001", "realwork0001.html", null, now, "edt_real_secret", now, now, 1).run();
+		await env.DB.prepare(
+			"INSERT INTO visits (file_id, visited_at, ip_hash, country) VALUES (?, ?, ?, ?)"
+		)
+			.bind("realwork0001", now, "hash1", "ES")
+			.run();
+
+		// anonymous visitors get a sign-in prompt, never data
+		const anon = await fetchWorker(new Request("http://example.com/admin"), adminEnv);
+		expect(anon.status).toBe(401);
+		expect(anon.headers.get("cache-control")).toContain("no-store");
+		expect(await anon.text()).not.toContain("real.person@gmail.com");
+
+		// signed-in but not allowlisted -> 404, no hint that /admin exists
+		const outsider = await fetchWorker(
+			new Request("http://example.com/admin", { headers: { Cookie: userCookie } }),
+			adminEnv
+		);
+		expect(outsider.status).toBe(404);
+
+		// admin sees the real rows only; own/test rows are hidden by default
+		const admin = await fetchWorker(
+			new Request("http://example.com/admin", { headers: { Cookie: adminCookie } }),
+			adminEnv
+		);
+		expect(admin.status).toBe(200);
+		expect(admin.headers.get("x-robots-tag")).toContain("noindex");
+		const html = await admin.text();
+		expect(html).toContain("real.person@gmail.com");
+		expect(html).toContain("realwork0001");
+		expect(html).not.toContain("adminwork001");
+		expect(html).not.toContain("testwork0001");
+		expect(html).not.toContain("e2ework00001");
+		expect(html).not.toContain("edt_admin_secret");
+		expect(html).not.toContain("edt_real_secret");
+
+		// opt-in shows everything
+		const all = await fetchWorker(
+			new Request("http://example.com/admin?all=1", { headers: { Cookie: adminCookie } }),
+			adminEnv
+		);
+		const allHtml = await all.text();
+		expect(allHtml).toContain("adminwork001");
+		expect(allHtml).toContain("testwork0001");
+		expect(allHtml).toContain("e2ework00001");
+		expect(allHtml).not.toContain("edt_admin_secret");
+
+		// without ADMIN_EMAILS nobody is an admin
+		const misconfigured = await fetchWorker(
+			new Request("http://example.com/admin", { headers: { Cookie: adminCookie } }),
+			env
+		);
+		expect(misconfigured.status).toBe(404);
+	});
 
 	it("protects per-link stats behind the edit token or the owning account", async () => {
 		const now = Math.floor(Date.now() / 1000);

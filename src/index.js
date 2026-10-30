@@ -19,6 +19,7 @@ import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
 import { handleContactPage, handleWechatQr } from './handlers/contact.js';
 import { handleGuidesIndex, handleGuidePage } from './handlers/guides.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
+import { handleAdminPage } from './handlers/admin.js';
 import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
 import { handleDemo } from './handlers/demo.js';
@@ -160,6 +161,8 @@ export default {
         response = handleMcpGuide(request);
       } else if (url.pathname === '/contact') {
         response = await handleContactPage(request, env);
+      } else if (url.pathname === '/admin') {
+        response = await handleAdminPage(request, env);
       } else if (url.pathname === '/guides') {
         response = await handleGuidesIndex(request, env);
       } else if (url.pathname.startsWith('/guides/')) {
