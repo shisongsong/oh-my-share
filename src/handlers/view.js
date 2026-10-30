@@ -267,12 +267,17 @@ export function renderReportedPage(lang) {
 }
 
 function badgeHtml(lang) {
-  const hint = lang === 'zh'
+  const hint = lang === 'zh' ? '登录去水印' : 'Sign up';
+  const fullHint = lang === 'zh'
     ? '注册后上传可去水印'
     : 'Sign up to upload without this badge';
-  return `<div style="position:fixed;bottom:14px;right:14px;z-index:2147483647;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-family:-apple-system,system-ui,sans-serif;pointer-events:none;">
-  <a href="/?utm_source=badge" target="_blank" rel="noopener" style="pointer-events:auto;background:#111827;color:#fff;font:600 12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:999px;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);opacity:.92;">Made with Oh My Share</a>
-  <a href="/?auth=register&amp;utm_source=badge" target="_blank" rel="noopener" style="pointer-events:auto;background:rgba(17,24,39,.78);color:#fff;font:500 10.5px/1.2 -apple-system,system-ui,sans-serif;padding:4px 9px;border-radius:999px;text-decoration:none;opacity:.9;">${hint}</a>
+  return `<div style="position:fixed;bottom:14px;right:14px;z-index:2147483647;display:inline-flex;align-items:center;height:38px;padding:0 4px 0 11px;border:1px solid rgba(28,26,23,.16);border-radius:999px;background:rgba(251,247,238,.92);color:#38342c;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;line-height:1;white-space:nowrap;box-shadow:0 2px 10px rgba(28,26,23,.16);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);pointer-events:auto;">
+  <a href="/?utm_source=badge" target="_blank" rel="noopener" aria-label="Made with Oh My Share" style="display:inline-flex;align-items:center;gap:6px;padding:0 9px 0 0;color:inherit;text-decoration:none;">
+    <span aria-hidden="true" style="width:15px;height:15px;color:#a34d2c;flex:none;display:block;"><svg viewBox="0 0 24 24" fill="none" style="width:100%;height:100%;display:block;"><path d="M5 4.5h9L19 9v10.5H5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 4.5V9h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+    <span style="font-size:12.5px;color:#524d43;">Made with <b style="font-weight:600;color:#2c2820;">Oh My Share</b></span>
+  </a>
+  <span aria-hidden="true" style="width:1px;height:14px;background:rgba(28,26,23,.16);flex:none;"></span>
+  <a href="/?auth=register&amp;utm_source=badge" target="_blank" rel="noopener" title="${fullHint}" style="display:inline-flex;align-items:center;min-height:30px;padding:0 10px 0 11px;color:#6a6357;font-size:12.5px;text-decoration:none;">${hint}</a>
 </div>`;
 }
 

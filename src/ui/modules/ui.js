@@ -1,15 +1,41 @@
 import { t } from './i18n.js';
 
 export function initTabs() {
-  const tabs = document.querySelectorAll('.upload-tab');
+  const tabs = Array.from(document.querySelectorAll('.upload-tab'));
   const panels = document.querySelectorAll('.upload-panel');
 
-  tabs.forEach((tab) => {
+  tabs.forEach((tab, index) => {
+    if (tab.dataset.target) tab.setAttribute('aria-controls', tab.dataset.target);
+    tab.tabIndex = tab.classList.contains('active') ? 0 : -1;
+
+    tab.addEventListener('keydown', (event) => {
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      tabs[next].focus();
+      tabs[next].click();
+    });
+
     tab.addEventListener('click', () => {
-      tabs.forEach((t) => t.classList.remove('active'));
-      panels.forEach((p) => p.classList.remove('active'));
+      tabs.forEach((t) => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+        t.tabIndex = -1;
+      });
+      panels.forEach((p) => {
+        p.classList.remove('active');
+        p.hidden = true;
+      });
       tab.classList.add('active');
-      document.getElementById(tab.dataset.target).classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+      tab.tabIndex = 0;
+      const panel = document.getElementById(tab.dataset.target);
+      panel.classList.add('active');
+      panel.hidden = false;
 
       const isFolder = tab.dataset.target === 'panel-folder';
       document.querySelectorAll('.folder-hide').forEach((element) => {
@@ -35,6 +61,7 @@ export function initTabs() {
       // Hide result when switching tabs
       const resultBox = document.getElementById('resultBox');
       if (resultBox) resultBox.hidden = true;
+      window.refreshGenerateButton?.();
     });
   });
 }

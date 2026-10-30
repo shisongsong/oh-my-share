@@ -5,6 +5,7 @@ import { initUpload } from './modules/upload.js';
 import { initTabs, initCopyButton, initUpgradeModal } from './modules/ui.js';
 import { initShare } from './modules/share.js';
 import { initWebMcp } from './modules/webmcp.js';
+import { initGreeting } from './modules/greeting.js';
 
 window.toggleLang = toggleLang;
 
@@ -12,6 +13,7 @@ applyLang(state.lang);
 initAuth();
 initUpload();
 initTabs();
+initGreeting();
 initCopyButton();
 initUpgradeModal();
 initShare();

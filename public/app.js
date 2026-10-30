@@ -39,7 +39,7 @@ function i(e) {
 		}
 	}
 	let a = document.getElementById("langBtnText");
-	a && (a.textContent = e === "zh" ? "EN" : "中文"), window.updatePricingDisplay && window.updatePricingDisplay(e);
+	a && (a.textContent = e === "zh" ? "EN" : "中文"), window.updatePricingDisplay && window.updatePricingDisplay(e), window.refreshGreeting?.();
 }
 function a() {
 	i(t.lang === "zh" ? "en" : "zh");
@@ -111,17 +111,18 @@ async function d() {
 				}), i.appendChild(e);
 			}
 			let o = document.createElement("small");
-			o.textContent = t.encrypted ? "AES-GCM" : "HTML";
+			o.textContent = t.kind === "site" ? r("siteKind") || "SITE" : t.encrypted ? "AES-GCM" : "HTML";
 			let s = document.createElement("div");
 			s.className = "asset-actions";
 			let c = document.createElement("a");
-			c.href = t.editToken ? `/manage/${t.id}?token=${t.editToken}` : `/view/${t.id}`, c.target = "_blank", c.className = "asset-manage", c.textContent = r("manageBtn"), s.appendChild(c);
+			if (c.href = t.editToken ? `/manage/${t.id}?token=${t.editToken}` : `/view/${t.id}`, c.target = "_blank", c.className = "asset-manage", c.textContent = r("manageBtn"), s.appendChild(c), t.kind !== "site") {
+				let e = document.createElement("button");
+				e.className = "asset-publish", e.type = "button", e.textContent = t.published ? r("unpublishBtn") : r("publishBtn");
+				let n = t.expiresAt && t.expiresAt * 1e3 <= Date.now(), i = t.encrypted || t.passwordProtected || n;
+				!t.published && i && (e.disabled = !0, e.title = r("errCannotPublish")), e.addEventListener("click", () => p(t)), s.appendChild(e);
+			}
 			let l = document.createElement("button");
-			l.className = "asset-publish", l.type = "button", l.textContent = t.published ? r("unpublishBtn") : r("publishBtn");
-			let u = t.expiresAt && t.expiresAt * 1e3 <= Date.now(), d = t.encrypted || t.passwordProtected || u;
-			!t.published && d && (l.disabled = !0, l.title = r("errCannotPublish")), l.addEventListener("click", () => p(t)), s.appendChild(l);
-			let m = document.createElement("button");
-			m.className = "asset-delete", m.type = "button", m.textContent = r("deleteAsset"), m.addEventListener("click", () => f(t.id)), s.appendChild(m), n.appendChild(i), n.appendChild(o), n.appendChild(s), e.appendChild(n);
+			l.className = "asset-delete", l.type = "button", l.textContent = r("deleteAsset"), l.addEventListener("click", () => f(t.id)), s.appendChild(l), n.appendChild(i), n.appendChild(o), n.appendChild(s), e.appendChild(n);
 		});
 	} catch (t) {
 		let n = document.createElement("div");
@@ -155,7 +156,9 @@ async function m() {
 }
 function h() {
 	let e = document.getElementById("accountBtn"), n = document.getElementById("authView"), i = document.getElementById("accountView");
-	t.user ? (e.textContent = t.user.email, n.hidden = !0, i.hidden = !1, document.getElementById("accountEmail").textContent = t.user.email, d()) : (e.textContent = r("accountBtn"), n.hidden = !1, i.hidden = !0), g(), window.updateUpgradeVisibility && window.updateUpgradeVisibility(t.canEncrypt);
+	t.user ? (e.textContent = t.user.email, n.hidden = !0, i.hidden = !1, document.getElementById("accountEmail").textContent = t.user.email, d()) : (e.textContent = r("accountBtn"), n.hidden = !1, i.hidden = !0);
+	let a = document.getElementById("folderGate"), o = document.getElementById("folderSigned");
+	a && o && (a.hidden = !!t.user, o.hidden = !t.user), g(), window.refreshGenerateButton?.(), window.updateUpgradeVisibility && window.updateUpgradeVisibility(t.canEncrypt);
 }
 function g() {
 	let e = document.getElementById("encryptToggle"), n = document.getElementById("encryptStatus"), i = document.getElementById("encryptDetails"), a = document.getElementById("passphraseInput");
@@ -194,10 +197,14 @@ function S() {
 		t.authMode = t.authMode === "login" ? "register" : "login", _(), document.getElementById("authMessage").textContent = "";
 	}), document.getElementById("logoutBtn").addEventListener("click", y), document.getElementById("encryptToggle").addEventListener("change", g), document.getElementById("keyMode").addEventListener("change", g), document.getElementById("accountModal").addEventListener("click", (e) => {
 		e.target === e.currentTarget && x();
+	});
+	let e = document.getElementById("folderSignin");
+	e && e.addEventListener("click", () => {
+		t.authMode = "register", _(), b();
 	}), _();
-	let e = new URLSearchParams(window.location.search).get("auth");
+	let n = new URLSearchParams(window.location.search).get("auth");
 	m().then(() => {
-		!t.user && (e === "register" || e === "login") && (t.authMode = e, _(), b());
+		!t.user && (n === "register" || n === "login") && (t.authMode = n, _(), b());
 	});
 }
 //#endregion
@@ -273,12 +280,15 @@ async function E(e, t, n = "/api/upload") {
 	} catch (e) {
 		a.hidden = !1, a.className = "result-box error", o.value = "❌ " + e.message;
 	} finally {
-		t.innerHTML = i, t.disabled = !1, t.dataset.loading = "false";
+		t.innerHTML = i, t.dataset.loading = "false", window.refreshGenerateButton?.();
 	}
 }
 function D(e) {
-	let t = document.getElementById("dropZone"), n = t.querySelector("p");
-	n.innerHTML = "<span>" + r("selectedPrefix") + "</span><span class=\"link\"></span>", n.querySelector(".link").textContent = e, t.querySelector("svg").style.color = "var(--text-main)";
+	let t = document.getElementById("dropZone"), n = t.querySelector(".drop-title") || t.querySelector("p");
+	if (!n) return;
+	n.innerHTML = "<span>" + r("selectedPrefix") + "</span><span class=\"link\"></span>", n.querySelector(".link").textContent = e;
+	let i = t.querySelector("svg");
+	i && (i.style.color = "var(--text-main)");
 }
 function O(e) {
 	return e ? e < 1024 ? e + " B" : e < 1048576 ? (e / 1024).toFixed(1) + " KB" : (e / 1048576).toFixed(1) + " MB" : "0 B";
@@ -287,13 +297,14 @@ var k = [];
 function A(e) {
 	k = e;
 	let t = document.getElementById("folderInfo");
-	if (!t) return;
-	if (!e.length) {
-		t.hidden = !0, t.textContent = "";
-		return;
+	if (t) {
+		if (!e.length) t.hidden = !0, t.textContent = "";
+		else {
+			let n = e.reduce((e, t) => e + (t.file.size || 0), 0);
+			t.hidden = !1, t.textContent = r("folderSelected").replace("{n}", String(e.length)).replace("{size}", O(n));
+		}
 	}
-	let n = e.reduce((e, t) => e + (t.file.size || 0), 0);
-	t.hidden = !1, t.textContent = r("folderSelected").replace("{n}", String(e.length)).replace("{size}", O(n));
+	window.refreshGenerateButton?.();
 }
 function j(e) {
 	return Array.from(e).map((e) => ({
@@ -349,14 +360,25 @@ function F() {
 	};
 }
 function I() {
-	let e = document.getElementById("fileInput"), n = document.getElementById("dropZone");
-	n.addEventListener("click", () => e.click()), n.addEventListener("dragover", (e) => {
+	let e = document.getElementById("fileInput");
+	window.refreshGenerateButton = () => {
+		let n = document.getElementById("btn-file");
+		if (!n) return;
+		let r = document.getElementById("panel-folder"), i = document.getElementById("panel-code"), a = document.getElementById("codeInput"), o = r && r.classList.contains("active"), s = i && i.classList.contains("active"), c = !!(e && e.files && e.files.length), l = !!(a && a.value.trim()), u = k.length > 0 && !!t.user;
+		n.disabled = o ? !u : s ? !l : !c;
+	};
+	let n = document.getElementById("dropZone");
+	n.addEventListener("click", () => e.click()), n.addEventListener("keydown", (t) => {
+		(t.key === "Enter" || t.key === " ") && (t.preventDefault(), e.click());
+	}), n.addEventListener("dragover", (e) => {
 		e.preventDefault(), n.classList.add("dragover");
 	}), n.addEventListener("dragleave", () => n.classList.remove("dragover")), n.addEventListener("drop", (t) => {
-		t.preventDefault(), n.classList.remove("dragover"), t.dataTransfer.files.length && (e.files = t.dataTransfer.files, D(t.dataTransfer.files[0].name));
+		t.preventDefault(), n.classList.remove("dragover"), t.dataTransfer.files.length && (e.files = t.dataTransfer.files, D(t.dataTransfer.files[0].name), window.refreshGenerateButton?.());
 	}), e.addEventListener("change", () => {
-		e.files.length && D(e.files[0].name);
-	}), document.getElementById("btn-file").addEventListener("click", function() {
+		e.files.length && D(e.files[0].name), window.refreshGenerateButton?.();
+	});
+	let i = document.getElementById("codeInput");
+	i && i.addEventListener("input", () => window.refreshGenerateButton?.()), document.getElementById("btn-file").addEventListener("click", function() {
 		let t = document.getElementById("panel-folder");
 		if (t && t.classList.contains("active")) return;
 		let n = document.getElementById("panel-code"), i = document.getElementById("slug-file").value;
@@ -376,15 +398,17 @@ function I() {
 		let a = e.files[0];
 		E(() => T("file", a, a.name, i), this);
 	});
-	let i = document.getElementById("folderInput"), a = document.getElementById("folderDropZone");
-	i && a && (a.addEventListener("click", (e) => {
-		e.target !== i && i.click();
-	}), a.addEventListener("dragover", (e) => {
-		e.preventDefault(), a.classList.add("dragover");
-	}), a.addEventListener("dragleave", () => a.classList.remove("dragover")), a.addEventListener("drop", async (e) => {
-		e.preventDefault(), a.classList.remove("dragover"), A(await P(e.dataTransfer));
-	}), i.addEventListener("change", () => {
-		A(j(i.files));
+	let a = document.getElementById("folderInput"), o = document.getElementById("folderDropZone");
+	a && o && (o.addEventListener("click", (e) => {
+		e.target !== a && a.click();
+	}), o.addEventListener("keydown", (e) => {
+		(e.key === "Enter" || e.key === " ") && (e.preventDefault(), a.click());
+	}), o.addEventListener("dragover", (e) => {
+		e.preventDefault(), o.classList.add("dragover");
+	}), o.addEventListener("dragleave", () => o.classList.remove("dragover")), o.addEventListener("drop", async (e) => {
+		e.preventDefault(), o.classList.remove("dragover"), A(await P(e.dataTransfer));
+	}), a.addEventListener("change", () => {
+		A(j(a.files));
 	})), document.getElementById("btn-file").addEventListener("click", function() {
 		let e = document.getElementById("panel-folder");
 		if (e && e.classList.contains("active")) {
@@ -414,26 +438,40 @@ function I() {
 }
 //#endregion
 //#region src/ui/modules/ui.js
-function L() {
-	let e = document.querySelectorAll(".upload-tab"), t = document.querySelectorAll(".upload-panel");
-	e.forEach((n) => {
-		n.addEventListener("click", () => {
-			e.forEach((e) => e.classList.remove("active")), t.forEach((e) => e.classList.remove("active")), n.classList.add("active"), document.getElementById(n.dataset.target).classList.add("active");
-			let i = n.dataset.target === "panel-folder";
+function ee() {
+	let e = Array.from(document.querySelectorAll(".upload-tab")), t = document.querySelectorAll(".upload-panel");
+	e.forEach((n, i) => {
+		n.dataset.target && n.setAttribute("aria-controls", n.dataset.target), n.tabIndex = n.classList.contains("active") ? 0 : -1, n.addEventListener("keydown", (t) => {
+			let n = i;
+			if (t.key === "ArrowRight") n = (i + 1) % e.length;
+			else if (t.key === "ArrowLeft") n = (i - 1 + e.length) % e.length;
+			else if (t.key === "Home") n = 0;
+			else if (t.key === "End") n = e.length - 1;
+			else return;
+			t.preventDefault(), e[n].focus(), e[n].click();
+		}), n.addEventListener("click", () => {
+			e.forEach((e) => {
+				e.classList.remove("active"), e.setAttribute("aria-selected", "false"), e.tabIndex = -1;
+			}), t.forEach((e) => {
+				e.classList.remove("active"), e.hidden = !0;
+			}), n.classList.add("active"), n.setAttribute("aria-selected", "true"), n.tabIndex = 0;
+			let i = document.getElementById(n.dataset.target);
+			i.classList.add("active"), i.hidden = !1;
+			let a = n.dataset.target === "panel-folder";
 			document.querySelectorAll(".folder-hide").forEach((e) => {
-				i ? (e.hasAttribute("data-folder-hidden") || e.setAttribute("data-folder-hidden", e.hidden ? "1" : "0"), e.hidden = !0) : e.hasAttribute("data-folder-hidden") && (e.hidden = e.getAttribute("data-folder-hidden") === "1", e.removeAttribute("data-folder-hidden"));
+				a ? (e.hasAttribute("data-folder-hidden") || e.setAttribute("data-folder-hidden", e.hidden ? "1" : "0"), e.hidden = !0) : e.hasAttribute("data-folder-hidden") && (e.hidden = e.getAttribute("data-folder-hidden") === "1", e.removeAttribute("data-folder-hidden"));
 			});
-			let a = n.dataset.target === "panel-code", o = document.getElementById("slug-file");
-			if (o) {
-				let e = a ? "slugPlaceholderCode" : "slugPlaceholderFile";
-				o.dataset.i18n = e, o.placeholder = r(e);
+			let o = n.dataset.target === "panel-code", s = document.getElementById("slug-file");
+			if (s) {
+				let e = o ? "slugPlaceholderCode" : "slugPlaceholderFile";
+				s.dataset.i18n = e, s.placeholder = r(e);
 			}
-			let s = document.getElementById("resultBox");
-			s && (s.hidden = !0);
+			let c = document.getElementById("resultBox");
+			c && (c.hidden = !0), window.refreshGenerateButton?.();
 		});
 	});
 }
-function R() {
+function L() {
 	document.getElementById("copyBtn").addEventListener("click", function() {
 		let e = document.getElementById("resultUrl");
 		e.value && navigator.clipboard.writeText(e.value).then(() => {
@@ -445,7 +483,7 @@ function R() {
 		});
 	});
 }
-function z() {
+function R() {
 	let e = document.getElementById("upgradeBtn"), t = document.getElementById("upgradeModal"), n = document.getElementById("upgradeSendBtn"), i = document.getElementById("upgradeSection");
 	e && e.addEventListener("click", () => {
 		t.classList.add("active");
@@ -463,10 +501,10 @@ function z() {
 }
 //#endregion
 //#region src/ui/modules/share.js
-function B(e, t, n, r, i, a) {
+function z(e, t, n, r, i, a) {
 	e.beginPath(), e.moveTo(t + a, n), e.arcTo(t + r, n, t + r, n + i, a), e.arcTo(t + r, n + i, t, n + i, a), e.arcTo(t, n + i, t, n, a), e.arcTo(t, n, t + r, n, a), e.closePath();
 }
-function V(e) {
+function B(e) {
 	if (typeof qrcode > "u") {
 		alert(r("imgFail"));
 		return;
@@ -480,34 +518,34 @@ function V(e) {
 		let i = t.getContext("2d");
 		i.scale(2, 2), i.fillStyle = "#fff", i.fillRect(0, 0, 640, 900);
 		let a = i.createLinearGradient(0, 0, 640, 0);
-		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(r("subtitle"), 320, 130), i.fillStyle = "#f8fafc", B(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(n, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(r("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
+		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(r("subtitle"), 320, 130), i.fillStyle = "#f8fafc", z(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(n, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(r("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
 		let o = e.length > 55 ? e.slice(0, 52) + "..." : e;
 		i.fillText(o, 320, 680), i.strokeStyle = "#e5e5e5", i.lineWidth = 1, i.beginPath(), i.moveTo(80, 800), i.lineTo(560, 800), i.stroke(), i.fillStyle = "#cbd5e1", i.font = "13px -apple-system,sans-serif", i.fillText("Powered by Cloudflare Workers", 320, 840), document.getElementById("imageModal").classList.add("active");
 	}, n.onerror = () => alert(r("imgFail")), n.src = t.createDataURL(8, 0);
 }
-function H() {
+function V() {
 	let e = document.getElementById("shareCanvas");
 	e.width && e.toBlob((e) => {
 		let t = document.createElement("a");
 		t.download = "oh-my-share.png", t.href = URL.createObjectURL(e), t.click(), setTimeout(() => URL.revokeObjectURL(t.href), 1e3);
 	}, "image/png");
 }
-function U() {
+function H() {
 	document.getElementById("imageModal").classList.remove("active");
 }
-function W() {
+function U() {
 	document.getElementById("imgBtn").addEventListener("click", () => {
 		let e = document.getElementById("resultUrl");
-		e.value && V(e.value);
-	}), document.getElementById("downloadBtn").addEventListener("click", H), document.getElementById("imageModal").addEventListener("click", (e) => {
-		e.target === e.currentTarget && U();
+		e.value && B(e.value);
+	}), document.getElementById("downloadBtn").addEventListener("click", V), document.getElementById("imageModal").addEventListener("click", (e) => {
+		e.target === e.currentTarget && H();
 	}), document.addEventListener("keydown", (e) => {
-		e.key === "Escape" && U();
+		e.key === "Escape" && H();
 	});
 }
 //#endregion
 //#region src/ui/modules/webmcp.js
-function G() {
+function W() {
 	if (!navigator.modelContext) return;
 	let e = new AbortController(), { signal: t } = e;
 	return navigator.modelContext.registerTool({
@@ -606,5 +644,154 @@ function G() {
 		signal: t
 	}), () => e.abort();
 }
-window.toggleLang = a, i(t.lang), S(), I(), L(), R(), z(), W(), G(), window.updatePricingDisplay && window.updatePricingDisplay(t.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
+//#endregion
+//#region src/ui/modules/greeting.js
+var G = {
+	zh: {
+		dawn: {
+			hello: "早上好，",
+			lines: [
+				"今天也慢慢来。",
+				"先给自己倒杯温水吧。",
+				"天刚亮，不着急。"
+			]
+		},
+		morning: {
+			hello: "上午好，",
+			lines: [
+				"今天也有好好生活吗？",
+				"先做一件小事，也算开始。",
+				"不用急，上午还长。"
+			]
+		},
+		noon: {
+			hello: "中午好，",
+			lines: [
+				"饭吃了没？",
+				"先离开屏幕一会儿。",
+				"今天也辛苦了。"
+			]
+		},
+		afternoon: {
+			hello: "下午好，",
+			lines: [
+				"今天也有好好生活吗？",
+				"泡杯茶再继续。",
+				"做一点也算数。"
+			]
+		},
+		evening: {
+			hello: "晚上好，",
+			lines: [
+				"今天也有好好生活吗？",
+				"今天辛苦了。",
+				"把今天做的东西放上来吧。"
+			]
+		},
+		late: {
+			hello: "夜深了，",
+			lines: [
+				"今天也有好好生活吗？",
+				"还在忙吗？记得留一点给自己。",
+				"明天再分享也一样。"
+			]
+		}
+	},
+	en: {
+		dawn: {
+			hello: "Good morning, ",
+			lines: [
+				"take it slowly today.",
+				"pour yourself a glass of warm water first.",
+				"the day is still young."
+			]
+		},
+		morning: {
+			hello: "Good morning, ",
+			lines: [
+				"did you take care of yourself today?",
+				"one small thing is a start.",
+				"no rush, the morning is long."
+			]
+		},
+		noon: {
+			hello: "Good afternoon, ",
+			lines: [
+				"have you eaten?",
+				"step away from the screen for a moment.",
+				"you did enough today."
+			]
+		},
+		afternoon: {
+			hello: "Good afternoon, ",
+			lines: [
+				"did you take care of yourself today?",
+				"make some tea before you continue.",
+				"a little is still something."
+			]
+		},
+		evening: {
+			hello: "Good evening, ",
+			lines: [
+				"did you take care of yourself today?",
+				"you did enough today.",
+				"put what you made today here."
+			]
+		},
+		late: {
+			hello: "It's late, ",
+			lines: [
+				"did you take care of yourself today?",
+				"still busy? save a little for yourself.",
+				"tomorrow is fine too."
+			]
+		}
+	}
+};
+function K(e) {
+	return e >= 5 && e < 9 ? "dawn" : e >= 9 && e < 12 ? "morning" : e >= 12 && e < 14 ? "noon" : e >= 14 && e < 18 ? "afternoon" : e >= 18 && e < 23 ? "evening" : "late";
+}
+var q = K((/* @__PURE__ */ new Date()).getHours()), J = 0, Y = null;
+function X() {
+	return t.lang === "en" ? "en" : "zh";
+}
+function Z(e) {
+	let t = document.getElementById("greetHello"), n = document.getElementById("greetLine"), r = document.getElementById("greetLive");
+	if (!t || !n) return;
+	let i = G[X()][q];
+	t.textContent = i.hello, n.textContent = i.lines[J], e && r && (r.textContent = i.hello + i.lines[J]);
+}
+function Q() {
+	let e = G[X()][q].lines;
+	if (e.length > 1) {
+		let t = J;
+		for (; t === J;) t = Math.floor(Math.random() * e.length);
+		J = t;
+	}
+	Z(!0);
+}
+function $() {
+	let e = window.matchMedia("(prefers-reduced-motion: reduce)");
+	Y || e.matches || (Y = window.setInterval(() => {
+		document.hidden || Q();
+	}, 45e3));
+}
+function te() {
+	let e = document.getElementById("specks");
+	if (e && !e.childElementCount) for (let t = 0; t < 16; t += 1) {
+		let t = document.createElement("span");
+		t.className = "speck", t.style.left = (4 + Math.random() * 92).toFixed(2) + "%", t.style.top = (20 + Math.random() * 70).toFixed(2) + "%", t.style.width = (1.6 + Math.random() * 2.8).toFixed(2) + "px", t.style.height = t.style.width, t.style.setProperty("--dur", (24 + Math.random() * 22).toFixed(1) + "s"), t.style.setProperty("--delay", (-Math.random() * 40).toFixed(1) + "s"), t.style.setProperty("--drift", (Math.random() * 60 - 30).toFixed(1) + "px"), t.style.background = Math.random() > .78 ? "rgba(79, 107, 82, 0.32)" : "rgba(120, 94, 58, 0.3)", e.appendChild(t);
+	}
+}
+function ne() {
+	q = K((/* @__PURE__ */ new Date()).getHours()), Z(!1);
+}
+function re() {
+	Z(!1), $(), te(), window.refreshGreeting = ne;
+	let e = document.getElementById("greetingShuffle");
+	e && e.addEventListener("click", () => {
+		Q(), Y &&= (window.clearInterval(Y), null), $();
+	});
+}
+window.toggleLang = a, i(t.lang), S(), I(), ee(), re(), L(), R(), U(), W(), window.updatePricingDisplay && window.updatePricingDisplay(t.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
 //#endregion

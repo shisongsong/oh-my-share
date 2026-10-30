@@ -66,12 +66,10 @@ import { runDailyMonitor } from './handlers/monitor.js';
 import { recordPageView } from './handlers/traffic.js';
 
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#ff5c7c"/><stop offset="1" stop-color="#5ce1d4"/>
-</linearGradient></defs>
-<rect width="64" height="64" rx="15" fill="url(#g)"/>
-<circle cx="32" cy="32" r="14" fill="none" stroke="#fff" stroke-width="7"/>
-<circle cx="45" cy="19" r="6.5" fill="#fff"/>
+<rect width="64" height="64" rx="14" fill="#a34d2c"/>
+<path d="M20 15h20l9 9v25H20z" fill="none" stroke="#fbf7ee" stroke-width="3.5" stroke-linejoin="round"/>
+<path d="M40 15v9h9" fill="none" stroke="#fbf7ee" stroke-width="3.5" stroke-linejoin="round"/>
+<path d="M27 34h14M27 41h9" stroke="#fbf7ee" stroke-width="3.5" stroke-linecap="round"/>
 </svg>`;
 
 export default {

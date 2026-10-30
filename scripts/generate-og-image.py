@@ -1,94 +1,122 @@
 #!/usr/bin/env python3
-"""Generate OG Image for Oh My Share"""
+"""Generate the warm paper OG image for Oh My Share."""
 
-from PIL import Image, ImageDraw, ImageFont
-import os
+from pathlib import Path
+import random
 
-# OG Image dimensions (recommended for social media)
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
 WIDTH = 1200
 HEIGHT = 630
+ROOT = Path(__file__).resolve().parent.parent
 
-# Colors
-BG_COLOR = (25, 25, 35)  # Dark background
-ACCENT_COLOR = (100, 200, 150)  # Green accent
-TEXT_COLOR = (255, 255, 255)  # White text
-SUBTITLE_COLOR = (180, 180, 180)  # Gray subtitle
+PAPER = (244, 239, 228)
+CARD = (251, 247, 238)
+INK = (28, 26, 23)
+INK_2 = (69, 66, 58)
+INK_3 = (106, 99, 87)
+LINE = (216, 205, 187)
+TERRACOTTA = (163, 77, 44)
+OCHRE = (168, 121, 47)
+SAGE = (79, 107, 82)
+SAGE_DEEP = (60, 83, 64)
+CREAM = (251, 247, 238)
 
-def create_og_image():
-    # Create image
-    img = Image.new('RGB', (WIDTH, HEIGHT), BG_COLOR)
-    draw = ImageDraw.Draw(img)
-    
-    # Draw accent bar at top
-    draw.rectangle([0, 0, WIDTH, 8], fill=ACCENT_COLOR)
-    
-    # Draw accent bar at bottom
-    draw.rectangle([0, HEIGHT - 8, WIDTH, HEIGHT], fill=ACCENT_COLOR)
-    
-    # Draw side accent lines
-    draw.rectangle([60, 100, 64, HEIGHT - 100], fill=ACCENT_COLOR)
-    
-    # Try to use a system font, fallback to default
+SONGTI = "/System/Library/Fonts/Supplemental/Songti.ttc"
+PINGFANG = (
+    "/System/Library/AssetsV2/com_apple_MobileAsset_Font7/"
+    "3419f2a427639ad8c8e139149a287865a90fa17e.asset/AssetData/PingFang.ttc"
+)
+FALLBACK = "/System/Library/Fonts/Helvetica.ttc"
+
+
+def font(path, size, index=0):
     try:
-        # Try different font paths
-        font_paths = [
-            '/System/Library/Fonts/Helvetica.ttc',
-            '/System/Library/Fonts/SFNS.ttf',
-            '/System/Library/Fonts/SFNSText.ttf',
-            '/Library/Fonts/Arial.ttf',
-        ]
-        font_path = None
-        for path in font_paths:
-            if os.path.exists(path):
-                font_path = path
-                break
-        
-        if font_path:
-            title_font = ImageFont.truetype(font_path, 72)
-            subtitle_font = ImageFont.truetype(font_path, 32)
-            desc_font = ImageFont.truetype(font_path, 24)
-        else:
-            title_font = ImageFont.load_default()
-            subtitle_font = ImageFont.load_default()
-            desc_font = ImageFont.load_default()
-    except:
-        title_font = ImageFont.load_default()
-        subtitle_font = ImageFont.load_default()
-        desc_font = ImageFont.load_default()
-    
-    # Draw title "Oh My Share"
-    title_text = "Oh My Share"
-    title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
-    title_width = title_bbox[2] - title_bbox[0]
-    title_x = (WIDTH - title_width) // 2
-    draw.text((title_x, 200), title_text, fill=TEXT_COLOR, font=title_font)
-    
-    # Draw subtitle
-    subtitle_text = "Free HTML & Code Sharing Tool"
-    subtitle_bbox = draw.textbbox((0, 0), subtitle_text, font=subtitle_font)
-    subtitle_width = subtitle_bbox[2] - subtitle_bbox[0]
-    subtitle_x = (WIDTH - subtitle_width) // 2
-    draw.text((subtitle_x, 300), subtitle_text, fill=ACCENT_COLOR, font=subtitle_font)
-    
-    # Draw description
-    desc_text = "End-to-End Encrypted • No Registration Required • Instant Sharing"
-    desc_bbox = draw.textbbox((0, 0), desc_text, font=desc_font)
-    desc_width = desc_bbox[2] - desc_bbox[0]
-    desc_x = (WIDTH - desc_width) // 2
-    draw.text((desc_x, 380), desc_text, fill=SUBTITLE_COLOR, font=desc_font)
-    
-    # Draw URL at bottom
-    url_text = "openanthropic.com"
-    url_bbox = draw.textbbox((0, 0), url_text, font=desc_font)
-    url_width = url_bbox[2] - url_bbox[0]
-    url_x = (WIDTH - url_width) // 2
-    draw.text((url_x, HEIGHT - 80), url_text, fill=SUBTITLE_COLOR, font=desc_font)
-    
-    # Save image
-    output_path = '/Volumes/huanyin/Workstation/oh-my-share/og-image.png'
-    img.save(output_path, 'PNG', quality=95)
-    print(f"OG Image saved to: {output_path}")
-    return output_path
+        return ImageFont.truetype(path, size, index=index)
+    except Exception:
+        return ImageFont.truetype(FALLBACK, size)
 
-if __name__ == '__main__':
-    create_og_image()
+
+def text(draw, xy, value, fill, face):
+    draw.text(xy, value, fill=fill, font=face)
+
+
+def main():
+    img = Image.new("RGB", (WIDTH, HEIGHT), PAPER).convert("RGBA")
+    draw = ImageDraw.Draw(img)
+
+    glow = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse((730, -300, 1330, 300), fill=(196, 152, 92, 54))
+    gd.ellipse((880, 160, 1280, 560), fill=(79, 107, 82, 22))
+    glow = glow.filter(ImageFilter.GaussianBlur(70))
+    img = Image.alpha_composite(img, glow)
+    draw = ImageDraw.Draw(img)
+
+    rng = random.Random(7)
+    grain = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grain)
+    for _ in range(6200):
+        x = rng.randrange(WIDTH)
+        y = rng.randrange(HEIGHT)
+        gd.point((x, y), fill=(28, 26, 23, 8))
+    img = Image.alpha_composite(img, grain)
+    draw = ImageDraw.Draw(img)
+
+    serif = font(SONGTI, 76, 1)
+    serif_small = font(SONGTI, 30, 1)
+    sans = font(PINGFANG, 26, 11)
+    sans_small = font(PINGFANG, 22, 11)
+    sans_tiny = font(PINGFANG, 15, 11)
+
+    # Brand
+    draw.rounded_rectangle((100, 76, 128, 104), radius=7, outline=TERRACOTTA, width=2)
+    draw.line((108, 84, 120, 84), fill=TERRACOTTA, width=1)
+    draw.line((108, 92, 124, 92), fill=TERRACOTTA, width=1)
+    text(draw, (142, 76), "Oh My Share", INK, font(PINGFANG, 27, 11))
+
+    # Headline
+    text(draw, (96, 166), "把 HTML 和代码，", INK, serif)
+    text(draw, (96, 264), "分享给喜欢的人。", INK, serif)
+    draw.line((100, 386, 720, 386), fill=LINE, width=1)
+
+    text(draw, (100, 414), "免费 · 无需注册 · 可选加密", INK_2, sans)
+    text(draw, (100, 462), "一个文件、一段代码，或整个站点，都能变成一条简单的链接。", INK_3, sans_small)
+
+    # Share card illustration
+    card = (820, 128, 1120, 500)
+    shadow = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle((card[0] + 4, card[1] + 18, card[2] + 8, card[3] + 22), radius=22, fill=(64, 46, 26, 55))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(24))
+    img = Image.alpha_composite(img, shadow)
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle(card, radius=20, fill=CARD, outline=LINE, width=1)
+
+    draw.text((850, 158), "分享一个页面", fill=INK, font=font(SONGTI, 25, 1))
+    draw.text((850, 195), "单个文件、一段代码，或整个站点。", fill=INK_3, font=sans_tiny)
+    for i, label in enumerate(("上传文件", "粘贴代码", "上传目录")):
+        x = 850 + i * 82
+        draw.rounded_rectangle((x, 228, x + 76, 264), radius=8, fill=(236, 228, 212))
+        draw.text((x + 10, 238), label, fill=INK_2, font=font(PINGFANG, 12, 11))
+    draw.rounded_rectangle((850, 286, 1090, 404), radius=10, outline=(190, 177, 157), width=1)
+    draw.line((870, 326, 950, 326), fill=INK_3, width=2)
+    draw.line((870, 346, 990, 346), fill=LINE, width=1)
+    draw.rounded_rectangle((850, 426, 1090, 470), radius=9, fill=SAGE)
+    draw.text((930, 437), "生成分享链接", fill=CREAM, font=font(PINGFANG, 14, 11))
+
+    # Single badge capsule
+    pill = (792, 512, 1012, 550)
+    draw.rounded_rectangle(pill, radius=19, fill=CARD, outline=LINE, width=1)
+    draw.rounded_rectangle((806, 524, 818, 538), radius=2, outline=TERRACOTTA, width=1)
+    draw.text((826, 522), "Made with Oh My Share", fill=INK_2, font=font(PINGFANG, 12, 11))
+
+    text(draw, (100, 566), "openanthropic.com", INK_3, sans_small)
+
+    output = ROOT / "og-image.png"
+    img.convert("RGB").save(output, "PNG", optimize=True)
+    print(f"OG image saved to: {output}")
+
+
+if __name__ == "__main__":
+    main()

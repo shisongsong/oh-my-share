@@ -23,8 +23,8 @@ const LANDING_CSS = `
   height: 460px;
   pointer-events: none;
   background:
-    radial-gradient(420px 240px at 35% 40%, rgba(255,92,124,0.16), transparent 70%),
-    radial-gradient(420px 240px at 65% 45%, rgba(92,225,212,0.16), transparent 70%);
+    radial-gradient(420px 240px at 35% 40%, rgba(163,77,44,0.12), transparent 70%),
+    radial-gradient(420px 240px at 65% 45%, rgba(79,107,82,0.10), transparent 70%);
 }
 
 .landing-hero-inner {

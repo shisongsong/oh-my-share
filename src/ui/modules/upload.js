@@ -122,17 +122,19 @@ export async function handleUpload(buildPayload, button, endpoint = '/api/upload
     resultUrl.value = '❌ ' + error.message;
   } finally {
     button.innerHTML = originalHTML;
-    button.disabled = false;
     button.dataset.loading = 'false';
+    window.refreshGenerateButton?.();
   }
 }
 
 function updateDropZoneText(name) {
   const dropZone = document.getElementById('dropZone');
-  const paragraph = dropZone.querySelector('p');
+  const paragraph = dropZone.querySelector('.drop-title') || dropZone.querySelector('p');
+  if (!paragraph) return;
   paragraph.innerHTML = '<span>' + t('selectedPrefix') + '</span><span class="link"></span>';
   paragraph.querySelector('.link').textContent = name;
-  dropZone.querySelector('svg').style.color = 'var(--text-main)';
+  const icon = dropZone.querySelector('svg');
+  if (icon) icon.style.color = 'var(--text-main)';
 }
 
 function formatBytes(bytes) {
@@ -147,17 +149,19 @@ let folderEntries = [];
 function setFolderEntries(entries) {
   folderEntries = entries;
   const info = document.getElementById('folderInfo');
-  if (!info) return;
-  if (!entries.length) {
-    info.hidden = true;
-    info.textContent = '';
-    return;
+  if (info) {
+    if (!entries.length) {
+      info.hidden = true;
+      info.textContent = '';
+    } else {
+      const total = entries.reduce((sum, entry) => sum + (entry.file.size || 0), 0);
+      info.hidden = false;
+      info.textContent = t('folderSelected')
+        .replace('{n}', String(entries.length))
+        .replace('{size}', formatBytes(total));
+    }
   }
-  const total = entries.reduce((sum, entry) => sum + (entry.file.size || 0), 0);
-  info.hidden = false;
-  info.textContent = t('folderSelected')
-    .replace('{n}', String(entries.length))
-    .replace('{size}', formatBytes(total));
+  window.refreshGenerateButton?.();
 }
 
 function collectFileList(files) {
@@ -230,9 +234,28 @@ function buildFolderPayload() {
 
 export function initUpload() {
   const fileInput = document.getElementById('fileInput');
+  window.refreshGenerateButton = () => {
+    const button = document.getElementById('btn-file');
+    if (!button) return;
+    const folderPanel = document.getElementById('panel-folder');
+    const codePanel = document.getElementById('panel-code');
+    const codeInput = document.getElementById('codeInput');
+    const isFolder = folderPanel && folderPanel.classList.contains('active');
+    const isCode = codePanel && codePanel.classList.contains('active');
+    const hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
+    const hasCode = !!(codeInput && codeInput.value.trim());
+    const hasFolder = folderEntries.length > 0 && !!state.user;
+    button.disabled = isFolder ? !hasFolder : (isCode ? !hasCode : !hasFile);
+  };
   const dropZone = document.getElementById('dropZone');
 
   dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      fileInput.click();
+    }
+  });
   dropZone.addEventListener('dragover', (event) => {
     event.preventDefault();
     dropZone.classList.add('dragover');
@@ -244,11 +267,16 @@ export function initUpload() {
     if (event.dataTransfer.files.length) {
       fileInput.files = event.dataTransfer.files;
       updateDropZoneText(event.dataTransfer.files[0].name);
+      window.refreshGenerateButton?.();
     }
   });
   fileInput.addEventListener('change', () => {
     if (fileInput.files.length) updateDropZoneText(fileInput.files[0].name);
+    window.refreshGenerateButton?.();
   });
+
+  const codeField = document.getElementById('codeInput');
+  if (codeField) codeField.addEventListener('input', () => window.refreshGenerateButton?.());
 
   document.getElementById('btn-file').addEventListener('click', function () {
     const folderPanel = document.getElementById('panel-folder');
@@ -273,6 +301,12 @@ export function initUpload() {
   if (folderInput && folderDropZone) {
     folderDropZone.addEventListener('click', (event) => {
       if (event.target !== folderInput) folderInput.click();
+    });
+    folderDropZone.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        folderInput.click();
+      }
     });
     folderDropZone.addEventListener('dragover', (event) => {
       event.preventDefault();

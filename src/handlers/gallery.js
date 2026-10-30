@@ -125,7 +125,7 @@ export const GALLERY_CSS = `
   font-size: 11px;
   font-weight: 600;
   color: var(--color-accent-strong);
-  background: rgba(255, 92, 124, 0.10);
+  background: rgba(79, 107, 82, 0.10);
   padding: 2px 9px;
   border-radius: var(--radius-pill);
 }

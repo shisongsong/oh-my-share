@@ -376,7 +376,7 @@ const DEMO_CSS = `
 .demo-eyebrow::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: var(--gradient-primary);
-  box-shadow: 0 0 10px rgba(255, 92, 124, 0.8);
+  box-shadow: 0 0 10px rgba(163, 77, 44, 0.65);
   animation: demo-pulse 2s ease-in-out infinite;
 }
 @keyframes demo-pulse { 50% { opacity: 0.3; } }
@@ -432,7 +432,7 @@ const DEMO_CSS = `
 }
 .demo-dots { display: flex; gap: 6px; }
 .demo-dots i { width: 10px; height: 10px; border-radius: 50%; background: #d6dae0; }
-.demo-dots i:first-child { background: rgba(255, 92, 124, 0.55); }
+.demo-dots i:first-child { background: rgba(79, 107, 82, 0.45); }
 .demo-url {
   flex: 1;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -467,7 +467,7 @@ const DEMO_CSS = `
 .demo-ripple {
   position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
   border-radius: 50%; pointer-events: none; z-index: 5;
-  background: rgba(255, 92, 124, 0.35);
+  background: rgba(163, 77, 44, 0.28);
   animation: demo-ripple 0.55s ease-out forwards;
 }
 @keyframes demo-ripple {
@@ -538,7 +538,7 @@ const DEMO_CSS = `
 }
 .demo-mcp-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #5ce1d4; box-shadow: 0 0 8px rgba(92, 225, 212, 0.8);
+  background: #d3b174; box-shadow: 0 0 8px rgba(92, 225, 212, 0.8);
 }
 .demo-mcp-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);
@@ -565,7 +565,7 @@ const DEMO_CSS = `
   font-size: 12px;
 }
 .demo-mcp-link code {
-  color: #5ce1d4;
+  color: #d3b174;
   padding: 3px 10px;
   border: 1px dashed rgba(92, 225, 212, 0.4);
   border-radius: var(--radius-pill);

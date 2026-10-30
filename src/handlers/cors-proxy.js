@@ -795,7 +795,7 @@ const CORS_CSS = `
 .cors-eyebrow::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: var(--gradient-primary);
-  box-shadow: 0 0 10px rgba(255, 92, 124, 0.8);
+  box-shadow: 0 0 10px rgba(163, 77, 44, 0.65);
   animation: cors-pulse 2s ease-in-out infinite;
 }
 @keyframes cors-pulse { 50% { opacity: 0.3; } }
@@ -859,7 +859,7 @@ const CORS_CSS = `
   color: var(--color-text-secondary);
   margin-bottom: 7px;
 }
-.code-label .bad { color: #ff8ea0; }
+.code-label .bad { color: #d18a64; }
 .code-label .good { color: #2bb8ab; }
 .copy-btn {
   font-size: 12px; font-weight: 600;
@@ -900,7 +900,7 @@ const CORS_CSS = `
   padding: 11px 18px;
   outline: none;
 }
-.ck-form input:focus { border-color: rgba(255, 92, 124, 0.55); }
+.ck-form input:focus { border-color: rgba(79, 107, 82, 0.45); }
 .ck-form .btn { border: none; cursor: pointer; }
 .ck-mini {
   font-size: 12.5px; font-weight: 600;
@@ -912,10 +912,10 @@ const CORS_CSS = `
   transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 .ck-mini:hover { color: var(--color-text); background: rgba(255,255,255,0.12); }
-.ck-mini.danger:hover { color: #ff8ea0; border-color: rgba(255, 92, 124, 0.5); }
+.ck-mini.danger:hover { color: #d18a64; border-color: rgba(163, 77, 44, 0.45); }
 .ck-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .ck-msg { font-size: 12.5px; color: var(--color-text-secondary); margin: 10px 2px 0; line-height: 1.6; }
-.ck-msg.err { color: #ff8ea0; }
+.ck-msg.err { color: #d18a64; }
 .ck-msg.ok { color: #2bb8ab; }
 .ck-switch {
   background: none; border: none; padding: 0;
@@ -933,7 +933,7 @@ const CORS_CSS = `
   padding: 11px 18px;
   outline: none;
 }
-.pg-row input:focus { border-color: rgba(255, 92, 124, 0.55); }
+.pg-row input:focus { border-color: rgba(79, 107, 82, 0.45); }
 .pg-row .btn { border: none; cursor: pointer; }
 .pg-row .btn:disabled { opacity: 0.55; cursor: wait; }
 .pg-out {
@@ -959,7 +959,7 @@ const CORS_CSS = `
 .params-table tr:last-child td { border-bottom: none; }
 .params-table code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px; color: #5ce1d4; white-space: nowrap;
+  font-size: 13px; color: #d3b174; white-space: nowrap;
 }
 .faq-item {
   border: 1px solid var(--color-hairline);

@@ -363,7 +363,7 @@ const GUIDE_CSS = `
 .guide-eyebrow::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: var(--gradient-primary);
-  box-shadow: 0 0 10px rgba(255, 92, 124, 0.8);
+  box-shadow: 0 0 10px rgba(163, 77, 44, 0.65);
   animation: guide-pulse 2s ease-in-out infinite;
 }
 @keyframes guide-pulse { 50% { opacity: 0.3; } }
@@ -418,7 +418,7 @@ const GUIDE_CSS = `
 .tools-table tr:last-child td { border-bottom: none; }
 .tools-table code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px; color: #5ce1d4;
+  font-size: 13px; color: #d3b174;
 }
 .mono-sm { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--color-text-secondary); }
 .auth-badge {
@@ -447,7 +447,7 @@ const GUIDE_CSS = `
   color: var(--color-text);
   border-color: transparent;
   background: var(--gradient-primary);
-  box-shadow: 0 4px 14px rgba(255, 92, 124, 0.25);
+  box-shadow: 0 4px 14px rgba(79, 107, 82, 0.25);
 }
 .client-panel { display: none; }
 .client-panel.active { display: block; animation: guide-fade 0.35s ease; }
@@ -501,9 +501,9 @@ const GUIDE_CSS = `
   position: relative;
   margin-top: var(--space-4);
   padding: var(--space-4) var(--space-4) var(--space-4);
-  border: 1px dashed rgba(255, 92, 124, 0.45);
+  border: 1px dashed rgba(79, 107, 82, 0.45);
   border-radius: 14px;
-  background: rgba(255, 92, 124, 0.05);
+  background: rgba(79, 107, 82, 0.06);
 }
 .prompt-block pre {
   margin: 0; padding: 14px 16px;

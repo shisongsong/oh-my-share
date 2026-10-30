@@ -299,7 +299,7 @@ document.getElementById('editForm').addEventListener('submit', async (e) => {
     const data = await resp.json();
     if (resp.ok) {
       msg.textContent = '${msg.successMsg}';
-      msg.style.color = 'var(--color-brand, #d6325c)';
+      msg.style.color = 'var(--color-brand, #a34d2c)';
     } else {
       msg.textContent = ERR_MAP[data.code] || data.error || '${msg.errorMsg}';
       msg.style.color = 'var(--color-danger, #ff3b30)';

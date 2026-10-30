@@ -31,7 +31,15 @@ export function renderAccount() {
     authView.hidden = false;
     accountView.hidden = true;
   }
+  const folderGate = document.getElementById('folderGate');
+  const folderSigned = document.getElementById('folderSigned');
+  if (folderGate && folderSigned) {
+    folderGate.hidden = !!state.user;
+    folderSigned.hidden = !state.user;
+  }
+
   updateEncryptionControls();
+  window.refreshGenerateButton?.();
   
   if (window.updateUpgradeVisibility) {
     window.updateUpgradeVisibility(state.canEncrypt);
@@ -123,6 +131,15 @@ export function initAuth() {
   document.getElementById('accountModal').addEventListener('click', (event) => {
     if (event.target === event.currentTarget) closeAccountModal();
   });
+
+  const folderSignin = document.getElementById('folderSignin');
+  if (folderSignin) {
+    folderSignin.addEventListener('click', () => {
+      state.authMode = 'register';
+      updateAuthMode();
+      openAccountModal();
+    });
+  }
 
   updateAuthMode();
   const requestedMode = new URLSearchParams(window.location.search).get('auth');

@@ -56,7 +56,7 @@ export async function loadAssets() {
       }
 
       const type = document.createElement('small');
-      type.textContent = asset.encrypted ? 'AES-GCM' : 'HTML';
+      type.textContent = asset.kind === 'site' ? (t('siteKind') || 'SITE') : (asset.encrypted ? 'AES-GCM' : 'HTML');
 
       const actions = document.createElement('div');
       actions.className = 'asset-actions';
@@ -72,18 +72,20 @@ export async function loadAssets() {
       manageBtn.textContent = t('manageBtn');
       actions.appendChild(manageBtn);
 
-      const publishButton = document.createElement('button');
-      publishButton.className = 'asset-publish';
-      publishButton.type = 'button';
-      publishButton.textContent = asset.published ? t('unpublishBtn') : t('publishBtn');
-      const expired = asset.expiresAt && asset.expiresAt * 1000 <= Date.now();
-      const cannotPublish = asset.encrypted || asset.passwordProtected || expired;
-      if (!asset.published && cannotPublish) {
-        publishButton.disabled = true;
-        publishButton.title = t('errCannotPublish');
+      if (asset.kind !== 'site') {
+        const publishButton = document.createElement('button');
+        publishButton.className = 'asset-publish';
+        publishButton.type = 'button';
+        publishButton.textContent = asset.published ? t('unpublishBtn') : t('publishBtn');
+        const expired = asset.expiresAt && asset.expiresAt * 1000 <= Date.now();
+        const cannotPublish = asset.encrypted || asset.passwordProtected || expired;
+        if (!asset.published && cannotPublish) {
+          publishButton.disabled = true;
+          publishButton.title = t('errCannotPublish');
+        }
+        publishButton.addEventListener('click', () => togglePublish(asset));
+        actions.appendChild(publishButton);
       }
-      publishButton.addEventListener('click', () => togglePublish(asset));
-      actions.appendChild(publishButton);
 
       const deleteButton = document.createElement('button');
       deleteButton.className = 'asset-delete';

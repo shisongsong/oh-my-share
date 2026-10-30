@@ -45,6 +45,8 @@ export function applyLang(lang) {
   if (window.updatePricingDisplay) {
     window.updatePricingDisplay(lang);
   }
+
+  window.refreshGreeting?.();
 }
 
 export function toggleLang() {

@@ -95,6 +95,8 @@ export function renderDocument({
   const head = [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    '<meta name="theme-color" content="#f4efe4" media="(prefers-color-scheme: light)">',
+    '<meta name="theme-color" content="#171410" media="(prefers-color-scheme: dark)">',
     '<link rel="icon" type="image/svg+xml" href="/icon.svg">',
     `<title>${esc(title)}</title>`,
     description ? `<meta name="description" content="${esc(description)}">` : '',

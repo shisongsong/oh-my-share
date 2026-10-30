@@ -1560,7 +1560,7 @@ describe("CORS proxy", () => {
 		expect(homeHtml).toContain('href="/corsproxy"');
 		expect(homeHtml).toContain('href="/community" data-i18n="navGallery"');
 		// instant client-side language switch: hero + footer are tagged
-		expect(homeHtml).toContain('data-i18n="heroTitle"');
+		expect(homeHtml).toContain('data-i18n="heroTitleLead"');
 		expect(homeHtml).toContain('data-i18n="heroSubtitle"');
 		expect(homeHtml).toContain('data-i18n="footerDesc"');
 		expect(homeHtml).toContain('data-i18n="footerDemo"');
