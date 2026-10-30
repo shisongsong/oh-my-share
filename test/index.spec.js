@@ -945,7 +945,9 @@ describe("Oh My Share worker", () => {
 		expect(list.status).toBe(200);
 		const text = await list.text();
 		expect(text).toContain("search_gallery");
-		expect(JSON.parse(text).result.tools.map((tool) => tool.name)).toContain("search_gallery");
+		const toolNames = JSON.parse(text).result.tools.map((tool) => tool.name);
+		expect(toolNames).toContain("search_gallery");
+		expect(toolNames).toContain("upload_site");
 
 		// initialize reports the new server version
 		const init = await fetchWorker(
@@ -964,7 +966,135 @@ describe("Oh My Share worker", () => {
 				}),
 			})
 		);
-		expect(await init.text()).toContain("2.2.0");
+		expect(await init.text()).toContain("2.3.0");
+	});
+
+	it("makes MCP uploads retry-safe and attributes their source", async () => {
+		await env.DB.prepare("DELETE FROM rate_limits").run();
+		const call = (args, id = 1) =>
+			fetchWorker(
+				new Request("http://example.com/mcp", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"User-Agent": "mcp-test-agent/1.0",
+					},
+					body: JSON.stringify({
+						jsonrpc: "2.0",
+						id,
+						method: "tools/call",
+						params: { name: "upload", arguments: args },
+					}),
+				})
+			);
+
+		const args = {
+			content: "<h1>idempotent</h1>",
+			filename: "retry.html",
+			title: "Retry-safe page",
+			idempotencyKey: "agent-run-42",
+		};
+		const first = await call(args, 1);
+		expect(first.status).toBe(200);
+		const firstBody = JSON.parse(await first.text());
+		expect(firstBody.result.isError).toBe(false);
+		const created = firstBody.result.structuredContent;
+		expect(created.id).toMatch(/^[a-z0-9]+$/);
+		expect(created.reused).toBe(false);
+
+		const row = await env.DB.prepare(
+			"SELECT source, user_agent, title, idempotency_key FROM files WHERE id = ?"
+		).bind(created.id).first();
+		expect(row.source).toBe("mcp");
+		expect(row.user_agent).toBe("mcp-test-agent/1.0");
+		expect(row.title).toBe("Retry-safe page");
+		expect(row.idempotency_key).toBeTruthy();
+
+		const second = await call(args, 2);
+		const secondBody = JSON.parse(await second.text());
+		expect(secondBody.result.structuredContent.reused).toBe(true);
+		expect(secondBody.result.structuredContent.id).toBe(created.id);
+
+		const logged = await env.DB.prepare(
+			"SELECT tool, status, client FROM mcp_calls ORDER BY id DESC LIMIT 1"
+		).first();
+		expect(logged.tool).toBe("upload");
+		expect(logged.status).toBe("ok");
+		expect(logged.client).toBe("mcp-test-agent/1.0");
+	});
+
+	it("publishes a multi-file static site through MCP for signed-in users", async () => {
+		await env.DB.prepare("DELETE FROM rate_limits").run();
+		const email = `mcp-site-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+		const token = cookie.slice("osh_session=".length);
+
+		const call = (args) =>
+			fetchWorker(
+				new Request("http://example.com/mcp", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+						"User-Agent": "mcp-site-agent/1.0",
+					},
+					body: JSON.stringify({
+						jsonrpc: "2.0",
+						id: 1,
+						method: "tools/call",
+						params: { name: "upload_site", arguments: args },
+					}),
+				})
+			);
+
+		const response = await call({
+			files: [
+				{ path: "demo/index.html", content: "<!doctype html><link rel=stylesheet href=app.css><h1>MCP site</h1>" },
+				{ path: "demo/app.css", content: "h1{color:#4f6b52}" },
+			],
+			title: "Agent site",
+		});
+		expect(response.status).toBe(200);
+		const body = JSON.parse(await response.text());
+		expect(body.result.isError).toBe(false);
+		const site = body.result.structuredContent;
+		expect(site.kind).toBe("site");
+		expect(site.url).toContain(`/s/${site.id}/`);
+		expect(site.files).toBe(2);
+
+		const page = await fetchWorker(new Request(`http://example.com/s/${site.id}/`));
+		expect(page.status).toBe(200);
+		expect(await page.text()).toContain("MCP site");
+
+		const row = await env.DB.prepare(
+			"SELECT kind, source, user_agent, file_count FROM files WHERE id = ?"
+		).bind(site.id).first();
+		expect(row.kind).toBe("site");
+		expect(row.source).toBe("mcp");
+		expect(row.user_agent).toBe("mcp-site-agent/1.0");
+		expect(row.file_count).toBe(2);
+
+		const anonymous = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 2,
+					method: "tools/call",
+					params: { name: "upload_site", arguments: { files: [{ path: "index.html", content: "x" }] } },
+				}),
+			})
+		);
+		expect(anonymous.status).toBe(401);
 	});
 
 	it("answers HEAD like GET on HTML routes (200, headers, empty body)", async () => {
@@ -1184,7 +1314,7 @@ describe("Oh My Share worker", () => {
 		expect(html).toContain('id="prompt-claude-desktop"');
 		expect(html).toContain('id="prompt-cursor"');
 		expect(html).toContain('class="client-steps"');
-		expect(html).toContain('2.2.0');
+		expect(html).toContain('2.3.0');
 
 		const en = await fetchWorker(new Request("http://example.com/mcp-guide?lang=en"));
 		expect(en.status).toBe(200);

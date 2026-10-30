@@ -232,8 +232,9 @@ export async function handleUpload(request, env) {
       .prepare(
         `INSERT INTO files
          (id, filename, owner_id, encrypted, encryption_version, encryption_metadata, 
-          title, description, tags, created_at, edit_token, password_hash, expires_at, updated_at, published_at, remixed_from)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          title, description, tags, created_at, edit_token, password_hash, expires_at, updated_at, published_at, remixed_from,
+          source, user_agent)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -251,7 +252,9 @@ export async function handleUpload(request, env) {
         expiresAt,
         createdAt,
         publishRequested ? createdAt : 0,
-        remixedFrom && /^[a-z0-9-]{1,64}$/i.test(remixedFrom) ? remixedFrom : null
+        remixedFrom && /^[a-z0-9-]{1,64}$/i.test(remixedFrom) ? remixedFrom : null,
+        isJson ? 'api' : 'web',
+        (request.headers.get('User-Agent') || '').slice(0, 200) || null
       )
       .run();
   } catch (error) {

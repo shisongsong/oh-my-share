@@ -8,7 +8,7 @@ const LABELS = {
   en: {
     htmlLang: 'en',
     title: 'MCP Server — Connect Oh My Share to your AI client',
-    desc: 'Install the Oh My Share MCP server in Claude Desktop, Claude Code, Cursor, Windsurf or VS Code. Six tools let AI agents upload HTML, view shares and search the gallery — no API key needed.',
+    desc: 'Install the Oh My Share MCP server in Claude Desktop, Claude Code, Cursor, Windsurf or VS Code. Seven tools let AI agents upload HTML, publish a multi-file site, view shares and search the gallery — single-file upload needs no API key.',
     eyebrow: 'Remote MCP server',
     h1a: 'Give your AI a place to ',
     h1b: 'publish HTML.',
@@ -16,7 +16,7 @@ const LABELS = {
     whatTitle: 'What is MCP?',
     whatBody: 'MCP (Model Context Protocol) is an open standard that lets AI clients call external tools. This server adds one tool your assistant actually wants: “publish this and give me a link”.',
     toolsTitle: 'Available tools',
-    toolsNote: 'Anonymously available; OAuth sign-in only unlocks managing your own assets.',
+    toolsNote: 'Single-file upload works anonymously; OAuth or an API key also unlocks static sites and managing your own assets.',
     colTool: 'Tool',
     colDesc: 'What it does',
     colParams: 'Parameters',
@@ -31,7 +31,7 @@ const LABELS = {
     promptNote: 'Your agent will read the config file, write it, restart the client and verify the connection for you.',
     verifyTitle: 'How to verify the install',
     verifySteps: [
-      'Ask your assistant: “call the oh-my-share get_info tool”. A healthy reply reports version 2.2.0.',
+      'Ask your assistant: “call the oh-my-share get_info tool”. A healthy reply reports version 2.3.0.',
       'Then: “upload <h1>hi</h1> and give me the link”. The reply should contain an openanthropic.com/view/… link you can open.',
       'To manage or delete your own uploads, say “sign in to oh-my-share” — that uses OAuth; upload itself stays anonymous.',
     ],
@@ -41,7 +41,7 @@ const LABELS = {
     copyFail: 'Copy failed — select and copy manually',
     faqTitle: 'Common questions',
     faq: [
-      ['Do I need an account to upload?', 'No. The upload, view, get_info and search_gallery tools all work anonymously — 10 uploads per hour per IP, expired shares are deleted automatically. Signing in (OAuth) only adds list_assets and delete for your own content.'],
+      ['Do I need an account to upload?', 'No for single files. upload, view, get_info and search_gallery work anonymously — 10 uploads per hour and 50 per day per IP, with a 7-day default expiry. Signing in (OAuth or API key) adds upload_site for multi-file sites, list_assets and delete for your own content.'],
       ['Which transport does it use?', 'Streamable HTTP at https://openanthropic.com/mcp. Most clients pick this up automatically for http(s) URLs.'],
       ['Does expire work from MCP?', 'Yes — pass expiresIn as 1h, 24h, 7d, 30d or 90d. Expired shares are deleted from storage automatically.'],
       ['Can agents authenticate?', 'OAuth 2.1 endpoints are advertised at /.well-known/oauth-protected-resource; the full agent flow is documented in /auth.md. Non-interactive clients (CI, health checks) can instead send a static ck_… API key as the bearer token — see /auth.md step 9.'],
@@ -52,7 +52,7 @@ const LABELS = {
   zh: {
     htmlLang: 'zh-CN',
     title: 'MCP 服务器 — 把 Oh My Share 接入你的 AI 客户端',
-    desc: '在 Claude Desktop、Claude Code、Cursor、Windsurf、VS Code 中安装 Oh My Share MCP 服务器。六个工具让 AI 直接上传 HTML、查看分享、搜索作品广场，上传无需 API Key。',
+    desc: '在 Claude Desktop、Claude Code、Cursor、Windsurf、VS Code 中安装 Oh My Share MCP 服务器。七个工具让 AI 直接上传 HTML、发布多文件站点、查看分享、搜索作品广场，单文件上传无需 API Key。',
     eyebrow: '远程 MCP 服务器',
     h1a: '给你的 AI 一个',
     h1b: '发布 HTML 的地方。',
@@ -60,7 +60,7 @@ const LABELS = {
     whatTitle: 'MCP 是什么？',
     whatBody: 'MCP（模型上下文协议）是一个让 AI 客户端调用外部工具的开放标准。这个服务器提供的是一个助手真正需要的工具：「发布它，然后给我链接」。',
     toolsTitle: '工具列表',
-    toolsNote: '匿名即可调用；OAuth 登录仅用于管理自己的资产。',
+    toolsNote: '单文件上传匿名即可；OAuth 或 API Key 还可发布多文件站点并管理自己的资产。',
     colTool: '工具',
     colDesc: '作用',
     colParams: '参数',
@@ -75,7 +75,7 @@ const LABELS = {
     promptNote: '智能体会自己读配置、改文件、重启客户端并验证连接。',
     verifyTitle: '怎么确认装好了',
     verifySteps: [
-      '问助手：「调用 oh-my-share 的 get_info 工具」。正常会返回版本 2.2.0。',
+      '问助手：「调用 oh-my-share 的 get_info 工具」。正常会返回版本 2.3.0。',
       '再问：「上传 <h1>hi</h1> 并把链接给我」。回复里应包含一个能打开的 openanthropic.com/view/… 链接。',
       '想管理或删除自己的上传，说「登录 oh-my-share」— 这走 OAuth；上传本身保持匿名。',
     ],
@@ -85,7 +85,7 @@ const LABELS = {
     copyFail: '复制失败 — 请手动选择复制',
     faqTitle: '常见问题',
     faq: [
-      ['上传需要账号吗？', '不需要。upload、view、get_info、search_gallery 四个工具匿名即可使用（同一 IP 每小时 10 次上传，过期分享自动删除）。OAuth 登录仅额外开放 list_assets 与 delete 用于管理自己的内容。'],
+      ['上传需要账号吗？', '单文件不需要。upload、view、get_info、search_gallery 匿名即可使用（同一 IP 每小时 10 次、每天 50 次，默认 7 天过期）。登录（OAuth 或 API Key）后才可上传多文件站点 upload_site，以及使用 list_assets、delete 管理自己的内容。'],
       ['使用什么传输方式？', 'Streamable HTTP，端点 https://openanthropic.com/mcp。大多数客户端对 http(s) 地址会自动选择该方式。'],
       ['MCP 里能设置过期时间吗？', '可以 — expiresIn 传 1h、24h、7d、30d 或 90d。过期的分享会自动从存储中删除。'],
       ['智能体如何认证？', 'OAuth 2.1 端点在 /.well-known/oauth-protected-resource 中声明，完整智能体流程见 /auth.md。无交互客户端（CI、健康检查）也可直接用 ck_… 静态 API Key 作为 Bearer Token，详见 /auth.md 第 9 步。'],
@@ -96,7 +96,8 @@ const LABELS = {
 };
 
 const TOOLS = [
-  { name: 'upload', desc: { en: 'Upload HTML or code, get a shareable link', zh: '上传 HTML 或代码，返回分享链接' }, params: { en: 'content*, filename, language, password, expiresIn', zh: 'content*, filename, language, password, expiresIn' }, auth: 'anon' },
+  { name: 'upload', desc: { en: 'Upload HTML or code, get a shareable link', zh: '上传 HTML 或代码，返回分享链接' }, params: { en: 'content*, filename, language, title, description, tags, password, expiresIn, idempotencyKey', zh: 'content*, filename, language, title, description, tags, password, expiresIn, idempotencyKey' }, auth: 'anon' },
+  { name: 'upload_site', desc: { en: 'Publish a multi-file static site', zh: '发布多文件静态站点' }, params: { en: 'files*, title, description, tags, expiresIn ≤200 files / 20MB', zh: 'files*, title, description, tags, expiresIn ≤200 文件 / 20MB' }, auth: 'oauth' },
   { name: 'view', desc: { en: 'Read a shared page by id', zh: '按 id 读取分享内容' }, params: { en: 'id*', zh: 'id*' }, auth: 'anon' },
   { name: 'get_info', desc: { en: 'Server info, version and limits', zh: '服务器信息、版本与限制' }, params: { en: '—', zh: '—' }, auth: 'anon' },
   { name: 'search_gallery', desc: { en: 'Search the public gallery', zh: '搜索公开作品广场' }, params: { en: 'query, sort, page, limit ≤20', zh: 'query, sort, page, limit ≤20' }, auth: 'anon' },

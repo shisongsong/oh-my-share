@@ -11,7 +11,7 @@ Oh My Share publishes single-file HTML pages for humans and agents. Anonymous up
 
 - [auth.md](${origin}/auth.md): Full agent guide — anonymous MCP upload, OAuth discovery, decision policy
 - [MCP guide](${origin}/mcp-guide): Human-facing setup guide — tools, parameters and per-client install configs
-- [MCP server](${origin}/mcp): Remote MCP endpoint (streamable HTTP). Tool \`upload\` works anonymously; list/delete require OAuth
+- [MCP server](${origin}/mcp): Remote MCP endpoint (streamable HTTP). \`upload\` works anonymously; \`upload_site\`, list/delete require OAuth
 - [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP capability discovery
 - [Agent card](${origin}/.well-known/agent-card.json): A2A-style service metadata
 - Official MCP Registry: published as \`io.github.shisongsong/oh-my-share\` (https://registry.modelcontextprotocol.io/v0.1/servers/io.github.shisongsong%2Foh-my-share/versions/latest)
@@ -37,7 +37,7 @@ curl -F "file=@page.html" ${origin}/api/upload
 ## Upload limits and expiry
 
 - File uploads up to 2 MB; pasted code up to 500 KB (UTF-8 bytes); access passwords up to 128 characters
-- Anonymous uploads: 10 per hour per IP; web and REST uploads are additionally capped at 50 per day
+- Uploads: 10 per hour and 50 per day per IP; authenticated MCP uploads are counted per account instead
 - Expiry is permanent by default on the web form and REST API (\`expiresIn\` in seconds, 0 = permanent). The MCP \`upload\` tool defaults to 7d and accepts \`1h\`, \`24h\`, \`7d\`, \`30d\`, \`90d\`, \`permanent\`
 - End-to-end encryption is a paid feature (new accounts get a 3-day trial). Encrypted and password-protected uploads cannot be published to the gallery
 
@@ -121,9 +121,10 @@ There is no public raw-source endpoint for ordinary uploads. Agents read content
 
 ## The MCP server
 
-${origin}/mcp is a Streamable HTTP MCP endpoint exposing six tools:
+${origin}/mcp is a Streamable HTTP MCP endpoint exposing seven tools:
 
-- \`upload\` (anonymous) — publish HTML or code and receive a share link
+- \`upload\` (anonymous) — publish one HTML/code payload and receive a share link; supports \`idempotencyKey\`
+- \`upload_site\` (authentication required) — publish a multi-file static site (root \`index.html\`, 200 files / 20 MB) at \`/s/<id>/\`
 - \`view\` (anonymous) — read shared content by id
 - \`get_info\` (anonymous) — server version and limits
 - \`search_gallery\` (anonymous) — search the public gallery
@@ -135,7 +136,8 @@ Authentication is OAuth 2.1 with PKCE, discovered through ${origin}/.well-known/
 ## Limits
 
 - File uploads up to 2 MB, pasted code up to 500 KB, passwords up to 128 characters
-- Anonymous uploads: 10 per hour per IP; the web and REST paths also cap 50 per day
+- Uploads: 10 per hour and 50 per day per IP; authenticated MCP uploads are counted per account instead; a global daily cap also applies
+- Static sites: 200 files, 20 MB total, 5 MB per file; authentication required
 - Views are rate limited to 500 per hour per IP
 
 ## Guides

@@ -200,8 +200,9 @@ export async function handleSiteUpload(request, env) {
       .prepare(
         `INSERT INTO files (
            id, filename, created_at, owner_id, encrypted, title, description, tags,
-           edit_token, expires_at, updated_at, published_at, kind, entry_path, file_count, total_size
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 'site', ?, ?, ?)`
+           edit_token, expires_at, updated_at, published_at, kind, entry_path, file_count, total_size,
+           source, user_agent
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 'site', ?, ?, ?, 'web', ?)`
       )
       .bind(
         id,
@@ -216,7 +217,8 @@ export async function handleSiteUpload(request, env) {
         now,
         entry.path,
         accepted.length,
-        totalSize
+        totalSize,
+        (request.headers.get('User-Agent') || '').slice(0, 200) || null
       )
       .run();
   } catch (error) {

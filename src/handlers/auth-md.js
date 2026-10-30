@@ -52,18 +52,19 @@ Content-Type: application/json
 
 | Tool | Auth | Arguments | Notes |
 |------|------|-----------|-------|
-| \`upload\` | anonymous | \`content\`*, \`filename\`, \`language\`, \`password\`, \`expiresIn\` | Returns a share URL. \`expiresIn\` defaults to \`7d\` here (accepts 1h / 24h / 7d / 30d / 90d / permanent) — the web form and REST API are permanent by default |
+| \`upload\` | anonymous | \`content\`*, \`filename\`, \`language\`, \`title\`, \`description\`, \`tags\`, \`password\`, \`expiresIn\`, \`idempotencyKey\` | Returns a share URL. \`expiresIn\` defaults to \`7d\` here (accepts 1h / 24h / 7d / 30d / 90d / permanent). Reuse \`idempotencyKey\` after a timeout to get the original asset instead of a duplicate; a retry from a different network gets the share URL but not the edit token |
+| \`upload_site\` | **required** | \`files\`* (array of \`{path, content}\`), \`title\`, \`description\`, \`tags\`, \`expiresIn\`, \`idempotencyKey\` | Publish a multi-file static site with a root \`index.html\`. Limits: 200 files, 20 MB total, 5 MB per file. Returns a \`/s/<id>/\` URL |
 | \`view\` | anonymous | \`id\`* | Read shared content by id |
 | \`get_info\` | anonymous | — | Server version and limits |
 | \`search_gallery\` | anonymous | \`query\`, \`sort\`, \`page\`, \`limit\` (\u2264 20) | Search public works |
 | \`list_assets\` | **required** | — | List the caller's uploads |
 | \`delete\` | **required** | \`id\`* | Delete one of the caller's uploads |
 
-\`*\` = required. Rate limits are per IP: 10 uploads/hour on every path, plus a
-50/day cap on uploads made through the web form or \`/api/upload\`. A limited upload
-is not a protocol error — it returns a normal result whose text contains
-\`"error": "Rate limit exceeded ... "\` with a \`Retry in <n>s\` hint. Views are limited
-to 500/hour per IP.
+\`*\` = required. Rate limits are 10 uploads/hour and 50 uploads/day per IP
+for anonymous use, or per account when authenticated; the service also enforces a
+global daily cap. Tool failures return \`isError: true\` plus \`structuredContent\`
+with a machine-readable \`code\` and, for rate limits, \`retryAfter\` in seconds.
+Views are limited to 500/hour per IP.
 
 Always discover the live schemas with \`tools/list\` before building arguments.
 
@@ -71,9 +72,11 @@ Always discover the live schemas with \`tools/list\` before building arguments.
 
 When asked to share HTML or code:
 
-1. Use MCP \`upload\` directly.
-2. Do not ask the user to log in.
-3. Do not create an account unless persistent user data is required.
+1. Use MCP \`upload\` directly for a single page or snippet.
+2. If the user needs multiple files, use \`upload_site\` after OAuth or an API key.
+3. Do not ask the user to log in for a single-file share.
+4. Do not create an account unless persistent ownership, site uploads, or asset management are required.
+5. Pass an \`idempotencyKey\` when a retry after a timeout is possible.
 
 When asked to list or delete the user's assets:
 

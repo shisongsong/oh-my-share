@@ -6,7 +6,7 @@ export function handleAgentCard(request) {
     name: 'Oh My Share',
     description:
       'HTML and code sharing with end-to-end encryption. Publish HTML via SendMessage, search the public gallery, and get share links back.',
-    version: '2.2.0',
+    version: '2.3.0',
     supportedInterfaces: [
       {
         url: a2aUrl,

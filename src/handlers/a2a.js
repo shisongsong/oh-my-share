@@ -87,8 +87,8 @@ async function publishContent(env, content) {
 
   await database
     .prepare(
-      `INSERT INTO files (id, filename, owner_id, encrypted, title, created_at, edit_token, updated_at, published_at)
-       VALUES (?, ?, NULL, 0, ?, ?, ?, ?, 0)`
+      `INSERT INTO files (id, filename, owner_id, encrypted, title, created_at, edit_token, updated_at, published_at, source)
+       VALUES (?, ?, NULL, 0, ?, ?, ?, ?, 0, 'a2a')`
     )
     .bind(id, title ? `${title.slice(0, 80)}.html` : 'a2a-share.html', title, now, editToken, now)
     .run();
