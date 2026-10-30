@@ -40,6 +40,14 @@ const ADMIN_TXT = {
     time: '时间',
     work: '作品',
     author: '作者',
+    source: '来源',
+    sourceHeading: '来源分布',
+    sourceMcp: 'MCP',
+    sourceApi: 'REST API',
+    sourceWeb: '网页',
+    sourceA2a: 'A2A',
+    sourceUnknown: '未标记',
+    sourceNote: '来源从本次 MCP 升级后开始记录；历史数据没有来源标记。',
     status: '状态',
     anonymous: '匿名',
     noUsers: '该时间段没有真实新增用户。',
@@ -89,6 +97,14 @@ const ADMIN_TXT = {
     time: 'Time',
     work: 'Work',
     author: 'Author',
+    source: 'Source',
+    sourceHeading: 'Traffic sources',
+    sourceMcp: 'MCP',
+    sourceApi: 'REST API',
+    sourceWeb: 'Web',
+    sourceA2a: 'A2A',
+    sourceUnknown: 'Untagged',
+    sourceNote: 'Sources are recorded after the MCP upgrade; older rows have no tag.',
     status: 'Status',
     anonymous: 'Anonymous',
     noUsers: 'No real new users in this period.',
@@ -184,6 +200,24 @@ function badgeFor(row, t, now) {
   return out.map((label) => `<span class="admin-badge">${escapeHtml(label)}</span>`).join('');
 }
 
+const SOURCE_KEYS = ['mcp', 'api', 'web', 'a2a', 'unknown'];
+
+function sourceKey(row) {
+  return ['mcp', 'api', 'web', 'a2a'].includes(row.source) ? row.source : 'unknown';
+}
+
+function sourceBadge(row, t) {
+  const labels = {
+    mcp: t.sourceMcp,
+    api: t.sourceApi,
+    web: t.sourceWeb,
+    a2a: t.sourceA2a,
+    unknown: t.sourceUnknown,
+  };
+  const title = row.user_agent ? ` title="${escapeHtml(row.user_agent)}"` : '';
+  return `<span class="admin-badge"${title}>${escapeHtml(labels[sourceKey(row)])}</span>`;
+}
+
 function renderTable(headers, rows, emptyText) {
   if (!rows.length) return `<div class="admin-empty">${escapeHtml(emptyText)}</div>`;
   return `<div class="admin-table-wrap"><table class="admin-table">
@@ -274,7 +308,7 @@ export async function handleAdminPage(request, env) {
       await database
         .prepare(
           `SELECT f.id, f.kind, f.title, f.filename, f.owner_id, f.created_at, f.published_at,
-                  f.expires_at, f.encrypted, u.email
+                  f.expires_at, f.encrypted, f.source, f.user_agent, u.email
            FROM files f LEFT JOIN users u ON u.id = f.owner_id
            WHERE typeof(f.created_at) = 'integer' AND f.created_at >= ?
            ORDER BY f.created_at DESC LIMIT 300`
@@ -331,6 +365,11 @@ export async function handleAdminPage(request, env) {
 
   const anonCount = worksShown.filter((w) => !w.owner_id).length;
   const publishedCount = worksShown.filter((w) => Number(w.published_at) > 0).length;
+  const sourceCounts = Object.fromEntries(SOURCE_KEYS.map((key) => [key, 0]));
+  for (const work of worksShown) sourceCounts[sourceKey(work)] += 1;
+  const sourceCards = SOURCE_KEYS.map(
+    (key) => `<div class="admin-card"><dt>${escapeHtml(a[`source${key[0].toUpperCase()}${key.slice(1)}`] || key)}</dt><dd>${sourceCounts[key]}</dd></div>`
+  ).join('');
 
   const top = worksShown
     .map((w) => ({ ...w, periodViews: viewMap.get(w.id) || 0 }))
@@ -376,6 +415,7 @@ export async function handleAdminPage(request, env) {
   <td>${escapeHtml(fmtStamp(w.created_at))}</td>
   <td class="cell-work"><a href="/view/${encodeURIComponent(w.id)}" rel="noopener">${escapeHtml(title)}</a></td>
   <td>${escapeHtml(w.email || a.anonymous)}</td>
+  <td>${sourceBadge(w, a)}</td>
   <td>${escapeHtml(String(viewMap.get(w.id) || 0))}</td>
   <td>${badgeFor(w, a, now)}</td>
 </tr>`;
@@ -387,6 +427,7 @@ export async function handleAdminPage(request, env) {
   <td>${escapeHtml(String(w.periodViews))}</td>
   <td class="cell-work"><a href="/view/${encodeURIComponent(w.id)}" rel="noopener">${escapeHtml(title)}</a></td>
   <td>${escapeHtml(w.email || a.anonymous)}</td>
+  <td>${sourceBadge(w, a)}</td>
   <td>${escapeHtml(fmtStamp(w.created_at))}</td>
 </tr>`;
   });
@@ -426,12 +467,17 @@ export async function handleAdminPage(request, env) {
     <div class="admin-card"><dt>${escapeHtml(a.views)}</dt><dd>${totalViews}</dd></div>
   </dl>
   <section class="admin-section">
+    <h2>${escapeHtml(a.sourceHeading)}</h2>
+    <dl class="admin-cards">${sourceCards}</dl>
+    <p class="admin-foot">${escapeHtml(a.sourceNote)}</p>
+  </section>
+  <section class="admin-section">
     <h2>${escapeHtml(a.newUsersHeading)}</h2>
     ${renderTable([a.email, a.registeredAt, a.workCount], userRowsWithCounts, a.noUsers)}
   </section>
   <section class="admin-section">
     <h2>${escapeHtml(a.newWorksHeading)}</h2>
-    ${renderTable([a.time, a.work, a.author, a.views, a.status], workRows, a.noWorks)}
+    ${renderTable([a.time, a.work, a.author, a.source, a.views, a.status], workRows, a.noWorks)}
   </section>
   <section class="admin-section">
     <h2>${escapeHtml(a.reportsHeading)}</h2>
@@ -439,7 +485,7 @@ export async function handleAdminPage(request, env) {
   </section>
   <section class="admin-section">
     <h2>${escapeHtml(a.topHeading)}</h2>
-    ${renderTable([a.views, a.work, a.author, a.time], topRows, a.noTop)}
+    ${renderTable([a.views, a.work, a.author, a.source, a.time], topRows, a.noTop)}
   </section>
   <p class="admin-foot">${escapeHtml(a.generatedAt)} ${escapeHtml(fmtStamp(now))} (UTC+8) · ${escapeHtml(a.note)}</p>
 </main>`;
