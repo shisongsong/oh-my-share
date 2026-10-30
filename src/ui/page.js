@@ -15,6 +15,7 @@ function esc(value) {
 export function renderPage(lang, prefill = null) {
   const t = I18N[lang] || I18N.en;
   const baseUrl = 'https://openanthropic.com';
+  const canonicalUrl = lang === 'zh' ? `${baseUrl}/?lang=zh` : `${baseUrl}/`;
   const remixId = prefill ? String(prefill.id || '') : '';
   const remixTitle = prefill ? String(prefill.title || '') : '';
   const remixCode = prefill ? String(prefill.code || '') : '';
@@ -49,10 +50,10 @@ export function renderPage(lang, prefill = null) {
 ${seoMeta}
 <meta name="robots" content="${remixId ? 'noindex, nofollow' : 'index, follow'}">
 <meta name="google-site-verification" content="DBQv1hLP8zAfNxe33rUZVVM4ilMDoNrcpvwtJmoB03c">
-<link rel="canonical" href="${baseUrl}/">
+<link rel="canonical" href="${canonicalUrl}">
 <meta property="og:site_name" content="Oh My Share">
 <meta property="og:type" content="website">
-<meta property="og:url" content="${baseUrl}/">
+<meta property="og:url" content="${canonicalUrl}">
 <meta property="og:image" content="${baseUrl}/og-image.png">
 <meta property="og:locale" content="${metaLocale}">
 <meta property="og:locale:alternate" content="${metaLocaleAlt}">

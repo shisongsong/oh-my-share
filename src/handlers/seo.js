@@ -188,7 +188,6 @@ export async function handleSitemap(env) {
     { loc: `${BASE_URL}/code-share`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/codepen-alternative`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/ai-html-publish`, priority: '0.9', changefreq: 'weekly' },
-    { loc: `${BASE_URL}/chatgpt-html-share`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${BASE_URL}/auth.md`, priority: '0.5', changefreq: 'weekly' },
     { loc: `${BASE_URL}/demo`, priority: '0.7', changefreq: 'weekly' },
     { loc: `${BASE_URL}/community`, priority: '0.8', changefreq: 'daily' },

@@ -1161,7 +1161,7 @@ describe("Oh My Share worker", () => {
 		const sitemap = await fetchWorker(new Request("http://example.com/sitemap.xml"));
 		const sitemapXml = await sitemap.text();
 		expect(sitemap.status).toBe(200);
-		expect(sitemapXml).toContain("https://openanthropic.com/chatgpt-html-share");
+		expect(sitemapXml).not.toContain("https://openanthropic.com/chatgpt-html-share");
 		expect(sitemapXml).toContain("https://openanthropic.com/terms");
 		expect(sitemapXml).toContain("https://openanthropic.com/privacy");
 
@@ -1551,6 +1551,7 @@ describe("CORS proxy", () => {
 		expect(xml).toContain("<loc>https://openanthropic.com/guides</loc>");
 		expect(xml).toContain("<loc>https://openanthropic.com/guides/share-ai-generated-html</loc>");
 		expect(xml).toContain('hreflang="zh" href="https://openanthropic.com/guides?lang=zh"');
+		expect(xml).not.toContain("<loc>https://openanthropic.com/chatgpt-html-share</loc>");
 
 		// linked from the footer everywhere
 		const home = await (await fetchWorker(new Request("http://example.com/"))).text();
@@ -1559,7 +1560,7 @@ describe("CORS proxy", () => {
 
 	it("self-canonicalizes every language version and ties them with hreflang", async () => {
 		// pages that build canonicals from the canonical site origin
-		for (const path of ["/demo", "/mcp-guide", "/terms", "/contact"]) {
+		for (const path of ["/", "/demo", "/mcp-guide", "/terms", "/contact"]) {
 			const base = `https://openanthropic.com${path}`;
 			const enHtml = await (await fetchWorker(new Request(`http://example.com${path}?lang=en`))).text();
 			expect(enHtml).toContain(`<link rel="canonical" href="${base}">`);
