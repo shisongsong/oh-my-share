@@ -508,7 +508,7 @@ h1, h2, h3, h4 {
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 520px) {
   .nav-inner {
     gap: 8px;
     padding: 0 14px;
@@ -517,6 +517,7 @@ h1, h2, h3, h4 {
     gap: 7px;
     font-size: 16px;
     min-width: 0;
+    flex-shrink: 1;
   }
   .nav-word {
     overflow: hidden;
