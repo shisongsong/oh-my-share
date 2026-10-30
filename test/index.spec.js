@@ -608,7 +608,7 @@ describe("Oh My Share worker", () => {
 		expect(last.status).toBe(429);
 	});
 
-	it("injects the powered-by badge for anonymous content but not for paid/trial owners", async () => {
+	it("injects the badge and signup hint for anonymous content but not for signed-in owners", async () => {
 		// Anonymous upload → badge
 		const anon = await fetchWorker(
 			new Request("http://example.com/api/upload", {
@@ -621,6 +621,7 @@ describe("Oh My Share worker", () => {
 		const anonView = await fetchWorker(new Request(`http://example.com/view/${anonId}`));
 		const anonHtml = await anonView.text();
 		expect(anonHtml).toContain("Made with Oh My Share");
+		expect(anonHtml).toContain("Sign up to upload without this badge");
 		expect(anonView.headers.get("referrer-policy")).toBe("no-referrer");
 		expect(anonView.headers.get("etag")).toContain("-b");
 
@@ -660,8 +661,145 @@ describe("Oh My Share worker", () => {
 		const ownedView = await fetchWorker(new Request(`http://example.com/view/${ownedId}`));
 		expect(await ownedView.text()).not.toContain("Made with Oh My Share");
 		expect(ownedView.headers.get("etag")).not.toContain("-b");
+
+		// Even without any paid/trial entitlement, signed-in owners stay badge-free.
+		await env.DB.prepare("DELETE FROM subscriptions WHERE user_id = ?")
+			.bind(registerBody.user.id)
+			.run();
+		const freeView = await fetchWorker(new Request(`http://example.com/view/${ownedId}`));
+		expect(await freeView.text()).not.toContain("Made with Oh My Share");
 	});
 
+
+	it("uploads a static-site folder for signed-in users and serves it with sandboxed assets", async () => {
+		const ip = "198.51.100.60";
+		const email = `site-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": ip,
+				},
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+
+		const makeForm = () => {
+			const form = new FormData();
+			form.append(
+				"files",
+				new File(
+					['<!doctype html><html><head><link rel="stylesheet" href="assets/style.css"></head><body><h1>Static Site</h1></body></html>'],
+					"demo/index.html",
+					{ type: "text/html" }
+				)
+			);
+			form.append(
+				"files",
+				new File(["h1{color:red}"], "demo/assets/style.css", { type: "text/css" })
+			);
+			form.append(
+				"files",
+				new File([new Uint8Array([137, 80, 78, 71])], "demo/img/logo.png", { type: "image/png" })
+			);
+			form.append(
+				"files",
+				new File(["<!doctype html><title>Docs</title>"], "demo/docs/index.html", { type: "text/html" })
+			);
+			form.append("title", "Static demo");
+			return form;
+		};
+
+		// Anonymous folder uploads are rejected.
+		const anon = await fetchWorker(
+			new Request("http://example.com/api/upload-site", {
+				method: "POST",
+				headers: { Origin: "http://example.com", "CF-Connecting-IP": ip },
+				body: makeForm(),
+			})
+		);
+		expect(anon.status).toBe(401);
+		expect((await anon.json()).code).toBe("errSiteAuth");
+
+		// The root must contain index.html.
+		const missingIndex = new FormData();
+		missingIndex.append("files", new File(["body{}"], "demo/style.css", { type: "text/css" }));
+		const noIndex = await fetchWorker(
+			new Request("http://example.com/api/upload-site", {
+				method: "POST",
+				headers: { Origin: "http://example.com", Cookie: cookie, "CF-Connecting-IP": ip },
+				body: missingIndex,
+			})
+		);
+		expect(noIndex.status).toBe(400);
+		expect((await noIndex.json()).code).toBe("errSiteNoIndex");
+
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload-site", {
+				method: "POST",
+				headers: { Origin: "http://example.com", Cookie: cookie, "CF-Connecting-IP": ip },
+				body: makeForm(),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const payload = await upload.json();
+		expect(payload.url).toBe(`http://example.com/s/${payload.id}/`);
+		expect(payload.files).toBe(4);
+		const id = payload.id;
+
+		const entry = await fetchWorker(new Request(`http://example.com/s/${id}/`));
+		expect(entry.status).toBe(200);
+		expect(entry.headers.get("content-security-policy")).toContain("sandbox");
+		expect(await entry.text()).toContain("Static Site");
+
+		const css = await fetchWorker(new Request(`http://example.com/s/${id}/assets/style.css`));
+		expect(css.status).toBe(200);
+		expect(css.headers.get("content-type")).toContain("text/css");
+		expect(css.headers.get("access-control-allow-origin")).toBe("*");
+		expect(await css.text()).toContain("color:red");
+
+		const directory = await fetchWorker(new Request(`http://example.com/s/${id}/docs`));
+		expect(directory.status).toBe(301);
+		expect(directory.headers.get("location")).toBe(`/s/${id}/docs/`);
+		expect((await fetchWorker(new Request(`http://example.com/s/${id}/docs/`))).status).toBe(200);
+
+		expect((await fetchWorker(new Request(`http://example.com/s/${id}/%2e%2e%2fsecret`))).status).toBe(404);
+
+		const view = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(view.status).toBe(302);
+		expect(view.headers.get("location")).toBe(`http://example.com/s/${id}/`);
+
+		// Folder shares stay out of the gallery.
+		const publish = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: true }),
+			})
+		);
+		expect(publish.status).toBe(400);
+		expect((await publish.json()).code).toBe("errCannotPublish");
+
+		const assets = await fetchWorker(
+			new Request("http://example.com/api/assets", { headers: { Cookie: cookie } })
+		);
+		const listed = (await assets.json()).assets.find((asset) => asset.id === id);
+		expect(listed.kind).toBe("site");
+		expect(listed.url).toBe(`http://example.com/s/${id}/`);
+
+		const removed = await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}`, {
+				method: "DELETE",
+				headers: { Origin: "http://example.com", Cookie: cookie },
+			})
+		);
+		expect(removed.status).toBe(200);
+		expect((await fetchWorker(new Request(`http://example.com/s/${id}/`))).status).toBe(404);
+	});
 	it("serves the ai-html-publish landing page and alias", async () => {
 		const page = await fetchWorker(new Request("http://example.com/ai-html-publish"));
 		expect(page.status).toBe(200);

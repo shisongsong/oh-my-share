@@ -125,5 +125,12 @@ export function initAuth() {
   });
 
   updateAuthMode();
-  loadCurrentUser();
+  const requestedMode = new URLSearchParams(window.location.search).get('auth');
+  loadCurrentUser().then(() => {
+    if (!state.user && (requestedMode === 'register' || requestedMode === 'login')) {
+      state.authMode = requestedMode;
+      updateAuthMode();
+      openAccountModal();
+    }
+  });
 }

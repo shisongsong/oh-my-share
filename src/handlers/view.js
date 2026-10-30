@@ -11,7 +11,6 @@ import {
   timingSafeEqual,
   verifyPagePassword,
 } from '../crypto.js';
-import { hasPaidEntitlement } from '../entitlements.js';
 import {
   checkRateLimit,
   getBucket,
@@ -23,7 +22,7 @@ function validId(id) {
   return Boolean(id) && /^[a-z0-9-]+$/i.test(id);
 }
 
-async function enforceViewRateLimit(request, env) {
+export async function enforceViewRateLimit(request, env) {
   const limit = await checkRateLimit(
     env,
     getClientIp(request),
@@ -42,7 +41,7 @@ async function getFileRecord(env, id) {
   if (!database) return null;
   return database
     .prepare(
-      `SELECT id, encrypted, encryption_version, encryption_metadata,
+      `SELECT id, kind, encrypted, encryption_version, encryption_metadata,
               title, description, tags, created_at, owner_id,
               edit_token, password_hash, expires_at, updated_at,
               reported_at
@@ -58,7 +57,7 @@ function isExpired(record) {
   return Math.floor(Date.now() / 1000) > record.expires_at;
 }
 
-async function recordVisit(env, id, request) {
+export async function recordVisit(env, id, request) {
   try {
     const ip = getClientIp(request);
     const ipHash = await hashIp(ip);
@@ -207,7 +206,7 @@ function renderPasswordPage(id, lang, error) {
   });
 }
 
-function renderExpiredPage(lang) {
+export function renderExpiredPage(lang) {
   const messages = {
     zh: { title: '内容已过期', desc: '此分享内容已超过有效期，无法访问。', home: '返回首页' },
     en: { title: 'Content Expired', desc: 'This shared content has expired and is no longer accessible.', home: 'Back to Home' },
@@ -230,7 +229,7 @@ function renderExpiredPage(lang) {
   });
 }
 
-function renderReportedPage(lang) {
+export function renderReportedPage(lang) {
   const messages = {
     zh: {
       title: '内容已下架',
@@ -267,13 +266,22 @@ function renderReportedPage(lang) {
   });
 }
 
-const BADGE_HTML = '<a href="/?utm_source=badge" target="_blank" rel="noopener" style="position:fixed;bottom:14px;right:14px;z-index:2147483647;background:#111827;color:#fff;font:600 12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:999px;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);opacity:.92;">Made with Oh My Share</a>';
+function badgeHtml(lang) {
+  const hint = lang === 'zh'
+    ? '注册后上传可去水印'
+    : 'Sign up to upload without this badge';
+  return `<div style="position:fixed;bottom:14px;right:14px;z-index:2147483647;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-family:-apple-system,system-ui,sans-serif;pointer-events:none;">
+  <a href="/?utm_source=badge" target="_blank" rel="noopener" style="pointer-events:auto;background:#111827;color:#fff;font:600 12px/1.4 -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:999px;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);opacity:.92;">Made with Oh My Share</a>
+  <a href="/?auth=register&amp;utm_source=badge" target="_blank" rel="noopener" style="pointer-events:auto;background:rgba(17,24,39,.78);color:#fff;font:500 10.5px/1.2 -apple-system,system-ui,sans-serif;padding:4px 9px;border-radius:999px;text-decoration:none;opacity:.9;">${hint}</a>
+</div>`;
+}
 
-function injectBadge(html) {
+function injectBadge(html, lang) {
+  const badge = badgeHtml(lang);
   if (/<\/body\s*>/i.test(html)) {
-    return html.replace(/<\/body\s*>/i, `${BADGE_HTML}</body>`);
+    return html.replace(/<\/body\s*>/i, `${badge}</body>`);
   }
-  return html + BADGE_HTML;
+  return html + badge;
 }
 
 function escMeta(value) {
@@ -353,6 +361,19 @@ export async function handleView(request, env) {
     });
   }
 
+  // 静态目录分享使用 /s/<id>/，确保相对路径资源能正确解析。
+  if (record.kind === 'site') {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `${url.origin}/s/${id}/`,
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Robots-Tag': 'noindex',
+      },
+    });
+  }
+
   // 检查是否需要密码
   if (record.password_hash) {
     const cookie = request.headers.get('Cookie') || '';
@@ -412,12 +433,12 @@ export async function handleView(request, env) {
   const object = await getBucket(env).get(id);
   if (!object) return new Response('Not Found', { status: 404 });
 
-  // Badge is injected for non-paid owners; fold badge state into the ETag
-  // so 304 revalidation stays correct when entitlement changes.
-  const ownerPaid = record.owner_id ? await hasPaidEntitlement(env, record.owner_id) : false;
+  // Anonymous shares carry the badge; any signed-in owner uploads without it.
+  // The badge state is folded into the ETag so 304 revalidation stays correct.
+  const showBadge = !record.owner_id;
 
   const updatedAt = (record?.updated_at || 0) * 1000;
-  const etag = `"${id}-${record?.updated_at || 0}${ownerPaid ? '' : '-b'}"`;
+  const etag = `"${id}-${record?.updated_at || 0}${showBadge ? '-b' : ''}"`;
   const lastModified = new Date(updatedAt).toUTCString();
 
   // Revalidate: strong/weak ETag echo (Cloudflare may downgrade strong → weak)
@@ -446,8 +467,8 @@ export async function handleView(request, env) {
     description: record.description || '',
     origin: url.origin,
   }));
-  if (!ownerPaid) {
-    body = injectBadge(body);
+  if (showBadge) {
+    body = injectBadge(body, lang);
   }
   return new Response(body, {
     headers: {

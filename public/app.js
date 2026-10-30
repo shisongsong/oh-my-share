@@ -194,7 +194,11 @@ function S() {
 		t.authMode = t.authMode === "login" ? "register" : "login", _(), document.getElementById("authMessage").textContent = "";
 	}), document.getElementById("logoutBtn").addEventListener("click", y), document.getElementById("encryptToggle").addEventListener("change", g), document.getElementById("keyMode").addEventListener("change", g), document.getElementById("accountModal").addEventListener("click", (e) => {
 		e.target === e.currentTarget && x();
-	}), _(), m();
+	}), _();
+	let e = new URLSearchParams(window.location.search).get("auth");
+	m().then(() => {
+		!t.user && (e === "register" || e === "login") && (t.authMode = e, _(), b());
+	});
 }
 //#endregion
 //#region src/ui/modules/upload.js
@@ -259,68 +263,177 @@ async function T(e, t, n, r) {
 		keyFragment: f.keyFragment
 	};
 }
-async function E(e, t) {
-	let n = t.innerHTML;
+async function E(e, t, n = "/api/upload") {
+	let i = t.innerHTML;
 	t.innerHTML = "<div class=\"spinner\"></div> " + r("btnGenerating"), t.disabled = !0, t.dataset.loading = "true";
-	let i = document.getElementById("resultBox"), a = document.getElementById("resultUrl");
+	let a = document.getElementById("resultBox"), o = document.getElementById("resultUrl");
 	try {
-		let t = await e(), n = await l("/api/upload", t.formData);
-		i.hidden = !1, i.className = "result-box", a.value = n.url + (t.keyFragment || "");
+		let t = await e(), r = await l(n, t.formData);
+		a.hidden = !1, a.className = "result-box", o.value = r.url + (t.keyFragment || "");
 	} catch (e) {
-		i.hidden = !1, i.className = "result-box error", a.value = "❌ " + e.message;
+		a.hidden = !1, a.className = "result-box error", o.value = "❌ " + e.message;
 	} finally {
-		t.innerHTML = n, t.disabled = !1, t.dataset.loading = "false";
+		t.innerHTML = i, t.disabled = !1, t.dataset.loading = "false";
 	}
 }
 function D(e) {
 	let t = document.getElementById("dropZone"), n = t.querySelector("p");
 	n.innerHTML = "<span>" + r("selectedPrefix") + "</span><span class=\"link\"></span>", n.querySelector(".link").textContent = e, t.querySelector("svg").style.color = "var(--text-main)";
 }
-function O() {
-	let e = document.getElementById("fileInput"), t = document.getElementById("dropZone");
-	t.addEventListener("click", () => e.click()), t.addEventListener("dragover", (e) => {
-		e.preventDefault(), t.classList.add("dragover");
-	}), t.addEventListener("dragleave", () => t.classList.remove("dragover")), t.addEventListener("drop", (n) => {
-		n.preventDefault(), t.classList.remove("dragover"), n.dataTransfer.files.length && (e.files = n.dataTransfer.files, D(n.dataTransfer.files[0].name));
+function O(e) {
+	return e ? e < 1024 ? e + " B" : e < 1048576 ? (e / 1024).toFixed(1) + " KB" : (e / 1048576).toFixed(1) + " MB" : "0 B";
+}
+var k = [];
+function A(e) {
+	k = e;
+	let t = document.getElementById("folderInfo");
+	if (!t) return;
+	if (!e.length) {
+		t.hidden = !0, t.textContent = "";
+		return;
+	}
+	let n = e.reduce((e, t) => e + (t.file.size || 0), 0);
+	t.hidden = !1, t.textContent = r("folderSelected").replace("{n}", String(e.length)).replace("{size}", O(n));
+}
+function j(e) {
+	return Array.from(e).map((e) => ({
+		file: e,
+		path: e.webkitRelativePath || e.name
+	}));
+}
+function M(e) {
+	return new Promise((t, n) => {
+		let r = [], i = () => e.readEntries((e) => {
+			e.length ? (r.push(...e), i()) : t(r);
+		}, n);
+		i();
+	});
+}
+async function N(e, t, n) {
+	if (e.isFile) {
+		let r = await new Promise((t, n) => e.file(t, n));
+		n.push({
+			file: r,
+			path: `${t}${e.name}`
+		});
+		return;
+	}
+	if (e.isDirectory) {
+		let r = await M(e.createReader());
+		for (let i of r) await N(i, `${t}${e.name}/`, n);
+	}
+}
+async function P(e) {
+	let t = e.items;
+	if (t && t.length && typeof t[0].webkitGetAsEntry == "function") {
+		let e = [];
+		for (let n of t) {
+			let t = n.webkitGetAsEntry();
+			t && await N(t, "", e);
+		}
+		if (e.length) return e;
+	}
+	return j(e.files);
+}
+function F() {
+	let e = new FormData();
+	e.append("folder", (k[0]?.path || "site").split("/")[0]);
+	let t = document.getElementById("metaTitle").value.trim(), n = document.getElementById("metaDescription").value.trim(), r = document.getElementById("metaTags").value.trim();
+	t && e.append("title", t), n && e.append("description", n), r && e.append("tags", r);
+	let i = document.getElementById("expirySelect").value;
+	i && i !== "0" && e.append("expiresIn", i);
+	for (let t of k) e.append("files", t.file, t.path);
+	return {
+		formData: e,
+		keyFragment: ""
+	};
+}
+function I() {
+	let e = document.getElementById("fileInput"), n = document.getElementById("dropZone");
+	n.addEventListener("click", () => e.click()), n.addEventListener("dragover", (e) => {
+		e.preventDefault(), n.classList.add("dragover");
+	}), n.addEventListener("dragleave", () => n.classList.remove("dragover")), n.addEventListener("drop", (t) => {
+		t.preventDefault(), n.classList.remove("dragover"), t.dataTransfer.files.length && (e.files = t.dataTransfer.files, D(t.dataTransfer.files[0].name));
 	}), e.addEventListener("change", () => {
 		e.files.length && D(e.files[0].name);
 	}), document.getElementById("btn-file").addEventListener("click", function() {
-		let t = document.getElementById("panel-code"), n = document.getElementById("slug-file").value;
-		if (t && t.classList.contains("active")) {
+		let t = document.getElementById("panel-folder");
+		if (t && t.classList.contains("active")) return;
+		let n = document.getElementById("panel-code"), i = document.getElementById("slug-file").value;
+		if (n && n.classList.contains("active")) {
 			let e = document.getElementById("codeInput").value.trim();
 			if (!e) {
 				alert(r("errEmptyCode"));
 				return;
 			}
-			E(() => T("code", e, "pasted-code.html", n), this);
+			E(() => T("code", e, "pasted-code.html", i), this);
 			return;
 		}
 		if (!e.files.length) {
 			alert(r("errEmptyFile"));
 			return;
 		}
-		let i = e.files[0];
-		E(() => T("file", i, i.name, n), this);
+		let a = e.files[0];
+		E(() => T("file", a, a.name, i), this);
+	});
+	let i = document.getElementById("folderInput"), a = document.getElementById("folderDropZone");
+	i && a && (a.addEventListener("click", (e) => {
+		e.target !== i && i.click();
+	}), a.addEventListener("dragover", (e) => {
+		e.preventDefault(), a.classList.add("dragover");
+	}), a.addEventListener("dragleave", () => a.classList.remove("dragover")), a.addEventListener("drop", async (e) => {
+		e.preventDefault(), a.classList.remove("dragover"), A(await P(e.dataTransfer));
+	}), i.addEventListener("change", () => {
+		A(j(i.files));
+	})), document.getElementById("btn-file").addEventListener("click", function() {
+		let e = document.getElementById("panel-folder");
+		if (e && e.classList.contains("active")) {
+			if (!k.length) {
+				alert(r("errSiteEmpty"));
+				return;
+			}
+			if (k.length > 200) {
+				alert(r("errSiteTooMany"));
+				return;
+			}
+			if (k.reduce((e, t) => e + (t.file.size || 0), 0) > 20971520) {
+				alert(r("errSiteTooLarge"));
+				return;
+			}
+			if (k.some((e) => (e.file.size || 0) > 5242880)) {
+				alert(r("errSiteFileTooLarge"));
+				return;
+			}
+			if (!t.user) {
+				t.authMode = "register", _(), b(), alert(r("errSiteAuth"));
+				return;
+			}
+			E(F, this, "/api/upload-site");
+		}
 	});
 }
 //#endregion
 //#region src/ui/modules/ui.js
-function k() {
+function L() {
 	let e = document.querySelectorAll(".upload-tab"), t = document.querySelectorAll(".upload-panel");
 	e.forEach((n) => {
 		n.addEventListener("click", () => {
 			e.forEach((e) => e.classList.remove("active")), t.forEach((e) => e.classList.remove("active")), n.classList.add("active"), document.getElementById(n.dataset.target).classList.add("active");
-			let i = n.dataset.target === "panel-code", a = document.getElementById("slug-file");
-			if (a) {
-				let e = i ? "slugPlaceholderCode" : "slugPlaceholderFile";
-				a.dataset.i18n = e, a.placeholder = r(e);
+			let i = n.dataset.target === "panel-folder";
+			document.querySelectorAll(".folder-hide").forEach((e) => {
+				i ? (e.hasAttribute("data-folder-hidden") || e.setAttribute("data-folder-hidden", e.hidden ? "1" : "0"), e.hidden = !0) : e.hasAttribute("data-folder-hidden") && (e.hidden = e.getAttribute("data-folder-hidden") === "1", e.removeAttribute("data-folder-hidden"));
+			});
+			let a = n.dataset.target === "panel-code", o = document.getElementById("slug-file");
+			if (o) {
+				let e = a ? "slugPlaceholderCode" : "slugPlaceholderFile";
+				o.dataset.i18n = e, o.placeholder = r(e);
 			}
-			let o = document.getElementById("resultBox");
-			o && (o.hidden = !0);
+			let s = document.getElementById("resultBox");
+			s && (s.hidden = !0);
 		});
 	});
 }
-function A() {
+function R() {
 	document.getElementById("copyBtn").addEventListener("click", function() {
 		let e = document.getElementById("resultUrl");
 		e.value && navigator.clipboard.writeText(e.value).then(() => {
@@ -332,7 +445,7 @@ function A() {
 		});
 	});
 }
-function j() {
+function z() {
 	let e = document.getElementById("upgradeBtn"), t = document.getElementById("upgradeModal"), n = document.getElementById("upgradeSendBtn"), i = document.getElementById("upgradeSection");
 	e && e.addEventListener("click", () => {
 		t.classList.add("active");
@@ -350,10 +463,10 @@ function j() {
 }
 //#endregion
 //#region src/ui/modules/share.js
-function M(e, t, n, r, i, a) {
+function B(e, t, n, r, i, a) {
 	e.beginPath(), e.moveTo(t + a, n), e.arcTo(t + r, n, t + r, n + i, a), e.arcTo(t + r, n + i, t, n + i, a), e.arcTo(t, n + i, t, n, a), e.arcTo(t, n, t + r, n, a), e.closePath();
 }
-function N(e) {
+function V(e) {
 	if (typeof qrcode > "u") {
 		alert(r("imgFail"));
 		return;
@@ -367,34 +480,34 @@ function N(e) {
 		let i = t.getContext("2d");
 		i.scale(2, 2), i.fillStyle = "#fff", i.fillRect(0, 0, 640, 900);
 		let a = i.createLinearGradient(0, 0, 640, 0);
-		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(r("subtitle"), 320, 130), i.fillStyle = "#f8fafc", M(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(n, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(r("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
+		a.addColorStop(0, "#6366f1"), a.addColorStop(1, "#8b5cf6"), i.fillStyle = a, i.fillRect(0, 0, 640, 8), i.fillStyle = "#171717", i.font = "bold 36px -apple-system,BlinkMacSystemFont,\"PingFang SC\",\"Microsoft YaHei\",sans-serif", i.textAlign = "center", i.textBaseline = "middle", i.fillText("Oh My Share", 320, 90), i.fillStyle = "#666", i.font = "16px -apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif", i.fillText(r("subtitle"), 320, 130), i.fillStyle = "#f8fafc", B(i, 120, 180, 400, 400, 16), i.fill(), i.drawImage(n, 140, 200, 360, 360), i.fillStyle = "#171717", i.font = "bold 20px -apple-system,sans-serif", i.fillText(r("imageHint"), 320, 640), i.fillStyle = "#94a3b8", i.font = "14px ui-monospace,monospace";
 		let o = e.length > 55 ? e.slice(0, 52) + "..." : e;
 		i.fillText(o, 320, 680), i.strokeStyle = "#e5e5e5", i.lineWidth = 1, i.beginPath(), i.moveTo(80, 800), i.lineTo(560, 800), i.stroke(), i.fillStyle = "#cbd5e1", i.font = "13px -apple-system,sans-serif", i.fillText("Powered by Cloudflare Workers", 320, 840), document.getElementById("imageModal").classList.add("active");
 	}, n.onerror = () => alert(r("imgFail")), n.src = t.createDataURL(8, 0);
 }
-function P() {
+function H() {
 	let e = document.getElementById("shareCanvas");
 	e.width && e.toBlob((e) => {
 		let t = document.createElement("a");
 		t.download = "oh-my-share.png", t.href = URL.createObjectURL(e), t.click(), setTimeout(() => URL.revokeObjectURL(t.href), 1e3);
 	}, "image/png");
 }
-function F() {
+function U() {
 	document.getElementById("imageModal").classList.remove("active");
 }
-function I() {
+function W() {
 	document.getElementById("imgBtn").addEventListener("click", () => {
 		let e = document.getElementById("resultUrl");
-		e.value && N(e.value);
-	}), document.getElementById("downloadBtn").addEventListener("click", P), document.getElementById("imageModal").addEventListener("click", (e) => {
-		e.target === e.currentTarget && F();
+		e.value && V(e.value);
+	}), document.getElementById("downloadBtn").addEventListener("click", H), document.getElementById("imageModal").addEventListener("click", (e) => {
+		e.target === e.currentTarget && U();
 	}), document.addEventListener("keydown", (e) => {
-		e.key === "Escape" && F();
+		e.key === "Escape" && U();
 	});
 }
 //#endregion
 //#region src/ui/modules/webmcp.js
-function L() {
+function G() {
 	if (!navigator.modelContext) return;
 	let e = new AbortController(), { signal: t } = e;
 	return navigator.modelContext.registerTool({
@@ -493,5 +606,5 @@ function L() {
 		signal: t
 	}), () => e.abort();
 }
-window.toggleLang = a, i(t.lang), S(), O(), k(), A(), j(), I(), L(), window.updatePricingDisplay && window.updatePricingDisplay(t.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
+window.toggleLang = a, i(t.lang), S(), I(), L(), R(), z(), W(), G(), window.updatePricingDisplay && window.updatePricingDisplay(t.lang), window.location.search.includes("oauth_success") && window.history.replaceState({}, "", window.location.pathname);
 //#endregion

@@ -11,6 +11,19 @@ export function initTabs() {
       tab.classList.add('active');
       document.getElementById(tab.dataset.target).classList.add('active');
 
+      const isFolder = tab.dataset.target === 'panel-folder';
+      document.querySelectorAll('.folder-hide').forEach((element) => {
+        if (isFolder) {
+          if (!element.hasAttribute('data-folder-hidden')) {
+            element.setAttribute('data-folder-hidden', element.hidden ? '1' : '0');
+          }
+          element.hidden = true;
+        } else if (element.hasAttribute('data-folder-hidden')) {
+          element.hidden = element.getAttribute('data-folder-hidden') === '1';
+          element.removeAttribute('data-folder-hidden');
+        }
+      });
+
       const isCode = tab.dataset.target === 'panel-code';
       const slugInput = document.getElementById('slug-file');
       if (slugInput) {

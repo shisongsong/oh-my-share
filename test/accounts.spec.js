@@ -44,9 +44,9 @@ class MemoryDatabase {
     if (lowerQuery.includes('from subscriptions')) {
       return this.subscriptions.get(values[0]) || null;
     }
-    if (lowerQuery.includes('select id from files where id = ? and owner_id = ?')) {
+    if (lowerQuery.includes('from files') && lowerQuery.includes('where id = ? and owner_id = ?')) {
       const file = this.files.get(values[0]);
-      return file?.owner_id === values[1] ? { id: file.id } : null;
+      return file?.owner_id === values[1] ? { id: file.id, kind: file.kind || 'file' } : null;
     }
     if (lowerQuery.includes('select id from files where id = ?')) {
       const file = this.files.get(values[0]);

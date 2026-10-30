@@ -177,7 +177,7 @@ const LANDING_PAGES = {
         <li>Works with any HTML, CSS, and JavaScript</li>
         <li>Shareable links you can send to anyone</li>
         <li>No registration required</li>
-        <li>Free to use, no watermarks</li>
+        <li>Free to use; sign in to upload without a watermark</li>
       </ul>
       <a href="/" class="btn landing-cta">Try It Free <span aria-hidden="true">→</span></a>
       `,
@@ -203,7 +203,7 @@ const LANDING_PAGES = {
         <li>支持任意 HTML、CSS 与 JavaScript</li>
         <li>生成的链接可分享给任何人</li>
         <li>无需注册即可使用</li>
-        <li>完全免费，没有任何水印</li>
+        <li>完全免费，登录后上传可去水印</li>
       </ul>
       <a href="/?lang=zh" class="btn landing-cta">免费试用 <span aria-hidden="true">→</span></a>
       `,
@@ -319,7 +319,7 @@ const LANDING_PAGES = {
       description: 'Got HTML from ChatGPT, Claude, or Gemini? Paste it and get a shareable link in one second. Free, no signup, optional end-to-end encryption.',
       keywords: 'publish ai html, chatgpt html share, claude generated html hosting, ai code share, share chatgpt output, gemini html link',
       h1: 'Publish AI-Generated HTML',
-      subtitle: 'ChatGPT, Claude, and Gemini write the code — you get a live link in one second. Free, no signup, no watermark.',
+      subtitle: 'ChatGPT, Claude, and Gemini write the code — you get a live link in one second. Free, no signup required. Sign in to upload without a watermark.',
       content: `
       <h2>From AI Chat to Live Link</h2>
       <p>AI assistants are great at writing HTML — landing pages, dashboards, animations,小游戏 — but getting that code out of the chat window and into a link you can share is clunky. Oh My Share turns it into one paste:</p>
@@ -346,7 +346,7 @@ const LANDING_PAGES = {
         <li>Sharing a working demo directly in chat, Slack, or a GitHub issue</li>
       </ul>
       <h2>Free Forever</h2>
-      <p>Unlimited publishes, permanent links, no watermarks, no ads inside your content. Files are served with a sandboxed content-security policy so viewers are protected too.</p>
+      <p>Unlimited publishes, permanent links, watermark-free signed-in uploads, no ads inside your content. Files are served with a sandboxed content-security policy so viewers are protected too.</p>
       <a href="/" class="btn landing-cta">Publish Your AI HTML <span aria-hidden="true">→</span></a>
       `,
     },
@@ -355,7 +355,7 @@ const LANDING_PAGES = {
       description: 'AI 生成的 HTML 不用再复制来复制去？粘贴即得可分享链接，1 秒发布。免费、免注册、可选端到端加密。',
       keywords: '发布 AI HTML, ChatGPT HTML 分享, Claude 生成网页托管, AI 代码分享, AI 网页一键发布',
       h1: '发布 AI 生成的 HTML',
-      subtitle: 'ChatGPT、Claude、Gemini 写好代码，你只需一秒拿到可分享链接。免费、免注册、无水印。',
+      subtitle: 'ChatGPT、Claude、Gemini 写好代码，你只需一秒拿到可分享链接。免费、免注册；登录后上传可去水印。',
       content: `
       <h2>从 AI 对话到可访问链接</h2>
       <p>AI 助手非常擅长写 HTML——落地页、仪表盘、动画、小游戏——但把代码从聊天窗口搬到能分享的链接往往很麻烦。Oh My Share 把它变成一次粘贴：</p>
@@ -382,7 +382,7 @@ const LANDING_PAGES = {
         <li>在聊天、Slack 或 GitHub Issue 里直接分享可运行 Demo</li>
       </ul>
       <h2>永久免费</h2>
-      <p>无限发布、永久链接、无水印、内容里不塞广告。文件以沙箱 CSP 提供，同时保护访问者安全。</p>
+      <p>无限发布、永久链接、登录上传可去水印、内容里不塞广告。文件以沙箱 CSP 提供，同时保护访问者安全。</p>
       <a href="/?lang=zh" class="btn landing-cta">发布我的 AI HTML <span aria-hidden="true">→</span></a>
       `,
     },

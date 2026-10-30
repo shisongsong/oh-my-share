@@ -27,19 +27,19 @@ export function renderPage(lang, prefill = null) {
   const remixCode = prefill ? String(prefill.code || '') : '';
 
   const seoMeta = lang === 'zh' ? `
-<meta name="description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。快速、安全的代码分享工具。">
+<meta name="description" content="免费分享 HTML 文件和代码片段，可选端到端加密，无需注册。快速、安全的代码分享工具。">
 <meta name="keywords" content="代码分享, HTML分享, 在线粘贴, 代码片段, 加密分享, CodePen替代, Pastebin替代">
 <meta property="og:title" content="Oh My Share - 免费安全的 HTML 和代码分享工具">
-<meta property="og:description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。">
+<meta property="og:description" content="免费分享 HTML 文件和代码片段，可选端到端加密，无需注册。">
 <meta name="twitter:title" content="Oh My Share - 免费安全的 HTML 和代码分享工具">
-<meta name="twitter:description" content="免费分享 HTML 文件和代码片段，端到端加密，无需注册。">
+<meta name="twitter:description" content="免费分享 HTML 文件和代码片段，可选端到端加密，无需注册。">
 ` : `
-<meta name="description" content="Share HTML files and code snippets instantly with end-to-end encryption. No registration required. Free, fast, and secure code sharing.">
+<meta name="description" content="Share HTML files and code snippets instantly with optional end-to-end encryption. No registration required. Free, fast, and secure code sharing.">
 <meta name="keywords" content="code sharing, html sharing, paste bin, code snippet, encrypted sharing, codepen alternative, pastebin alternative">
 <meta property="og:title" content="Oh My Share - Free Secure HTML & Code Sharing Tool">
-<meta property="og:description" content="Share HTML files and code snippets instantly with end-to-end encryption. No registration required.">
+<meta property="og:description" content="Share HTML files and code snippets instantly with optional end-to-end encryption. No registration required.">
 <meta name="twitter:title" content="Oh My Share - Free Secure HTML & Code Sharing Tool">
-<meta name="twitter:description" content="Share HTML files and code snippets instantly with end-to-end encryption.">
+<meta name="twitter:description" content="Share HTML files and code snippets instantly with optional end-to-end encryption.">
 `;
   const metaLocale = lang === 'zh' ? 'zh_CN' : 'en_US';
   const metaLocaleAlt = lang === 'zh' ? 'en_US' : 'zh_CN';
@@ -91,7 +91,7 @@ ${seoMeta}
       "@id": "${baseUrl}/#website",
       "url": "${baseUrl}/",
       "name": "Oh My Share",
-      "description": "Free HTML and code sharing tool with end-to-end encryption",
+      "description": "Free HTML and code sharing tool with optional end-to-end encryption",
       "inLanguage": ["en", "zh-CN"],
       "publisher": { "@id": "${baseUrl}/#organization" },
       "potentialAction": {
@@ -108,7 +108,7 @@ ${seoMeta}
       "@id": "${baseUrl}/#app",
       "name": "Oh My Share",
       "url": "${baseUrl}/",
-      "description": "Free HTML and code sharing tool with end-to-end encryption",
+      "description": "Free HTML and code sharing tool with optional end-to-end encryption",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Any",
       "browserRequirements": "Requires JavaScript",
@@ -149,6 +149,7 @@ ${renderNav(
       <div class="upload-tabs">
         <button class="upload-tab${remixId ? '' : ' active'}" data-target="panel-file" data-i18n="tabFile"></button>
         <button class="upload-tab${remixId ? ' active' : ''}" data-target="panel-code" data-i18n="tabCode"></button>
+        ${remixId ? '' : '<button class="upload-tab" data-target="panel-folder" data-i18n="tabFolder"></button>'}
       </div>
       
       <div class="upload-body">
@@ -166,6 +167,19 @@ ${renderNav(
         <!-- Code Panel -->
         <div id="panel-code" class="upload-panel${remixId ? ' active' : ''}">
           <textarea id="codeInput" class="code-textarea" data-i18n="codePlaceholder" rows="6">${esc(remixCode)}</textarea>
+        </div>
+
+        <!-- Folder Panel -->
+        <div id="panel-folder" class="upload-panel">
+          <div class="drop-zone" id="folderDropZone">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+            </svg>
+            <p><span data-i18n="folderDropText"></span><span class="link" data-i18n="folderDropLink"></span></p>
+            <input type="file" id="folderInput" webkitdirectory multiple>
+          </div>
+          <p class="option-hint" data-i18n="folderHint"></p>
+          <p class="option-hint" id="folderInfo" hidden></p>
         </div>
       </div>
       
@@ -185,14 +199,14 @@ ${renderNav(
             <label><span data-i18n="tagsLabel"></span><span class="optional" data-i18n="optional"></span></label>
             <input type="text" id="metaTags" maxlength="500" data-i18n="tagsPlaceholder">
           </div>
-          <div class="input-group">
+          <div class="input-group folder-hide">
             <label class="check-row">
               <input type="checkbox" id="publishToGallery">
               <span data-i18n="publishGalleryLabel"></span>
             </label>
             <p class="option-hint" data-i18n="publishGalleryHint"></p>
           </div>
-          <div class="input-group">
+          <div class="input-group folder-hide">
             <label><span data-i18n="slugLabel"></span><span class="optional" data-i18n="optional"></span></label>
             <input type="text" id="slug-file" data-i18n="slugPlaceholderFile">
           </div>
@@ -206,19 +220,19 @@ ${renderNav(
               <option value="2592000" data-i18n="expiry30d"></option>
             </select>
           </div>
-          <div class="input-group">
+          <div class="input-group folder-hide">
             <label><span data-i18n="sharePasswordLabel"></span><span class="optional" data-i18n="optional"></span></label>
             <input type="password" id="sharePassword" maxlength="128" autocomplete="new-password">
           </div>
         </div>
-        <p class="option-hint" data-i18n="passwordHint"></p>
-        <label class="check-row">
+        <p class="option-hint folder-hide" data-i18n="passwordHint"></p>
+        <label class="check-row folder-hide">
           <input type="checkbox" id="encryptToggle" disabled>
           <span data-i18n="encryptLabel"></span>
         </label>
-        <p class="option-hint" id="encryptStatus" data-i18n="encryptSignIn"></p>
-        <p class="option-hint" data-i18n="trialHint"></p>
-        <div id="encryptDetails" hidden>
+        <p class="option-hint folder-hide" id="encryptStatus" data-i18n="encryptSignIn"></p>
+        <p class="option-hint folder-hide" data-i18n="trialHint"></p>
+        <div id="encryptDetails" class="folder-hide" hidden>
           <label class="select-label" for="keyMode" data-i18n="keyModeLabel"></label>
           <select id="keyMode">
             <option value="random" data-i18n="randomKey"></option>
@@ -226,7 +240,7 @@ ${renderNav(
           </select>
           <input type="password" id="passphraseInput" data-i18n="passphrasePlaceholder" autocomplete="new-password" hidden>
         </div>
-        <div id="upgradeSection" class="upgrade-section">
+        <div id="upgradeSection" class="upgrade-section folder-hide">
           <button type="button" class="upgrade-btn" id="upgradeBtn" data-i18n="upgradeBtn"></button>
         </div>
       </details>

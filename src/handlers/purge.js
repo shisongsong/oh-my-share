@@ -1,4 +1,5 @@
 import { getBucket } from '../security.js';
+import { deleteSiteObjects } from '../site-storage.js';
 
 // Expired files used to be "hidden" only — their rows in D1 and objects in R2
 // lived forever. Purge them (visits cascade via FK) so storage stays bounded.
@@ -12,7 +13,7 @@ export async function purgeExpiredFiles(env, limit = 100) {
   try {
     const { results } = await db
       .prepare(
-        `SELECT id FROM files
+        `SELECT id, kind FROM files
          WHERE expires_at > 0 AND expires_at < ?
          ORDER BY expires_at ASC
          LIMIT ?`
@@ -24,7 +25,10 @@ export async function purgeExpiredFiles(env, limit = 100) {
 
     for (const row of results || []) {
       try {
-        if (bucket) await bucket.delete(row.id);
+        if (bucket) {
+          if (row.kind === 'site') await deleteSiteObjects(bucket, row.id);
+          else await bucket.delete(row.id);
+        }
       } catch (error) {
         console.error(`[Purge] R2 delete failed for ${row.id}: ${error.message}`);
       }

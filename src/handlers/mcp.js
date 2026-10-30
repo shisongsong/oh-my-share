@@ -2,6 +2,7 @@ import { json, checkRateLimit, getClientIp } from '../security.js';
 import { CONFIG } from '../config.js';
 import { validateToken } from './oauth-token.js';
 import { bytesToBase64Url, sha256 } from '../crypto.js';
+import { deleteSiteObjects } from '../site-storage.js';
 import { queryGallery } from './gallery.js';
 
 const MCP_VERSION = '2026-07-28';
@@ -236,16 +237,19 @@ async function handleToolCall(name, args, env, auth, ip) {
       if (!auth) return { error: 'Authentication required. Use Bearer token or login first.' };
 
       const { results } = await env.DB.prepare(
-        `SELECT id, filename, created_at, updated_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`
+        `SELECT id, kind, filename, created_at, updated_at FROM files WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`
       ).bind(auth.userId).all();
 
       return {
         assets: results.map(r => ({
           id: r.id,
+          kind: r.kind || 'file',
           filename: r.filename,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
-          url: `https://openanthropic.com/view/${r.id}`,
+          url: r.kind === 'site'
+            ? `https://openanthropic.com/s/${r.id}/`
+            : `https://openanthropic.com/view/${r.id}`,
         })),
         total: results.length,
       };
@@ -256,10 +260,21 @@ async function handleToolCall(name, args, env, auth, ip) {
       if (!id) return { error: 'id is required' };
 
       const row = await env.DB.prepare(
-        `SELECT id, filename, created_at, password_hash FROM files WHERE id = ?`
+        `SELECT id, kind, filename, created_at, password_hash FROM files WHERE id = ?`
       ).bind(id).first();
 
       if (!row) return { error: 'Content not found' };
+
+      if (row.kind === 'site') {
+        return {
+          id: row.id,
+          kind: 'site',
+          filename: row.filename,
+          createdAt: row.created_at,
+          url: `https://openanthropic.com/s/${row.id}/`,
+          note: 'Folder share. Open the URL to browse its files.',
+        };
+      }
 
       // Password protection must be enforced here too: the web view asks for
       // the password, and the API used to return the content regardless.
@@ -290,11 +305,18 @@ async function handleToolCall(name, args, env, auth, ip) {
       const { id } = args;
       if (!id) return { error: 'id is required' };
 
-      const result = await env.DB.prepare(
+      const row = await env.DB.prepare(
+        `SELECT kind FROM files WHERE id = ? AND owner_id = ?`
+      ).bind(id, auth.userId).first();
+      if (!row) return { error: 'Asset not found or not authorized' };
+
+      if (env.MY_BUCKET) {
+        if (row.kind === 'site') await deleteSiteObjects(env.MY_BUCKET, id);
+        else await env.MY_BUCKET.delete(id);
+      }
+      await env.DB.prepare(
         `DELETE FROM files WHERE id = ? AND owner_id = ?`
       ).bind(id, auth.userId).run();
-
-      if (result.changes === 0) return { error: 'Asset not found or not authorized' };
 
       return { success: true, message: `Asset ${id} deleted` };
     }

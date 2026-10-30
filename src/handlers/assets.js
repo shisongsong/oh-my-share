@@ -1,5 +1,6 @@
 import { getCurrentUser, isSameOriginRequest } from '../auth.js';
 import { getBucket, getDatabase, json } from '../security.js';
+import { deleteSiteObjects } from '../site-storage.js';
 
 function unauthorized(request) {
   const origin = new URL(request.url).origin;
@@ -9,8 +10,11 @@ function unauthorized(request) {
   });
 }
 
-function assetUrl(request, id) {
-  return `${new URL(request.url).origin}/view/${encodeURIComponent(id)}`;
+function assetUrl(request, id, kind) {
+  const origin = new URL(request.url).origin;
+  return kind === 'site'
+    ? `${origin}/s/${encodeURIComponent(id)}/`
+    : `${origin}/view/${encodeURIComponent(id)}`;
 }
 
 export async function handleListAssets(request, env) {
@@ -20,7 +24,7 @@ export async function handleListAssets(request, env) {
   const database = getDatabase(env);
   const result = await database
     .prepare(
-      `SELECT id, filename, encrypted, encryption_version, title, description, tags, created_at, edit_token,
+      `SELECT id, kind, filename, encrypted, encryption_version, title, description, tags, created_at, edit_token,
               published_at, password_hash, expires_at
        FROM files
        WHERE owner_id = ?
@@ -44,7 +48,8 @@ export async function handleListAssets(request, env) {
     publishedAt: asset.published_at || 0,
     passwordProtected: Boolean(asset.password_hash),
     expiresAt: asset.expires_at || null,
-    url: assetUrl(request, asset.id),
+    kind: asset.kind || 'file',
+    url: assetUrl(request, asset.id, asset.kind),
   }));
 
   return json({ assets }, 200, { 'Cache-Control': 'no-store' });
@@ -70,7 +75,7 @@ export async function handlePublishAsset(request, env, id) {
   const database = getDatabase(env);
   const asset = await database
     .prepare(
-      'SELECT id, encrypted, password_hash, expires_at, published_at FROM files WHERE id = ? AND owner_id = ?'
+      'SELECT id, kind, encrypted, password_hash, expires_at, published_at FROM files WHERE id = ? AND owner_id = ?'
     )
     .bind(id, user.id)
     .first();
@@ -78,6 +83,9 @@ export async function handlePublishAsset(request, env, id) {
 
   const now = Math.floor(Date.now() / 1000);
   if (published) {
+    if (asset.kind === 'site') {
+      return json({ error: 'Folder shares cannot be published to the gallery', code: 'errCannotPublish' }, 400);
+    }
     if (asset.encrypted) {
       return json({ error: 'Encrypted assets cannot be published', code: 'errCannotPublish' }, 400);
     }
@@ -109,13 +117,15 @@ export async function handleDeleteAsset(request, env, id) {
 
   const database = getDatabase(env);
   const asset = await database
-    .prepare('SELECT id FROM files WHERE id = ? AND owner_id = ?')
+    .prepare('SELECT id, kind FROM files WHERE id = ? AND owner_id = ?')
     .bind(id, user.id)
     .first();
   if (!asset) return json({ error: 'Asset not found', code: 'errNotFound' }, 404);
 
   try {
-    await getBucket(env).delete(id);
+    const bucket = getBucket(env);
+    if (asset.kind === 'site') await deleteSiteObjects(bucket, id);
+    else await bucket.delete(id);
     await database
       .prepare('DELETE FROM files WHERE id = ? AND owner_id = ?')
       .bind(id, user.id)

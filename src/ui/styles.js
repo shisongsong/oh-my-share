@@ -63,7 +63,7 @@ ${BASE_CSS}
 
 .upload-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   padding: 3px;
   background: var(--color-fill);
@@ -155,6 +155,15 @@ ${BASE_CSS}
 
 input[type=file] {
   display: none;
+}
+
+.folder-hide[hidden] {
+  display: none !important;
+}
+
+#folderInfo {
+  margin-top: var(--space-3);
+  color: var(--color-text);
 }
 
 /* Code textarea */

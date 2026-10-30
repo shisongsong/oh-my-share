@@ -1,5 +1,7 @@
 import { t } from './i18n.js';
 import { postForm } from './api.js';
+import { state } from './state.js';
+import { openAccountModal, updateAuthMode } from './auth.js';
 
 function bytesToBase64Url(value) {
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
@@ -96,7 +98,7 @@ export async function createUploadPayload(kind, value, filename, slug) {
   return { formData, keyFragment: encrypted.keyFragment };
 }
 
-export async function handleUpload(buildPayload, button) {
+export async function handleUpload(buildPayload, button, endpoint = '/api/upload') {
   const originalHTML = button.innerHTML;
   const translations = t('btnGenerating');
 
@@ -109,7 +111,7 @@ export async function handleUpload(buildPayload, button) {
 
   try {
     const prepared = await buildPayload();
-    const data = await postForm('/api/upload', prepared.formData);
+    const data = await postForm(endpoint, prepared.formData);
 
     resultBox.hidden = false;
     resultBox.className = 'result-box';
@@ -131,6 +133,99 @@ function updateDropZoneText(name) {
   paragraph.innerHTML = '<span>' + t('selectedPrefix') + '</span><span class="link"></span>';
   paragraph.querySelector('.link').textContent = name;
   dropZone.querySelector('svg').style.color = 'var(--text-main)';
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+let folderEntries = [];
+
+function setFolderEntries(entries) {
+  folderEntries = entries;
+  const info = document.getElementById('folderInfo');
+  if (!info) return;
+  if (!entries.length) {
+    info.hidden = true;
+    info.textContent = '';
+    return;
+  }
+  const total = entries.reduce((sum, entry) => sum + (entry.file.size || 0), 0);
+  info.hidden = false;
+  info.textContent = t('folderSelected')
+    .replace('{n}', String(entries.length))
+    .replace('{size}', formatBytes(total));
+}
+
+function collectFileList(files) {
+  return Array.from(files).map((file) => ({
+    file,
+    path: file.webkitRelativePath || file.name,
+  }));
+}
+
+function readDirectory(reader) {
+  return new Promise((resolve, reject) => {
+    const all = [];
+    const read = () => reader.readEntries((entries) => {
+      if (!entries.length) resolve(all);
+      else {
+        all.push(...entries);
+        read();
+      }
+    }, reject);
+    read();
+  });
+}
+
+async function walkEntry(entry, prefix, out) {
+  if (entry.isFile) {
+    const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+    out.push({ file, path: `${prefix}${entry.name}` });
+    return;
+  }
+  if (entry.isDirectory) {
+    const children = await readDirectory(entry.createReader());
+    for (const child of children) {
+      await walkEntry(child, `${prefix}${entry.name}/`, out);
+    }
+  }
+}
+
+async function collectDroppedEntries(dataTransfer) {
+  const items = dataTransfer.items;
+  if (items && items.length && typeof items[0].webkitGetAsEntry === 'function') {
+    const out = [];
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry();
+      if (entry) await walkEntry(entry, '', out);
+    }
+    if (out.length) return out;
+  }
+  return collectFileList(dataTransfer.files);
+}
+
+function buildFolderPayload() {
+  const formData = new FormData();
+  formData.append('folder', (folderEntries[0]?.path || 'site').split('/')[0]);
+
+  const title = document.getElementById('metaTitle').value.trim();
+  const description = document.getElementById('metaDescription').value.trim();
+  const tags = document.getElementById('metaTags').value.trim();
+  if (title) formData.append('title', title);
+  if (description) formData.append('description', description);
+  if (tags) formData.append('tags', tags);
+
+  const expiresIn = document.getElementById('expirySelect').value;
+  if (expiresIn && expiresIn !== '0') formData.append('expiresIn', expiresIn);
+
+  for (const entry of folderEntries) {
+    formData.append('files', entry.file, entry.path);
+  }
+  return { formData, keyFragment: '' };
 }
 
 export function initUpload() {
@@ -156,6 +251,8 @@ export function initUpload() {
   });
 
   document.getElementById('btn-file').addEventListener('click', function () {
+    const folderPanel = document.getElementById('panel-folder');
+    if (folderPanel && folderPanel.classList.contains('active')) return;
     const codePanel = document.getElementById('panel-code');
     const slug = document.getElementById('slug-file').value;
 
@@ -169,5 +266,48 @@ export function initUpload() {
     if (!fileInput.files.length) { alert(t('errEmptyFile')); return; }
     const file = fileInput.files[0];
     handleUpload(() => createUploadPayload('file', file, file.name, slug), this);
+  });
+
+  const folderInput = document.getElementById('folderInput');
+  const folderDropZone = document.getElementById('folderDropZone');
+  if (folderInput && folderDropZone) {
+    folderDropZone.addEventListener('click', (event) => {
+      if (event.target !== folderInput) folderInput.click();
+    });
+    folderDropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      folderDropZone.classList.add('dragover');
+    });
+    folderDropZone.addEventListener('dragleave', () => folderDropZone.classList.remove('dragover'));
+    folderDropZone.addEventListener('drop', async (event) => {
+      event.preventDefault();
+      folderDropZone.classList.remove('dragover');
+      setFolderEntries(await collectDroppedEntries(event.dataTransfer));
+    });
+    folderInput.addEventListener('change', () => {
+      setFolderEntries(collectFileList(folderInput.files));
+    });
+  }
+
+  document.getElementById('btn-file').addEventListener('click', function () {
+    const folderPanel = document.getElementById('panel-folder');
+    if (!folderPanel || !folderPanel.classList.contains('active')) return;
+
+    if (!folderEntries.length) { alert(t('errSiteEmpty')); return; }
+    if (folderEntries.length > 200) { alert(t('errSiteTooMany')); return; }
+    const total = folderEntries.reduce((sum, entry) => sum + (entry.file.size || 0), 0);
+    if (total > 20 * 1024 * 1024) { alert(t('errSiteTooLarge')); return; }
+    if (folderEntries.some((entry) => (entry.file.size || 0) > 5 * 1024 * 1024)) {
+      alert(t('errSiteFileTooLarge'));
+      return;
+    }
+    if (!state.user) {
+      state.authMode = 'register';
+      updateAuthMode();
+      openAccountModal();
+      alert(t('errSiteAuth'));
+      return;
+    }
+    handleUpload(buildFolderPayload, this, '/api/upload-site');
   });
 }

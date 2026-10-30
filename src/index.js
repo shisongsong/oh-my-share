@@ -1,5 +1,7 @@
 import { handleHome } from './handlers/home.js';
 import { handleUpload } from './handlers/upload.js';
+import { handleSiteUpload } from './handlers/upload-site.js';
+import { handleSite } from './handlers/site.js';
 import { handlePublicContent, handleView, handleVerifyPassword } from './handlers/view.js';
 import {
   handleCurrentUser,
@@ -211,6 +213,8 @@ export default {
         });
       } else if (url.pathname === '/og-image.png') {
         response = await handleStaticAssets(request, env);
+      } else if (request.method === 'POST' && url.pathname === '/api/upload-site') {
+        response = await handleSiteUpload(request, env);
       } else if (request.method === 'POST' && url.pathname === '/api/upload') {
         response = await handleUpload(request, env);
       } else if (request.method === 'POST' && url.pathname.startsWith('/api/edit/')) {
@@ -328,6 +332,8 @@ export default {
         response = await handleManagePage(request, env);
       } else if (url.pathname === '/report') {
         response = await handleReport(request, env);
+      } else if ((request.method === 'GET' || request.method === 'HEAD') && /^\/s\/[a-z0-9-]+/i.test(url.pathname)) {
+        response = await handleSite(request, env);
       } else if (request.method === 'GET' && url.pathname.startsWith('/view/')) {
         response = await handleView(request, env);
       } else if (request.method === 'GET' && url.pathname === '/') {

@@ -49,6 +49,7 @@ const ADMIN_TXT = {
     badgeEncrypted: '加密',
     badgeExpired: '已过期',
     badgeNormal: '普通',
+    badgeSite: '目录',
     generatedAt: '生成于',
     note: '管理操作需管理员会话 · 数据来自 D1',
     reportsHeading: '举报队列',
@@ -97,6 +98,7 @@ const ADMIN_TXT = {
     badgeEncrypted: 'Encrypted',
     badgeExpired: 'Expired',
     badgeNormal: 'Normal',
+    badgeSite: 'Folder',
     generatedAt: 'Generated',
     note: 'Moderation requires an admin session · data from D1',
     reportsHeading: 'Reports',
@@ -174,6 +176,7 @@ function fmtStamp(ts) {
 
 function badgeFor(row, t, now) {
   const out = [];
+  if (row.kind === 'site') out.push(t.badgeSite);
   if (row.published_at > 0) out.push(t.badgePublished);
   if (row.encrypted) out.push(t.badgeEncrypted);
   if (row.expires_at > 0 && row.expires_at <= now) out.push(t.badgeExpired);
@@ -270,7 +273,7 @@ export async function handleAdminPage(request, env) {
     (
       await database
         .prepare(
-          `SELECT f.id, f.title, f.filename, f.owner_id, f.created_at, f.published_at,
+          `SELECT f.id, f.kind, f.title, f.filename, f.owner_id, f.created_at, f.published_at,
                   f.expires_at, f.encrypted, u.email
            FROM files f LEFT JOIN users u ON u.id = f.owner_id
            WHERE typeof(f.created_at) = 'integer' AND f.created_at >= ?

@@ -373,7 +373,7 @@ ${AUTH_CSS}</style>
         <button type="submit">${t.oauthContinueEmail}</button>
       </form>
       <div class="auth-link">
-        ${t.oauthNoAccount} <a href="/register">${t.oauthRegister}</a>
+        ${t.oauthNoAccount} <a href="/?auth=register">${t.oauthRegister}</a>
       </div>
     </div>
   </div>

@@ -36,12 +36,22 @@ export async function handleEditPage(request, env) {
   if (!database) return new Response('Database not available', { status: 500 });
 
   const file = await database
-    .prepare('SELECT id, title, description, tags, edit_token, encrypted FROM files WHERE id = ?')
+    .prepare('SELECT id, kind, title, description, tags, edit_token, encrypted FROM files WHERE id = ?')
     .bind(id)
     .first();
 
   if (!file) return new Response('Not Found', { status: 404 });
   if (file.edit_token !== editToken) return new Response('Invalid token', { status: 403 });
+
+  if (file.kind === 'site') {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `/manage/${encodeURIComponent(id)}?token=${encodeURIComponent(editToken)}`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
 
   let content = '';
   if (Number(file.encrypted) !== 1) {
@@ -54,7 +64,11 @@ export async function handleEditPage(request, env) {
   const viewer = await getCurrentUser(request, env);
 
   return new Response(renderEditPage(id, editToken, file, content, lang, t, viewer), {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+    },
   });
 }
 
@@ -77,12 +91,15 @@ export async function handleEditSave(request, env) {
   if (!database) return json({ error: 'Database not available' }, 500);
 
   const file = await database
-    .prepare('SELECT id, edit_token, encrypted FROM files WHERE id = ?')
+    .prepare('SELECT id, kind, edit_token, encrypted FROM files WHERE id = ?')
     .bind(id)
     .first();
 
   if (!file) return json({ error: 'Not found' }, 404);
   if (file.edit_token !== editToken) return json({ error: 'Invalid token', code: 'errForbidden' }, 403);
+  if (file.kind === 'site') {
+    return json({ error: 'Folder shares cannot be edited online', code: 'errCannotEditSite' }, 400);
+  }
 
   let contentSaved = false;
   if (typeof code === 'string') {
@@ -131,7 +148,7 @@ export async function handleManagePage(request, env) {
   if (!database) return new Response('Database not available', { status: 500 });
 
   const file = await database
-    .prepare('SELECT id, title, edit_token, created_at, expires_at, password_hash FROM files WHERE id = ?')
+    .prepare('SELECT id, kind, title, edit_token, created_at, expires_at, password_hash FROM files WHERE id = ?')
     .bind(id)
     .first();
 
@@ -331,6 +348,7 @@ function renderManagePage(id, editToken, file, stats, lang, t, viewer) {
       expired: '已过期',
       hasPassword: '已设置',
       noPassword: '未设置',
+      folderNotice: '目录作品暂不支持在线编辑；如需更新请重新上传。',
     },
     en: {
       title: 'Manage Share - Oh My Share',
@@ -350,6 +368,7 @@ function renderManagePage(id, editToken, file, stats, lang, t, viewer) {
       expired: 'Expired',
       hasPassword: 'Set',
       noPassword: 'Not set',
+      folderNotice: 'Folder shares cannot be edited online; re-upload to update.',
     },
   };
   const msg = translations[lang] || translations.en;
@@ -361,6 +380,11 @@ function renderManagePage(id, editToken, file, stats, lang, t, viewer) {
 
   const expiresText = file.expires_at ? formatDate(file.expires_at) : msg.permanent;
   const passwordText = file.password_hash ? msg.hasPassword : msg.noPassword;
+  const isSite = file.kind === 'site';
+  const shareUrl = isSite ? `/s/${id}/` : `/view/${id}`;
+  const editButton = isSite
+    ? `<p class="option-hint">${msg.folderNotice}</p>`
+    : `<button class="action-btn" onclick="window.location.href='/edit/${id}?token=${editToken}&lang=${lang}'">${msg.editBtn}</button>`;
 
   return renderDocument({
     lang,
@@ -405,8 +429,8 @@ function renderManagePage(id, editToken, file, stats, lang, t, viewer) {
       </div>
     </div>
     <div class="result-actions">
-      <button class="action-btn" onclick="window.location.href='/edit/${id}?token=${editToken}&lang=${lang}'">${msg.editBtn}</button>
-      <button class="action-btn" onclick="navigator.clipboard.writeText(window.location.origin + '/view/${id}')">${msg.copyLinkBtn}</button>
+      ${editButton}
+      <button class="action-btn" onclick="navigator.clipboard.writeText(window.location.origin + '${shareUrl}')">${msg.copyLinkBtn}</button>
     </div>
   </div>
 </div>`,
