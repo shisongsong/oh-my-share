@@ -28,10 +28,8 @@ export function faqJsonLd(faq) {
     name: q,
     acceptedAnswer: { '@type': 'Answer', text: a },
   }));
-  if (!mainEntity.length) return '';
-  return `<script type="application/ld+json">
-${JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity })}
-</script>`;
+  if (!mainEntity.length) return null;
+  return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity };
 }
 
 // Shared design system: tokens + common components used by all pages.

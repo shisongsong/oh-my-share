@@ -1,15 +1,15 @@
 import { I18N, resolveLang } from '../i18n.js';
 import { renderNav, accountActionHtml } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
-import { getCurrentUser } from '../auth.js';
-import { getDatabase } from '../security.js';
+import { getCurrentUser, isSameOriginRequest } from '../auth.js';
+import { getDatabase, json } from '../security.js';
 import { escapeHtml } from './gallery.js';
 import { notFoundPage } from './seo.js';
 
 // Admin dashboard. Access is granted by the ADMIN_EMAILS secret (comma-separated,
-// case-insensitive). There is deliberately no password of its own and no write
-// action: the page is read-only, so a stolen session can at worst read the same
-// aggregate data the owner can already see in D1.
+// case-insensitive). There is no password of its own; the only write actions are
+// report moderation (restore/hide), protected by the admin session and an
+// Origin check.
 const ALLOWED_DAYS = [1, 7, 30, 90];
 
 const ADMIN_TXT = {
@@ -50,7 +50,16 @@ const ADMIN_TXT = {
     badgeExpired: '已过期',
     badgeNormal: '普通',
     generatedAt: '生成于',
-    note: '只读页面 · 数据来自 D1',
+    note: '管理操作需管理员会话 · 数据来自 D1',
+    reportsHeading: '举报队列',
+    reporters: '举报人数',
+    reason: '原因',
+    moderation: '操作',
+    restore: '恢复',
+    takeDown: '下架',
+    noReports: '没有待处理举报。',
+    reportedHidden: '已隐藏',
+    reportedVisible: '可见',
   },
   en: {
     title: 'Admin',
@@ -89,7 +98,16 @@ const ADMIN_TXT = {
     badgeExpired: 'Expired',
     badgeNormal: 'Normal',
     generatedAt: 'Generated',
-    note: 'Read-only · data from D1',
+    note: 'Moderation requires an admin session · data from D1',
+    reportsHeading: 'Reports',
+    reporters: 'Reporters',
+    reason: 'Reason',
+    moderation: 'Actions',
+    restore: 'Restore',
+    takeDown: 'Take down',
+    noReports: 'No reports pending.',
+    reportedHidden: 'Hidden',
+    reportedVisible: 'Visible',
   },
 };
 
@@ -120,6 +138,9 @@ const ADMIN_CSS = `
 .admin-badge { display: inline-block; margin-right: 4px; padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-hairline-strong); font-size: 11.5px; font-weight: 600; color: var(--color-text-secondary); }
 .admin-empty { padding: 22px; color: var(--color-text-tertiary); font-size: 13.5px; }
 .admin-foot { color: var(--color-text-tertiary); font-size: 12.5px; }
+.admin-inline-form { display: inline-flex; gap: 6px; }
+.admin-action { min-height: 28px; padding: 0 10px; border: 1px solid var(--color-hairline-strong); border-radius: var(--radius-pill); background: transparent; color: var(--color-text); font-size: 12px; font-weight: 600; cursor: pointer; }
+.admin-action:hover { border-color: var(--color-accent-pink); color: var(--color-accent-pink); }
 `;
 
 export function adminEmails(env) {
@@ -281,6 +302,21 @@ export async function handleAdminPage(request, env) {
         .first()
     )?.n) || 0;
 
+  const reports =
+    (
+      await database
+        .prepare(
+          `SELECT f.id, f.title, f.filename, f.reported_at, f.report_count, f.published_at, u.email,
+                  (SELECT COUNT(DISTINCT r.reporter_hash) FROM reports r WHERE r.file_id = f.id) AS reporters,
+                  (SELECT GROUP_CONCAT(DISTINCT r.reason) FROM reports r WHERE r.file_id = f.id) AS reasons
+           FROM files f LEFT JOIN users u ON u.id = f.owner_id
+           WHERE EXISTS (SELECT 1 FROM reports r WHERE r.file_id = f.id)
+           ORDER BY COALESCE(f.reported_at, 0) DESC, f.report_count DESC
+           LIMIT 100`
+        )
+        .all()
+    ).results || [];
+
   const viewMap = new Map(viewRows.map((r) => [r.file_id, Number(r.n) || 0]));
   const internalEmails = new Set(adminEmails(env));
   const hidden = (email, title) =>
@@ -352,6 +388,25 @@ export async function handleAdminPage(request, env) {
 </tr>`;
   });
 
+  const reportRows = reports.map((r) => {
+    const title = r.title || r.filename || r.id;
+    const hiddenState = Number(r.reported_at) > 0 ? a.reportedHidden : a.reportedVisible;
+    return `<tr>
+  <td class="cell-work"><a href="/view/${encodeURIComponent(r.id)}" rel="noopener">${escapeHtml(title)}</a></td>
+  <td>${escapeHtml(r.email || a.anonymous)}</td>
+  <td>${escapeHtml(String(r.reporters || 0))}</td>
+  <td>${escapeHtml(r.reasons || '')}</td>
+  <td>${escapeHtml(hiddenState)}</td>
+  <td><form method="POST" action="/api/admin/reports" class="admin-inline-form">
+    <input type="hidden" name="id" value="${escapeHtml(r.id)}">
+    <input type="hidden" name="days" value="${days}">
+    <input type="hidden" name="lang" value="${lang}">
+    <button class="admin-action" type="submit" name="action" value="restore">${escapeHtml(a.restore)}</button>
+    <button class="admin-action" type="submit" name="action" value="hide">${escapeHtml(a.takeDown)}</button>
+  </form></td>
+</tr>`;
+  });
+
   const lead = a.lead.replace('{days}', String(days));
   const body = `<main class="admin-main">
   <h1>${escapeHtml(a.title)}</h1>
@@ -376,6 +431,10 @@ export async function handleAdminPage(request, env) {
     ${renderTable([a.time, a.work, a.author, a.views, a.status], workRows, a.noWorks)}
   </section>
   <section class="admin-section">
+    <h2>${escapeHtml(a.reportsHeading)}</h2>
+    ${renderTable([a.work, a.author, a.reporters, a.reason, a.status, a.moderation], reportRows, a.noReports)}
+  </section>
+  <section class="admin-section">
     <h2>${escapeHtml(a.topHeading)}</h2>
     ${renderTable([a.views, a.work, a.author, a.time], topRows, a.noTop)}
   </section>
@@ -394,4 +453,62 @@ export async function handleAdminPage(request, env) {
       footer: false,
     })
   );
+}
+
+
+export async function handleAdminReportAction(request, env) {
+  if (request.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, 405);
+  }
+
+  const viewer = await getCurrentUser(request, env);
+  if (!viewer || !isAdminUser(viewer, env)) {
+    return json({ error: 'Not found' }, 404);
+  }
+  if (!isSameOriginRequest(request)) {
+    return json({ error: 'Invalid origin' }, 403);
+  }
+
+  const database = getDatabase(env);
+  if (!database) return json({ error: 'Database unavailable' }, 503);
+
+  let form;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({ error: 'Invalid form data' }, 400);
+  }
+
+  const id = String(form.get('id') || '');
+  const action = String(form.get('action') || '');
+  const lang = form.get('lang') === 'zh' ? 'zh' : 'en';
+  const days = [1, 7, 30, 90].includes(Number(form.get('days'))) ? Number(form.get('days')) : 7;
+
+  if (!/^[a-z0-9-]+$/i.test(id)) {
+    return json({ error: 'Invalid content ID' }, 400);
+  }
+
+  if (action === 'restore') {
+    await database.prepare('DELETE FROM reports WHERE file_id = ?').bind(id).run();
+    await database
+      .prepare('UPDATE files SET report_count = 0, reported_at = NULL WHERE id = ?')
+      .bind(id)
+      .run();
+  } else if (action === 'hide') {
+    const now = Math.floor(Date.now() / 1000);
+    await database
+      .prepare('UPDATE files SET reported_at = COALESCE(reported_at, ?) WHERE id = ?')
+      .bind(now, id)
+      .run();
+  } else {
+    return json({ error: 'Unknown action' }, 400);
+  }
+
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `/admin?lang=${lang}&days=${days}`,
+      'Cache-Control': 'no-store',
+    },
+  });
 }

@@ -1,6 +1,7 @@
 import { json, checkRateLimit, getClientIp } from '../security.js';
 import { CONFIG } from '../config.js';
 import { validateToken } from './oauth-token.js';
+import { bytesToBase64Url, sha256 } from '../crypto.js';
 import { queryGallery } from './gallery.js';
 
 const MCP_VERSION = '2026-07-28';
@@ -164,9 +165,10 @@ async function getAuthContext(request, env) {
 
   const cookies = parseCookies(request.headers.get('cookie'));
   if (cookies.osh_session) {
+    const tokenHash = bytesToBase64Url(await sha256(cookies.osh_session));
     const user = await env.DB.prepare(
       `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
-    ).bind(cookies.osh_session).first();
+    ).bind(tokenHash).first();
     if (user) return { userId: user.user_id, source: 'cookie' };
   }
 

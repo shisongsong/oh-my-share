@@ -5,7 +5,7 @@ import { renderNav, accountActionHtml } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { getCurrentUser } from '../auth.js';
 import { getDatabase, getBucket, json } from '../security.js';
-import { hashPassword, hashIp } from '../crypto.js';
+import { hashIp } from '../crypto.js';
 import { CONFIG } from '../config.js';
 
 const LANG_TOGGLE = `var u=new URL(location.href);u.searchParams.set('lang',u.searchParams.get('lang')==='zh'?'en':'zh');location.href=u.toString()`;

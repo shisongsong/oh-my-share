@@ -19,7 +19,7 @@ import { handleAbusePage, handleReportSubmit } from './handlers/report.js';
 import { handleContactPage, handleWechatQr } from './handlers/contact.js';
 import { handleGuidesIndex, handleGuidePage } from './handlers/guides.js';
 import { handleRobotsTxt, handleSitemap, notFoundPage } from './handlers/seo.js';
-import { handleAdminPage } from './handlers/admin.js';
+import { handleAdminPage, handleAdminReportAction } from './handlers/admin.js';
 import { handleLegalPage } from './handlers/legal.js';
 import { handleFeed } from './handlers/feed.js';
 import { handleDemo } from './handlers/demo.js';
@@ -54,7 +54,7 @@ import { handleA2a } from './handlers/a2a.js';
 import { handleAgentSkillsIndex } from './handlers/agent-skills.js';
 import { handleMcpServerCard } from './handlers/mcp-server-card.js';
 import { handleMcp } from './handlers/mcp.js';
-import { handleOAuthToken, handleOAuthAuthorize, handleOAuthLogin, handleOAuthCallback } from './handlers/oauth-token.js';
+import { handleOAuthToken, handleOAuthAuthorize, handleOAuthLogin, handleOAuthConsent, handleOAuthCallback } from './handlers/oauth-token.js';
 import { handleGoogleAuth, handleGoogleCallback, handleGitHubAuth, handleGitHubCallback } from './handlers/oauth-social.js';
 import { handleHttpMessageSignaturesDirectory } from './handlers/http-message-signatures.js';
 import { handleLandingPage } from './handlers/landing.js';
@@ -127,6 +127,8 @@ export default {
         response = await handleOAuthAuthorize(request, env);
       } else if (url.pathname === '/oauth/login') {
         response = await handleOAuthLogin(request, env);
+      } else if (url.pathname === '/oauth/consent') {
+        response = await handleOAuthConsent(request, env);
       } else if (url.pathname === '/oauth/callback') {
         response = await handleOAuthCallback(request, env);
       } else if (url.pathname === '/oauth/google') {
@@ -163,6 +165,8 @@ export default {
         response = await handleContactPage(request, env);
       } else if (url.pathname === '/admin') {
         response = await handleAdminPage(request, env);
+      } else if (url.pathname === '/api/admin/reports' && request.method === 'POST') {
+        response = await handleAdminReportAction(request, env);
       } else if (url.pathname === '/guides') {
         response = await handleGuidesIndex(request, env);
       } else if (url.pathname.startsWith('/guides/')) {

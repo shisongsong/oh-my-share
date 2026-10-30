@@ -1,7 +1,8 @@
-import { json } from '../security.js';
-import { verifyPasswordWithDummy } from '../auth.js';
+import { json, checkRateLimit, getClientIp } from '../security.js';
+import { getCurrentUser, isSameOriginRequest, verifyPasswordWithDummy } from '../auth.js';
+import { CONFIG } from '../config.js';
 import { findActiveKey } from '../api-keys.js';
-import { bytesToBase64Url, sha256 } from '../crypto.js';
+import { bytesToBase64Url, sha256, timingSafeEqual } from '../crypto.js';
 import { BASE_CSS } from '../ui/theme.js';
 import { I18N, resolveLang } from '../i18n.js';
 
@@ -156,6 +157,104 @@ function generateCode() {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const ALLOWED_SCOPES = new Set(['upload', 'manage', 'read']);
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Only HTTPS callbacks and loopback HTTP (native MCP clients) are accepted.
+// Custom schemes are deliberately rejected so a crafted link cannot bounce the
+// authorization code to an arbitrary app handler.
+function validRedirectUri(value) {
+  if (!value || value.length > 2048) return false;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (parsed.username || parsed.password || parsed.hash) return false;
+  if (parsed.protocol === 'https:') return true;
+  if (parsed.protocol === 'http:') {
+    return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname);
+  }
+  return false;
+}
+
+function normalizeScope(value) {
+  const requested = String(value || '')
+    .split(/\s+/)
+    .filter((part) => ALLOWED_SCOPES.has(part));
+  const unique = Array.from(new Set(requested));
+  return unique.length ? unique.join(' ') : 'upload manage read';
+}
+
+function validPkceChallenge(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{43,128}$/.test(value);
+}
+
+function consentPage(lang, t, authRequest) {
+  const client = escapeHtml(authRequest.client_id);
+  const redirect = escapeHtml(authRequest.redirect_uri);
+  const scope = escapeHtml(authRequest.scope || 'upload manage read');
+  return `<!DOCTYPE html>
+<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <title>${escapeHtml(t.consentTitle)} - Oh My Share</title>
+  <meta name="robots" content="noindex,nofollow">
+  <style>${BASE_CSS}
+  .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); padding: var(--space-5); }
+  .auth-box { background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: var(--radius-card); padding: var(--space-6); max-width: 440px; width: 100%; box-shadow: var(--shadow-card); }
+  .auth-box h1 { font-size: 22px; margin-bottom: 10px; }
+  .consent-lead { color: var(--color-text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 18px; }
+  .consent-row { margin: 12px 0; font-size: 13px; color: var(--color-text-secondary); }
+  .consent-row strong { display: block; color: var(--color-text); font-size: 13px; margin-bottom: 3px; }
+  .consent-row code { word-break: break-all; font-size: 12px; color: var(--color-text); }
+  .consent-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .consent-actions button { flex: 1; min-height: 44px; border-radius: var(--radius-pill); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .consent-allow { border: none; background: var(--color-accent-strong); color: #fff; }
+  .consent-deny { border: 1px solid var(--color-hairline-strong); background: transparent; color: var(--color-text); }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-box">
+      <h1>${escapeHtml(t.consentTitle)}</h1>
+      <p class="consent-lead">${escapeHtml(t.consentLead)}</p>
+      <div class="consent-row"><strong>${escapeHtml(t.consentClient)}</strong><code>${client}</code></div>
+      <div class="consent-row"><strong>${escapeHtml(t.consentRedirect)}</strong><code>${redirect}</code></div>
+      <div class="consent-row"><strong>${escapeHtml(t.consentScope)}</strong><code>${scope}</code></div>
+      <form method="POST" action="/oauth/consent">
+        <input type="hidden" name="auth_id" value="${escapeHtml(authRequest.code)}">
+        <div class="consent-actions">
+          <button type="submit" name="decision" value="deny" class="consent-deny" formnovalidate>${escapeHtml(t.consentDeny)}</button>
+          <button type="submit" name="decision" value="allow" class="consent-allow">${escapeHtml(t.consentAllow)}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function consentErrorPage(lang, t, status) {
+  return new Response(
+    `<!DOCTYPE html><html lang="${lang === 'zh' ? 'zh-CN' : 'en'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(t.consentTitle)}</title><meta name="robots" content="noindex,nofollow"><style>${BASE_CSS}
+.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); padding: var(--space-5); }
+.auth-box { background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: var(--radius-card); padding: var(--space-6); max-width: 440px; width: 100%; }
+</style></head><body><div class="auth-page"><div class="auth-box"><h1>${escapeHtml(t.consentTitle)}</h1><p>${escapeHtml(t.consentInvalid)}</p><p><a href="/">${escapeHtml(t.backHome)}</a></p></div></div></body></html>`,
+    { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }
+  );
+}
+
 function base64urlEncode(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -179,7 +278,7 @@ export async function handleOAuthAuthorize(request, env) {
     const code_challenge = url.searchParams.get('code_challenge');
     const code_challenge_method = url.searchParams.get('code_challenge_method') || 'S256';
     const state = url.searchParams.get('state');
-    const scope = url.searchParams.get('scope') || 'upload manage read';
+    const scope = normalizeScope(url.searchParams.get('scope'));
 
     if (response_type !== 'code') {
       return json({ error: 'unsupported_response_type' }, 400);
@@ -187,6 +286,18 @@ export async function handleOAuthAuthorize(request, env) {
 
     if (!client_id || !redirect_uri || !code_challenge) {
       return json({ error: 'invalid_request', error_description: 'Missing required parameters' }, 400);
+    }
+    if (client_id.length > 512 || /[\u0000-\u001f\u007f]/.test(client_id)) {
+      return json({ error: 'invalid_request', error_description: 'Invalid client_id' }, 400);
+    }
+    if (!validRedirectUri(redirect_uri)) {
+      return json({ error: 'invalid_request', error_description: 'Invalid redirect_uri' }, 400);
+    }
+    if (code_challenge_method !== 'S256' || !validPkceChallenge(code_challenge)) {
+      return json({ error: 'invalid_request', error_description: 'PKCE S256 is required' }, 400);
+    }
+    if (state !== null && (typeof state !== 'string' || state.length > 512)) {
+      return json({ error: 'invalid_request', error_description: 'Invalid state' }, 400);
     }
 
     // Store auth request in session for the login page
@@ -197,7 +308,7 @@ export async function handleOAuthAuthorize(request, env) {
     await env.DB.prepare(
       `INSERT OR REPLACE INTO oauth_codes (code, user_id, client_id, redirect_uri, code_challenge, code_challenge_method, scope, state, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(authId, null, client_id, redirect_uri, code_challenge, code_challenge_method || 'S256', scope, state || null, now + 600, now).run();
+    ).bind(authId, null, client_id, redirect_uri, code_challenge, code_challenge_method, scope, state || null, now + 600, now).run();
 
     // Redirect to login page with auth_id
     const loginUrl = `${url.origin}/oauth/login?auth_id=${authId}`;
@@ -276,6 +387,27 @@ ${AUTH_CSS}</style>
   }
 
   if (request.method === 'POST') {
+    if (!isSameOriginRequest(request)) {
+      return new Response('Invalid origin', { status: 403 });
+    }
+
+    const attempt = await checkRateLimit(
+      env,
+      getClientIp(request),
+      'auth-h',
+      CONFIG.RATE_AUTH_PER_HOUR,
+      3600
+    );
+    if (!attempt.allowed) {
+      return new Response('Too many sign-in attempts. Retry later.', {
+        status: 429,
+        headers: {
+          'Retry-After': String(attempt.retryAfter),
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
+    }
+
     const formData = await request.formData();
     const authId = formData.get('auth_id');
     const email = formData.get('email');
@@ -334,25 +466,22 @@ ${AUTH_CSS}</style>
       `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, strftime('%s','now'), ?)`
     ).bind(tokenHash, user.id, Math.floor(Date.now() / 1000) + 86400).run();
 
-    // If there's an auth request (from MCP/agent flow), handle redirect
+    // If there's an auth request (from MCP/agent flow), associate the signed-in
+    // user and hand off to the explicit consent screen. The authorization code
+    // is only issued after the user presses Allow.
     if (authRequest) {
-      const code = generateCode();
       await env.DB.prepare(
-        `UPDATE oauth_codes SET user_id = ?, code = ? WHERE code = ?`
-      ).bind(user.id, code, authId).run();
+        `UPDATE oauth_codes SET user_id = ? WHERE code = ? AND user_id IS NULL AND expires_at > strftime('%s','now')`
+      ).bind(user.id, authId).run();
 
-      const updatedRequest = await env.DB.prepare(
-        `SELECT redirect_uri, state FROM oauth_codes WHERE code = ?`
-      ).bind(code).first();
-
-      if (updatedRequest) {
-        const redirectUrl = new URL(updatedRequest.redirect_uri);
-        redirectUrl.searchParams.set('code', code);
-        if (updatedRequest.state) {
-          redirectUrl.searchParams.set('state', updatedRequest.state);
-        }
-        return Response.redirect(redirectUrl.toString(), 302);
-      }
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: `/oauth/consent?auth_id=${encodeURIComponent(authId)}`,
+          'Set-Cookie': `osh_session=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     // Simple web login - redirect to home page with session cookie
@@ -371,6 +500,99 @@ ${AUTH_CSS}</style>
   return json({ error: 'method_not_allowed' }, 405);
 }
 
+export async function handleOAuthConsent(request, env) {
+  const url = new URL(request.url);
+  const lang = resolveLang(request);
+  const t = I18N[lang] || I18N.en;
+  const isPost = request.method === 'POST';
+
+  if (isPost && !isSameOriginRequest(request)) {
+    return new Response('Invalid origin', { status: 403 });
+  }
+
+  let formData = null;
+  if (isPost) {
+    try {
+      formData = await request.formData();
+    } catch {
+      return consentErrorPage(lang, t, 400);
+    }
+  }
+
+  const authId = String(
+    isPost ? formData.get('auth_id') : url.searchParams.get('auth_id')
+  || '').trim();
+
+  if (!/^[a-f0-9]{16}$/.test(authId)) {
+    return consentErrorPage(lang, t, 400);
+  }
+
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return Response.redirect(
+      `${url.origin}/oauth/login?auth_id=${encodeURIComponent(authId)}`,
+      302
+    );
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT * FROM oauth_codes
+     WHERE code = ? AND user_id = ? AND expires_at > strftime('%s','now')`
+  ).bind(authId, user.id).first();
+  if (!row) return consentErrorPage(lang, t, 400);
+
+  if (request.method === 'GET') {
+    return new Response(consentPage(lang, t, row), {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Robots-Tag': 'noindex, nofollow',
+        'Referrer-Policy': 'no-referrer',
+      },
+    });
+  }
+
+  if (request.method !== 'POST') {
+    return json({ error: 'method_not_allowed' }, 405);
+  }
+  const decision = String(formData.get('decision') || '');
+
+  let redirectUrl;
+  try {
+    redirectUrl = new URL(row.redirect_uri);
+  } catch {
+    return consentErrorPage(lang, t, 400);
+  }
+
+  if (decision !== 'allow') {
+    await env.DB.prepare('DELETE FROM oauth_codes WHERE code = ? AND user_id = ?')
+      .bind(authId, user.id)
+      .run();
+    redirectUrl.searchParams.set('error', 'access_denied');
+    if (row.state) redirectUrl.searchParams.set('state', row.state);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: redirectUrl.toString(), 'Cache-Control': 'no-store' },
+    });
+  }
+
+  const code = generateCode();
+  const now = Math.floor(Date.now() / 1000);
+  const updated = await env.DB.prepare(
+    `UPDATE oauth_codes SET code = ?, created_at = ?, expires_at = ?
+     WHERE code = ? AND user_id = ?`
+  ).bind(code, now, now + 600, authId, user.id).run();
+  if (!updated.meta?.changes) return consentErrorPage(lang, t, 400);
+
+  redirectUrl.searchParams.set('code', code);
+  if (row.state) redirectUrl.searchParams.set('state', row.state);
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectUrl.toString(), 'Cache-Control': 'no-store' },
+  });
+}
+
 export async function handleOAuthToken(request, env) {
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, 405);
@@ -382,14 +604,32 @@ export async function handleOAuthToken(request, env) {
   if (contentType.includes('application/json')) {
     params = await request.json();
   } else {
-    const text = await request.text();
-    params = Object.fromEntries(new URLSearchParams(text));
+    try {
+      params = Object.fromEntries(await request.formData());
+    } catch {
+      return json({ error: 'invalid_request' }, 400);
+    }
   }
 
   const { grant_type, email, password, code, redirect_uri, client_id, code_verifier } = params;
 
   // Password grant (for backwards compatibility)
   if (grant_type === 'password') {
+    const limited = await checkRateLimit(
+      env,
+      getClientIp(request),
+      'auth-h',
+      CONFIG.RATE_AUTH_PER_HOUR,
+      3600
+    );
+    if (!limited.allowed) {
+      return json(
+        { error: 'temporarily_unavailable', error_description: 'Too many attempts' },
+        429,
+        { 'Retry-After': String(limited.retryAfter) }
+      );
+    }
+
     if (!email || !password) {
       return json({ error: 'invalid_request', error_description: 'email and password required' }, 400);
     }
@@ -432,12 +672,19 @@ export async function handleOAuthToken(request, env) {
       return json({ error: 'invalid_grant', error_description: 'Invalid or expired code' }, 400);
     }
 
-    // Verify PKCE if code_challenge was provided
-    if (authCode.code_challenge && code_verifier) {
-      const challenge = await sha256Base64Url(code_verifier);
-      if (challenge !== authCode.code_challenge) {
-        return json({ error: 'invalid_grant', error_description: 'Invalid code_verifier' }, 400);
-      }
+    // PKCE is mandatory: the authorize endpoint only accepts S256 challenges.
+    if (!authCode.code_challenge) {
+      return json({ error: 'invalid_grant', error_description: 'Missing PKCE challenge' }, 400);
+    }
+    if (!code_verifier || !/^[A-Za-z0-9_-]{43,128}$/.test(code_verifier)) {
+      return json({ error: 'invalid_grant', error_description: 'Invalid code_verifier' }, 400);
+    }
+    if (authCode.code_challenge_method && authCode.code_challenge_method !== 'S256') {
+      return json({ error: 'invalid_grant', error_description: 'Unsupported code_challenge_method' }, 400);
+    }
+    const challenge = await sha256Base64Url(code_verifier);
+    if (!timingSafeEqual(challenge, authCode.code_challenge)) {
+      return json({ error: 'invalid_grant', error_description: 'Invalid code_verifier' }, 400);
     }
 
     // Delete the used code
@@ -526,9 +773,10 @@ export async function validateToken(request, env) {
     return key ? key.user_id : null;
   }
 
+  const tokenHash = bytesToBase64Url(await sha256(token));
   const user = await env.DB.prepare(
     `SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > strftime('%s','now')`
-  ).bind(token).first();
+  ).bind(tokenHash).first();
 
   return user ? user.user_id : null;
 }

@@ -4,7 +4,13 @@ import { renderDocument } from '../ui/render-document.js';
 import { resolveLang } from '../i18n.js';
 import { parseEncryptionMetadata } from '../encryption.js';
 import { renderEncryptedViewer } from '../ui/viewer.js';
-import { hashPassword, hashIp } from '../crypto.js';
+import {
+  hashIp,
+  hashPagePassword,
+  passwordCookieValue,
+  timingSafeEqual,
+  verifyPagePassword,
+} from '../crypto.js';
 import { hasPaidEntitlement } from '../entitlements.js';
 import {
   checkRateLimit,
@@ -350,23 +356,29 @@ export async function handleView(request, env) {
   // 检查是否需要密码
   if (record.password_hash) {
     const cookie = request.headers.get('Cookie') || '';
-    const match = cookie.match(new RegExp(`osh_pwd_${id}=([a-f0-9]+)`));
+    const match = cookie.match(new RegExp(`osh_pwd_${id}=([A-Za-z0-9_-]+)`));
     if (!match) {
       return new Response(renderPasswordPage(id, lang, false), {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'X-Robots-Tag': 'noindex, nofollow',
           'Referrer-Policy': 'no-referrer',
+          'Cache-Control': 'no-store',
         },
       });
     }
     const providedHash = match[1];
-    if (providedHash !== record.password_hash) {
+    const expectedCookie = await passwordCookieValue(record.password_hash);
+    const validCookie =
+      timingSafeEqual(providedHash, expectedCookie) ||
+      timingSafeEqual(providedHash, record.password_hash);
+    if (!validCookie) {
       return new Response(renderPasswordPage(id, lang, true), {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'X-Robots-Tag': 'noindex, nofollow',
           'Referrer-Policy': 'no-referrer',
+          'Cache-Control': 'no-store',
         },
       });
     }
@@ -460,6 +472,14 @@ export async function handleVerifyPassword(request, env) {
   if (!record) return new Response('Not Found', { status: 404 });
   if (!record.password_hash) return new Response('Not Found', { status: 404 });
 
+  const attempt = await checkRateLimit(env, getClientIp(request), `pwd-${id}`, 10, 600);
+  if (!attempt.allowed) {
+    return new Response('Too many password attempts. Retry later.', {
+      status: 429,
+      headers: { 'Retry-After': String(attempt.retryAfter), 'Cache-Control': 'no-store' },
+    });
+  }
+
   let formData;
   try {
     formData = await request.formData();
@@ -468,24 +488,39 @@ export async function handleVerifyPassword(request, env) {
   }
 
   const password = (formData.get('password') || '').toString();
-  const passwordHash = await hashPassword(password);
+  const check = await verifyPagePassword(password, record.password_hash);
 
-  if (passwordHash !== record.password_hash) {
+  if (!check.valid) {
     const lang = resolveLang(request);
     return new Response(renderPasswordPage(id, lang, true), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Referrer-Policy': 'no-referrer',
+        'Cache-Control': 'no-store',
       },
     });
   }
+
+  let storedHash = record.password_hash;
+  if (check.needsUpgrade) {
+    storedHash = await hashPagePassword(password);
+    const database = getDatabase(env);
+    if (database) {
+      await database
+        .prepare('UPDATE files SET password_hash = ? WHERE id = ?')
+        .bind(storedHash, id)
+        .run();
+    }
+  }
+  const cookieValue = await passwordCookieValue(storedHash);
 
   // 密码正确，设置 cookie 并重定向
   return new Response(null, {
     status: 302,
     headers: {
       'Location': `/view/${id}`,
-      'Set-Cookie': `osh_pwd_${id}=${passwordHash}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${CONFIG.SESSION_TTL_SECONDS}`,
+      'Set-Cookie': `osh_pwd_${id}=${cookieValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${CONFIG.SESSION_TTL_SECONDS}`,
+      'Cache-Control': 'no-store',
     },
   });
 }

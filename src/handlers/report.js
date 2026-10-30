@@ -1,7 +1,7 @@
 import { renderNav, accountActionHtml } from '../ui/theme.js';
 import { renderDocument } from '../ui/render-document.js';
 import { resolveLang, I18N } from '../i18n.js';
-import { getCurrentUser } from '../auth.js';
+import { getCurrentUser, isSameOriginRequest } from '../auth.js';
 import {
   checkRateLimit,
   getClientIp,
@@ -9,6 +9,7 @@ import {
   json,
 } from '../security.js';
 import { hashIp } from '../crypto.js';
+import { CONFIG } from '../config.js';
 
 function validId(id) {
   return Boolean(id) && /^[a-z0-9-]+$/i.test(id);
@@ -189,6 +190,10 @@ export async function handleAbusePage(request, env) {
 const REASONS = new Set(['phishing', 'illegal', 'ip', 'other']);
 
 export async function handleReportSubmit(request, env) {
+  if (!isSameOriginRequest(request)) {
+    return json({ error: 'Invalid origin' }, 403);
+  }
+
   const ip = getClientIp(request);
   const limit = await checkRateLimit(env, ip, 'report-h', 5, 3600);
   if (!limit.allowed) {
@@ -215,13 +220,21 @@ export async function handleReportSubmit(request, env) {
   if (!database) return json({ error: 'Database unavailable' }, 503);
 
   const file = await database
-    .prepare('SELECT id FROM files WHERE id = ?')
+    .prepare('SELECT id, reported_at FROM files WHERE id = ?')
     .bind(id)
     .first();
   if (!file) return json({ error: 'Not found' }, 404);
 
   const now = Math.floor(Date.now() / 1000);
   const reporterHash = await hashIp(ip);
+
+  const duplicate = await database
+    .prepare('SELECT id FROM reports WHERE file_id = ? AND reporter_hash = ? LIMIT 1')
+    .bind(id, reporterHash)
+    .first();
+  if (duplicate) {
+    return json({ ok: true, hidden: Boolean(file.reported_at) });
+  }
 
   await database
     .prepare(
@@ -231,17 +244,24 @@ export async function handleReportSubmit(request, env) {
     .bind(id, reason, email ? `${details}\n[contact: ${email}]` : details, reporterHash, now)
     .run();
 
-  // Immediate action: unpublish from gallery + block public view pending review
+  const distinct = await database
+    .prepare('SELECT COUNT(DISTINCT reporter_hash) AS n FROM reports WHERE file_id = ?')
+    .bind(id)
+    .first();
+  const reporters = Number(distinct?.n) || 0;
+  const hidden = reporters >= CONFIG.REPORT_HIDE_THRESHOLD;
+
+  // Keep the work visible until independent reporters cross the threshold.
+  // Moderation can also hide/restore it explicitly from /admin.
   await database
     .prepare(
       `UPDATE files
-       SET report_count = report_count + 1,
-           reported_at = COALESCE(reported_at, ?),
-           published_at = 0
+       SET report_count = ?,
+           reported_at = CASE WHEN ? = 1 THEN COALESCE(reported_at, ?) ELSE reported_at END
        WHERE id = ?`
     )
-    .bind(now, id)
+    .bind(reporters, hidden ? 1 : 0, now, id)
     .run();
 
-  return json({ ok: true });
+  return json({ ok: true, hidden });
 }

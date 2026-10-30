@@ -330,9 +330,11 @@ export async function handleProfilePage(request, env, userId) {
     </script>`
     : '';
 
-  const profileJsonLd = `<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"ProfilePage","mainEntity":{"@type":"Person","name":${JSON.stringify(displayName)},"url":"${url.origin}/u/${user.id}"}}
-</script>`;
+  const profileJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    mainEntity: { '@type': 'Person', name: displayName, url: `${url.origin}/u/${user.id}` },
+  };
 
   const html = renderDocument({
     lang,

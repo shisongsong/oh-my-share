@@ -843,9 +843,15 @@ ${renderWorkCards([work], t)}
       ${accountActionHtml(t, viewer)}`
   );
 
-  const postJsonLd = `<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"DiscussionForumPosting","headline":${JSON.stringify(post.title || excerpt(post.content, 60))},"text":${JSON.stringify(post.content.slice(0, 500))},"url":"${url.origin}/post/${post.id}","author":{"@type":"Person","name":${JSON.stringify(name)},"url":"${url.origin}/u/${post.user_id}"},"datePublished":${JSON.stringify(new Date(post.created_at * 1000).toISOString())}}
-</script>`;
+  const postJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'DiscussionForumPosting',
+    headline: post.title || excerpt(post.content, 60),
+    text: post.content.slice(0, 500),
+    url: `${url.origin}/post/${post.id}`,
+    author: { '@type': 'Person', name, url: `${url.origin}/u/${post.user_id}` },
+    datePublished: new Date(post.created_at * 1000).toISOString(),
+  };
 
   const html = renderDocument({
     lang,

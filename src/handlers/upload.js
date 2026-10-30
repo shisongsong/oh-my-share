@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { getCurrentUser } from '../auth.js';
 import { hasPaidEntitlement } from '../entitlements.js';
 import { parseEncryptionMetadata } from '../encryption.js';
-import { hashPassword, generateEditToken } from '../crypto.js';
+import { hashPagePassword, generateEditToken } from '../crypto.js';
 import {
   checkRateLimit,
   generateId,
@@ -213,7 +213,7 @@ export async function handleUpload(request, env) {
     if (password.length > CONFIG.PAGE_PASSWORD_MAX_LENGTH) {
       return json({ error: 'Password too long' }, 400);
     }
-    passwordHash = await hashPassword(password);
+    passwordHash = await hashPagePassword(password);
   }
 
   // 处理过期时间

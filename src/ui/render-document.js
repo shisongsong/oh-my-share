@@ -8,8 +8,21 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
+// Escape characters that would let a title or body break out of the
+// application/ld+json script element. `<` is the only one strictly required
+// by the HTML parser, the rest keep the JSON safe for any downstream consumer.
+function serializeJsonLd(content) {
+  const json = typeof content === 'string' ? content : JSON.stringify(content);
+  return json
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function scriptTag(content) {
-  return `<script type="application/ld+json">\n${JSON.stringify(content)}\n</script>`;
+  return `<script type="application/ld+json">\n${serializeJsonLd(content)}\n</script>`;
 }
 
 // Shared HTML document shell. Every full-page handler composes its head and body
@@ -24,7 +37,7 @@ function scriptTag(content) {
 //   canonical     full canonical URL
 //   origin        origin used for hreflang (defaults to canonical's origin)
 //   hreflangPath  path for hreflang alternates; omitted -> no hreflang links
-//   jsonLd        object (serialized) or raw '<script type="application/ld+json">' string
+//   jsonLd        object, already-serialized JSON string, or an array of either
 //   breadcrumbs   [{ name, path }] rendered as a BreadcrumbList (home item included)
 //   og            emit the Open Graph block (requires canonical for og:url)
 //   ogType        og:type (default 'website')
@@ -88,7 +101,9 @@ export function renderDocument({
     robots ? `<meta name="robots" content="${esc(robots)}">` : '',
     canonicalUrl ? `<link rel="canonical" href="${esc(canonicalUrl)}">` : '',
     hreflangPath ? hreflangLinks(origin || (canonicalUrl ? new URL(canonicalUrl).origin : ''), hreflangPath) : '',
-    jsonLd ? (typeof jsonLd === 'string' ? jsonLd : scriptTag(jsonLd)) : '',
+    jsonLd
+      ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]).filter(Boolean).map(scriptTag).join('\n')
+      : '',
     breadcrumbs && breadcrumbs.length
       ? scriptTag({
           '@context': 'https://schema.org',

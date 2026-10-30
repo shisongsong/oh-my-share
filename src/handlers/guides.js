@@ -715,18 +715,21 @@ export async function handleGuidePage(request, env, slug) {
     robots: 'index, follow',
     canonical: `${BASE_URL}/guides/${slug}`,
     hreflangPath: `/guides/${slug}`,
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type': 'TechArticle',
-      headline: copy.title,
-      description: copy.description,
-      url: `${BASE_URL}/guides/${slug}`,
-      dateModified: UPDATED,
-      inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
-      author: { '@type': 'Organization', name: 'Oh My Share', url: BASE_URL },
-      publisher: { '@type': 'Organization', name: 'Oh My Share', url: BASE_URL },
-      mainEntityOfPage: `${BASE_URL}/guides/${slug}`,
-    },
+    jsonLd: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'TechArticle',
+        headline: copy.title,
+        description: copy.description,
+        url: `${BASE_URL}/guides/${slug}`,
+        dateModified: UPDATED,
+        inLanguage: lang === 'zh' ? 'zh-CN' : 'en',
+        author: { '@type': 'Organization', name: 'Oh My Share', url: BASE_URL },
+        publisher: { '@type': 'Organization', name: 'Oh My Share', url: BASE_URL },
+        mainEntityOfPage: `${BASE_URL}/guides/${slug}`,
+      },
+      faqJsonLd(copy.faq),
+    ].filter(Boolean),
     breadcrumbs: breadcrumbs(lang, [
       { name: lang === 'zh' ? '使用指南' : 'Guides', path: '/guides' },
       { name: copy.title, path: `/guides/${slug}` },
@@ -747,7 +750,6 @@ ${bodySections}
   </div>
   <p class="g-guide-updated">${lang === 'zh' ? '最后更新' : 'Last updated'}: ${UPDATED}</p>
 </main>`,
-    headExtra: faqJsonLd(copy.faq),
   });
 
   return new Response(html, {

@@ -11,6 +11,8 @@ import { handleUpload } from "../src/handlers/upload.js";
 import { CORS_RATE_PER_HOUR } from "../src/handlers/cors-proxy.js";
 import { detectLang } from "../src/i18n.js";
 import { validateSlug } from "../src/security.js";
+import { renderDocument } from "../src/ui/render-document.js";
+import { bytesToBase64Url, hashPassword, sha256 } from "../src/crypto.js";
 
 const migrationFiles = import.meta.glob("../migrations/*.sql", {
 	query: "?raw",
@@ -504,7 +506,7 @@ describe("Oh My Share worker", () => {
 		expect((await list.text())).toContain(`/gallery/${id}`);
 	});
 
-	it("reports content: unpublishes, blocks views with 451, and rate limits", async () => {
+	it("reports content: hides after three distinct reporters, blocks views with 451, and rate limits", async () => {
 		const upload = await fetchWorker(
 			new Request("http://example.com/api/upload", {
 				method: "POST",
@@ -520,7 +522,7 @@ describe("Oh My Share worker", () => {
 		expect(abuse.status).toBe(200);
 		expect(await abuse.text()).toContain("/api/report");
 
-		// Valid report succeeds and takes the content down
+		// A single report no longer takes content down; it takes three distinct reporters.
 		const report = await fetchWorker(
 			new Request("http://example.com/api/report", {
 				method: "POST",
@@ -529,15 +531,58 @@ describe("Oh My Share worker", () => {
 			})
 		);
 		expect(report.status).toBe(200);
-		expect(await report.json()).toMatchObject({ ok: true });
+		expect(await report.json()).toMatchObject({ ok: true, hidden: false });
 
 		const view = await fetchWorker(new Request(`http://example.com/view/${id}`));
-		expect(view.status).toBe(451);
-		expect(view.headers.get("x-robots-tag")).toContain("noindex");
-		const viewHtml = await view.text();
+		expect(view.status).toBe(200);
+
+		// The same reporter cannot inflate the count.
+		const duplicate = await fetchWorker(
+			new Request("http://example.com/api/report", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ id, reason: "other" }),
+			})
+		);
+		expect(await duplicate.json()).toMatchObject({ ok: true, hidden: false });
+		const afterOne = await env.DB.prepare(
+			"SELECT report_count, reported_at FROM files WHERE id = ?"
+		).bind(id).first();
+		expect(afterOne.report_count).toBe(1);
+		expect(afterOne.reported_at).toBeNull();
+
+		// Cross-site reports are rejected.
+		const crossSite = await fetchWorker(
+			new Request("http://example.com/api/report", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+				body: JSON.stringify({ id, reason: "other" }),
+			})
+		);
+		expect(crossSite.status).toBe(403);
+
+		for (const ip of ["203.0.113.2", "203.0.113.3"]) {
+			const next = await fetchWorker(
+				new Request("http://example.com/api/report", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Origin: "http://example.com",
+						"CF-Connecting-IP": ip,
+					},
+					body: JSON.stringify({ id, reason: "other" }),
+				})
+			);
+			expect(next.status).toBe(200);
+		}
+
+		const reportedView = await fetchWorker(new Request(`http://example.com/view/${id}`));
+		expect(reportedView.status).toBe(451);
+		expect(reportedView.headers.get("x-robots-tag")).toContain("noindex");
+		const viewHtml = await reportedView.text();
 		expect(viewHtml).toContain("Content Removed");
 		expect(viewHtml).toContain("1400875096@qq.com");
-		expect(view.headers.get("referrer-policy")).toBe("no-referrer");
+		expect(reportedView.headers.get("referrer-policy")).toBe("no-referrer");
 
 		// Invalid id rejected
 		const bad = await fetchWorker(
@@ -1066,7 +1111,7 @@ describe("CORS proxy", () => {
 		return key;
 	}
 
-	it("keeps the admin dashboard read-only and restricted to ADMIN_EMAILS", async () => {
+	it("restricts the admin dashboard to ADMIN_EMAILS and hides internal rows", async () => {
 		const now = Math.floor(Date.now() / 1000);
 		// cloudflare:test hands out a proxy env, so override via a read-only proxy
 		// instead of mutating it.
@@ -2216,4 +2261,409 @@ describe("Community", () => {
 		const page = await fetchWorker(new Request(`http://example.com/post/${postId}`));
 		expect(page.status).toBe(404);
 	});
+	it("escapes JSON-LD so user titles cannot break out of the script element", async () => {
+		const payload = '</script><script>alert(document.domain)</script>';
+		const html = renderDocument({
+			lang: "en",
+			title: "test",
+			jsonLd: { "@context": "https://schema.org", "@type": "Thing", name: payload },
+		});
+		expect(html).not.toContain(payload);
+		expect(html).toContain("\\u003c/script\\u003e");
+		expect(html).toContain("\\u003cscript\\u003e");
+
+		const multiple = renderDocument({
+			lang: "en",
+			title: "test",
+			jsonLd: [{ name: payload }, { name: "safe" }],
+		});
+		expect((multiple.match(/application\/ld\+json/g) || []).length).toBe(2);
+		expect(multiple).not.toContain("</script><script>");
+	});
+
+	it("escapes a malicious gallery title in the rendered JSON-LD", async () => {
+		const ip = "198.51.100.10";
+		const email = `xss-${Date.now()}@test.com`;
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": ip,
+				},
+				body: JSON.stringify({ email, password: "Passw0rd123" }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const cookie = (register.headers.get("set-cookie") || "").split(";")[0];
+
+		const payload = '</script><script>alert(1)</script>';
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					Cookie: cookie,
+					"CF-Connecting-IP": ip,
+				},
+				body: JSON.stringify({ code: "<h1>x</h1>", title: payload }),
+			})
+		);
+		const { id } = await upload.json();
+		await fetchWorker(
+			new Request(`http://example.com/api/assets/${id}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com", Cookie: cookie },
+				body: JSON.stringify({ published: true }),
+			})
+		);
+
+		const detail = await fetchWorker(new Request(`http://example.com/gallery/${id}`));
+		expect(detail.status).toBe(200);
+		const html = await detail.text();
+		expect(html).not.toContain("</script><script>");
+		expect(html).toContain("\\u003c/script\\u003e");
+	});
+
+	it("completes the OAuth consent flow, enforces PKCE, and accepts the token on MCP", async () => {
+		const ip = "198.51.100.11";
+		const email = `oauth-${Date.now()}@test.com`;
+		const password = "Passw0rd123";
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": ip,
+				},
+				body: JSON.stringify({ email, password }),
+			})
+		);
+		expect(register.status).toBe(201);
+		const registerCookie = (register.headers.get("set-cookie") || "").split(";")[0];
+		const sessionToken = registerCookie.slice("osh_session=".length);
+
+		// A web session token is also a valid MCP bearer token.
+		const sessionRpc = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${sessionToken}`,
+					"Content-Type": "application/json",
+					Accept: "application/json, text/event-stream",
+				},
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "tools/call",
+					params: { name: "list_assets", arguments: {} },
+				}),
+			})
+		);
+		expect(sessionRpc.status).toBe(200);
+		expect((await sessionRpc.json()).result).toBeTruthy();
+
+		const verifier = "a".repeat(64);
+		const challenge = bytesToBase64Url(await sha256(verifier));
+		const redirectUri = "https://client.example/callback";
+		const authUrl = new URL("http://example.com/oauth/authorize");
+		authUrl.searchParams.set("response_type", "code");
+		authUrl.searchParams.set("client_id", "test-client");
+		authUrl.searchParams.set("redirect_uri", redirectUri);
+		authUrl.searchParams.set("code_challenge", challenge);
+		authUrl.searchParams.set("code_challenge_method", "S256");
+		authUrl.searchParams.set("state", "state-123");
+
+		// Non-HTTPS, non-loopback redirects and plain PKCE are rejected.
+		const badRedirect = new URL(authUrl);
+		badRedirect.searchParams.set("redirect_uri", "myapp://callback");
+		expect((await fetchWorker(new Request(badRedirect))).status).toBe(400);
+		const plainPkce = new URL(authUrl);
+		plainPkce.searchParams.set("code_challenge_method", "plain");
+		expect((await fetchWorker(new Request(plainPkce))).status).toBe(400);
+
+		const authorize = await fetchWorker(new Request(authUrl));
+		expect(authorize.status).toBe(302);
+		const loginLocation = new URL(authorize.headers.get("location"));
+		const authId = loginLocation.searchParams.get("auth_id");
+		expect(authId).toMatch(/^[a-f0-9]{16}$/);
+
+		// The consent page requires a signed-in user and shows what is being granted.
+		const anonConsent = await fetchWorker(
+			new Request(`http://example.com/oauth/consent?auth_id=${authId}`)
+		);
+		expect(anonConsent.status).toBe(302);
+		expect(anonConsent.headers.get("location")).toContain("/oauth/login?auth_id=");
+
+		const login = await fetchWorker(
+			new Request("http://example.com/oauth/login", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": ip,
+				},
+				body: new URLSearchParams({ auth_id: authId, email, password }).toString(),
+			})
+		);
+		expect(login.status).toBe(302);
+		expect(login.headers.get("location")).toBe(`/oauth/consent?auth_id=${authId}`);
+		const cookie = (login.headers.get("set-cookie") || "").split(";")[0];
+		expect(cookie).toContain("osh_session=");
+
+		const consent = await fetchWorker(
+			new Request(`http://example.com/oauth/consent?auth_id=${authId}`, {
+				headers: { Cookie: cookie },
+			})
+		);
+		expect(consent.status).toBe(200);
+		const consentHtml = await consent.text();
+		expect(consentHtml).toContain("test-client");
+		expect(consentHtml).toContain(redirectUri);
+		expect(consentHtml).toContain('value="allow"');
+
+		const denyOrigin = await fetchWorker(
+			new Request("http://example.com/oauth/consent", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					Origin: "https://evil.example",
+					Cookie: cookie,
+				},
+				body: new URLSearchParams({ auth_id: authId, decision: "allow" }).toString(),
+			})
+		);
+		expect(denyOrigin.status).toBe(403);
+
+		const allow = await fetchWorker(
+			new Request("http://example.com/oauth/consent", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					Origin: "http://example.com",
+					Cookie: cookie,
+				},
+				body: new URLSearchParams({ auth_id: authId, decision: "allow" }).toString(),
+			})
+		);
+		expect(allow.status).toBe(302);
+		const callback = new URL(allow.headers.get("location"));
+		expect(callback.origin).toBe("https://client.example");
+		expect(callback.searchParams.get("state")).toBe("state-123");
+		const code = callback.searchParams.get("code");
+		expect(code).toBeTruthy();
+
+		const tokenBody = new URLSearchParams({
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: redirectUri,
+			client_id: "test-client",
+			code_verifier: "b".repeat(64),
+		});
+		const badToken = await fetchWorker(
+			new Request("http://example.com/oauth/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: tokenBody.toString(),
+			})
+		);
+		expect(badToken.status).toBe(400);
+		expect((await badToken.json()).error).toBe("invalid_grant");
+
+		tokenBody.set("code_verifier", verifier);
+		const token = await fetchWorker(
+			new Request("http://example.com/oauth/token", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: tokenBody.toString(),
+			})
+		);
+		expect(token.status).toBe(200);
+		const accessToken = (await token.json()).access_token;
+		expect(accessToken).toBeTruthy();
+
+		const rpc = await fetchWorker(
+			new Request("http://example.com/mcp", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+					"Content-Type": "application/json",
+					Accept: "application/json, text/event-stream",
+				},
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 2,
+					method: "tools/call",
+					params: { name: "list_assets", arguments: {} },
+				}),
+			})
+		);
+		expect(rpc.status).toBe(200);
+		const rpcBody = await rpc.json();
+		expect(rpcBody.error).toBeUndefined();
+		expect(rpcBody.result).toBeTruthy();
+	});
+
+	it("rate-limits password attempts and upgrades legacy page password hashes", async () => {
+		const upload = await fetchWorker(
+			new Request("http://example.com/api/upload", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", Origin: "http://example.com" },
+				body: JSON.stringify({ code: "<h1>secret</h1>", password: "CorrectHorse1" }),
+			})
+		);
+		expect(upload.status).toBe(200);
+		const { id } = await upload.json();
+
+		const row = await env.DB.prepare("SELECT password_hash FROM files WHERE id = ?").bind(id).first();
+		expect(row.password_hash).toMatch(/^pbkdf2-sha256\$/);
+
+		const verify = (password, ip) =>
+			fetchWorker(
+				new Request(`http://example.com/api/verify-password/${id}`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						"CF-Connecting-IP": ip,
+					},
+					body: new URLSearchParams({ password }).toString(),
+				})
+			);
+
+		const correct = await verify("CorrectHorse1", "198.51.100.30");
+		expect(correct.status).toBe(302);
+		const cookie = correct.headers.get("set-cookie") || "";
+		expect(cookie).toContain(`osh_pwd_${id}=`);
+		expect(cookie).not.toContain(row.password_hash);
+
+		let last = null;
+		for (let i = 0; i < 11; i += 1) {
+			last = await verify("wrong-password", "198.51.100.31");
+		}
+		expect(last.status).toBe(429);
+
+		// Legacy unsalted SHA-256 rows still work once, then get upgraded.
+		const now = Math.floor(Date.now() / 1000);
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind("legacypwd01", "legacypwd01.html", null, now, "edt_legacy", now, await hashPassword("LegacyPass1"))
+			.run();
+		const legacy = await fetchWorker(
+			new Request("http://example.com/api/verify-password/legacypwd01", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					"CF-Connecting-IP": "198.51.100.32",
+				},
+				body: new URLSearchParams({ password: "LegacyPass1" }).toString(),
+			})
+		);
+		expect(legacy.status).toBe(302);
+		const upgraded = await env.DB.prepare(
+			"SELECT password_hash FROM files WHERE id = ?"
+		).bind("legacypwd01").first();
+		expect(upgraded.password_hash).toMatch(/^pbkdf2-sha256\$/);
+	});
+
+	it("lets admins review, hide and restore reported works", async () => {
+		const now = Math.floor(Date.now() / 1000);
+		const adminEnv = new Proxy(env, {
+			get(target, prop) {
+				if (prop === "ADMIN_EMAILS") return "mod@openanthropic.com";
+				return Reflect.get(target, prop);
+			},
+		});
+
+		const register = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": "198.51.100.40",
+				},
+				body: JSON.stringify({ email: "mod@openanthropic.com", password: "Passw0rd123" }),
+			}),
+			adminEnv
+		);
+		expect(register.status).toBe(201);
+		const adminCookie = (register.headers.get("set-cookie") || "").split(";")[0];
+
+		const outsiderRegister = await fetchWorker(
+			new Request("http://example.com/api/auth/register", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Origin: "http://example.com",
+					"CF-Connecting-IP": "198.51.100.41",
+				},
+				body: JSON.stringify({ email: "outsider@example.org", password: "Passw0rd123" }),
+			})
+		);
+		const outsiderCookie = (outsiderRegister.headers.get("set-cookie") || "").split(";")[0];
+
+		await env.DB.prepare(
+			"INSERT INTO files (id, filename, owner_id, created_at, edit_token, updated_at, published_at, report_count, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		)
+			.bind("reported0001", "reported0001.html", null, now, "edt_reported", now, now, 3, now)
+			.run();
+		for (const [index, reporter] of ["r1", "r2", "r3"].entries()) {
+			await env.DB.prepare(
+				"INSERT INTO reports (file_id, reason, details, reporter_hash, created_at) VALUES (?, ?, ?, ?, ?)"
+			)
+				.bind("reported0001", "other", "", reporter, now + index)
+				.run();
+		}
+
+		const admin = await fetchWorker(
+			new Request("http://example.com/admin", { headers: { Cookie: adminCookie } }),
+			adminEnv
+		);
+		expect(admin.status).toBe(200);
+		expect(await admin.text()).toContain("reported0001");
+
+		const action = (cookie, origin, value) =>
+			fetchWorker(
+				new Request("http://example.com/api/admin/reports", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						Origin: origin,
+						Cookie: cookie,
+					},
+					body: new URLSearchParams({ id: "reported0001", action: value }).toString(),
+				}),
+				adminEnv
+			);
+
+		const crossOrigin = await action(adminCookie, "https://evil.example", "restore");
+		expect(crossOrigin.status).toBe(403);
+
+		const outsider = await action(outsiderCookie, "http://example.com", "restore");
+		expect(outsider.status).toBe(404);
+
+		const restored = await action(adminCookie, "http://example.com", "restore");
+		expect(restored.status).toBe(303);
+		const afterRestore = await env.DB.prepare(
+			"SELECT report_count, reported_at FROM files WHERE id = ?"
+		).bind("reported0001").first();
+		expect(afterRestore.report_count).toBe(0);
+		expect(afterRestore.reported_at).toBeNull();
+		const reportsLeft = await env.DB.prepare(
+			"SELECT COUNT(*) AS n FROM reports WHERE file_id = ?"
+		).bind("reported0001").first();
+		expect(reportsLeft.n).toBe(0);
+
+		const hidden = await action(adminCookie, "http://example.com", "hide");
+		expect(hidden.status).toBe(303);
+		const afterHide = await env.DB.prepare(
+			"SELECT reported_at FROM files WHERE id = ?"
+		).bind("reported0001").first();
+		expect(afterHide.reported_at).toBeGreaterThan(0);
+	});
+
 });

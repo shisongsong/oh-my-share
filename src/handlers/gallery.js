@@ -583,17 +583,15 @@ export async function handleGalleryItem(request, env, id) {
   const canonical = `${url.origin}/gallery/${id}`;
   const escTitle = escapeHtml(title);
 
-  const detailJsonLd = `<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "CreativeWork",
-  "name": ${JSON.stringify(title)},
-  ${desc ? `"description": ${JSON.stringify(desc)},` : ''}
-  "url": ${JSON.stringify(canonical)},
-  "datePublished": ${JSON.stringify(date)},
-  "isAccessibleForFree": true
-}
-</script>`;
+  const detailJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CreativeWork',
+    name: title,
+    ...(desc ? { description: desc } : {}),
+    url: canonical,
+    ...(date ? { datePublished: date } : {}),
+    isAccessibleForFree: true,
+  };
 
   const html = renderDocument({
     lang,
